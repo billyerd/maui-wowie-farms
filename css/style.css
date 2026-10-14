@@ -609,3 +609,5 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn{display:none}
 .devwide{width:100%;white-space:normal}
 #devsheet .btn.gold{background:linear-gradient(#ffe08a,#e0a020);color:#2a1d00}
 @media (orientation:portrait){ #devdock{width:min(340px,calc(100vw - 16px))} }
+/* Phone camera mockups only (?mock=grid|iso). The play chrome stays off so the plots can fill the screen. */
+html.mock-cam #splash,html.mock-cam #ageGate,html.mock-cam #consentGate,html.mock-cam #playBtn,html.mock-cam #hud,html.mock-cam #toolbar,html.mock-cam #locTabs,html.mock-cam #goal,html.mock-cam #clock,html.mock-cam #seedBag,html.mock-cam #scoutBtn,html.mock-cam #upgBtn,html.mock-cam #orderBoard,html.mock-cam #modal,html.mock-cam #tutc,html.mock-cam #eventChip{display:none!important}
