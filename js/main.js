@@ -83,7 +83,7 @@
   G.on('questclaim',fx(()=>{ UI.toast('Goal reward claimed!','good'); const q=G.curQuest(); if(q) setTimeout(()=>UI.storyLine(q),400); }));
   G.on('worker',fx(({w,p})=>{ if(p) R.sendWorker(w,p); }));
   G.on('upkeepwarn',fx(l=>{ UI.toast(G.LOC_NAME[l]+': not enough cash for upkeep. Plants grow slower until you can pay','bad','upk'); }));
-  G.on('expand',fx(({kind,n})=>{ Sound.play('level'); buzz(15); UI.confetti(50); UI.toast(n.name+'!','good'); R.rebuild(); }));
+  G.on('expand',fx(({kind,n})=>{ Sound.play('level'); buzz(15); UI.confetti(50); UI.toast(n.name+'!','good'); R.rebuild(); if(kind==='garage'&&G.st.loc==='garage') R.fit(); }));
   G.on('land',()=>{ R.rebuild(); R.unlockPan&&R.unlockPan('farm'); UI.bigCel('land'); });
   G.on('ghbuilt',()=>{ R.rebuild(); R.unlockPan&&R.unlockPan('farm'); UI.bigCel('ghbuilt'); });
   G.on('permit',()=>{ UI.bigCel('permit'); });
@@ -143,12 +143,12 @@
   let pf={t:0,n:0,slow:0,step:0};
   function perf(dt){ if(!G.st.settings.autoQ||pf.step>=2) return; pf.t+=dt; pf.n++; if(pf.t<4) return; const fps=pf.n/pf.t; pf.t=0; pf.n=0;
     if(fps<40){ if(++pf.slow>=2){ pf.slow=0; pf.step++; if(pf.step===1) R.setDprCap(1.25); else { R.setDprCap(1); G.st.settings.hq=false; } R.resize(); console.info('[perf] quality step',pf.step,'fps',fps.toFixed(1)); } } else pf.slow=0; }
-  const sheetEl=document.getElementById('sheet'), modalEl=document.getElementById('modal'); let covN=0, covAcc=0;
+  const sheetEl=document.getElementById('sheet'), modalEl=document.getElementById('modal'); let covN=0, covAcc=0, hudFit=false;
   function loop(now){
     let dt=(now-last)/1000; last=now; if(dt>.25) dt=.25; if(window.__paused){ requestAnimationFrame(loop); return; }   // econ-sim: deterministic, sim drives time
     // while a full-screen sheet or modal covers the world, redraw the canvas at ~1/3 rate (the blurred backdrop is costly on big screens)
     const cov=sheetEl&&(!sheetEl.classList.contains('hidden')||!modalEl.classList.contains('hidden')); covAcc+=dt;
-    if(!paused){ G.tick(dt); if(!cov||(++covN%3===0)){ R.frame(Math.min(.25,covAcc)); covAcc=0; } else if(!cov) covAcc=0; UI.update(dt); saveT+=dt; lbT+=dt; perf(dt); musT+=dt; if(musT>1){ musT=0; const ph=G.dayPhase(); Sound.setScene(G.st.loc,ph<.22||ph>.78); }
+    if(!paused){ G.tick(dt); if(!cov||(++covN%3===0)){ R.frame(Math.min(.25,covAcc)); covAcc=0; } else if(!cov) covAcc=0; UI.update(dt); if(!hudFit){ hudFit=true; R.fit(); if(!cov) R.frame(0); } saveT+=dt; lbT+=dt; perf(dt); musT+=dt; if(musT>1){ musT=0; const ph=G.dayPhase(); Sound.setScene(G.st.loc,ph<.22||ph>.78); }
       if(saveT>5){ saveT=0; G.save(); }
       if(lbT>30){ lbT=0; const st=G.st, L=window.Leaderboard; if(L&&st.level>=G.GATE.leaderboard){ L.submit('season',st.runEarn); L.submit('lifetime',st.lifetime); L.submit('strains',Object.keys(st.discovered).length); L.submit('level',st.level); L.submit('phenos',st.stats.phenos||0); } } }
     requestAnimationFrame(loop);

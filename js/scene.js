@@ -155,13 +155,68 @@ window.R=(function(){
       const g=r('goal'), hud=r('hud'), t=r('locTabs'), tb=r('toolbar'); if(hud) top=hud.bottom+4; if(g&&port) top=Math.max(top,Math.min(g.bottom,g.top+50)+4);
       if(t) right=W-t.left+4; if(tb) bot=H-tb.top+4; const ob=r('orderBoard'); if(ob&&!port&&loc==='indoor') top=Math.max(top,ob.bottom+4); }catch(e){}
     return {top, bot, left:0, right}; }
-  function fit(){ const sc=SC[loc], f=H>W?sc.focusP:sc.focusL, I=insets();
+  function fit(){ if(loc==='garage'){ fitGarage(); return; } const sc=SC[loc], f=H>W?sc.focusP:sc.focusL, I=insets();
     // portrait: the slim location rail floats over the room's top-right wall, so the room may use ~92% of the full width
     if(H>W){ const lc=document.getElementById('upgBtn'), lr=lc&&lc.offsetHeight?lc.getBoundingClientRect().right+2:0; I.left=Math.max(W*.04,lr); I.right=W*.04; }
     else { const lc=document.getElementById('upgBtn'); if(lc&&lc.offsetHeight) I.left=Math.max(I.left,lc.getBoundingClientRect().right+6); }
     const aw=W-I.left-I.right, ah=H-I.top-I.bot;
     const z=Math.min(aw/(f[2]-f[0]), ah/(f[3]-f[1])); cam.z=z; cam.fitZ=z; cam.x=(f[0]+f[2])/2-(I.left+aw/2)/z; cam.y=(f[1]+f[3])/2-(I.top+ah/2)/z; clamp(); }
-  function clamp(){ const sc=SC[loc]; const zmin=Math.min(Math.min(W/sc.w,H/sc.h)*.9,cam.fitZ||1e9); cam.z=Math.max(zmin,Math.min(4,cam.z));
+  // Everything the player owns in the garage, plus the painted truck, in one world box.
+  // Empty future tables stay outside the frame so the room can scale up to the screen.
+  function garageMust(){
+    const slots=SC.garage.slots||[], cap=G.capOf?G.capOf('garage'):slots.length, use=slots.slice(0,Math.max(1,Math.min(slots.length,cap)));
+    let x0=820, y0=175, x1=1210, y1=470; // Kahuna K4, baked into the garage art
+    for(const s of use){ const ppm=s.ppm||100, soil=s.y-.32*ppm;
+      x0=Math.min(x0,s.x-.5*ppm); x1=Math.max(x1,s.x+.5*ppm);
+      y0=Math.min(y0,soil-1.32*ppm); y1=Math.max(y1,s.y+.16*ppm); }
+    if(use.length){ const s=use[use.length-1]; const toe=GP(s.u,s.v+.55); y1=Math.max(y1,toe.y); x0=Math.min(x0,toe.x-40); }
+    return {x0:Math.max(0,x0-14), y0:Math.max(0,y0-8), x1:Math.min(1280,x1+16), y1:Math.min(720,y1+10)};
+  }
+  function uiBox(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); return r.width>=12&&r.height>=12?r:null; }
+  function hudObstacles(){ const out=[]; for(const id of ['hud','toolbar','seedBag','scoutBtn','upgBtn','locTabs','clock','goal','orderBoard','eventChip']){ const r=uiBox(id); if(r) out.push({l:r.left-3,t:r.top-3,r:r.right+3,b:r.bottom+3}); } return out; }
+  function rectHits(a,obs){ return obs.some(o=>a.l<o.r&&a.r>o.l&&a.t<o.b&&a.b>o.t); }
+  // Largest uniform scale that keeps the must-see box on screen and clear of the HUD. Art outside the box is cropped.
+  function fitGarage(){
+    const M=garageMust(), mw=Math.max(1,M.x1-M.x0), mh=Math.max(1,M.y1-M.y0), obs=hudObstacles();
+    const zHi=Math.min(W/mw,H/mh), zLo=Math.min(zHi,.2);
+    const anchors=()=>{ const tb=uiBox('toolbar'), hud=uiBox('hud'), rail=uiBox('locTabs');
+      const sides=['seedBag','scoutBtn','upgBtn'].map(uiBox).filter(Boolean);
+      const top=(hud?hud.bottom:0)+8, bot=tb?tb.top-8:H-8;
+      const sideR=sides.length?Math.max(...sides.map(r=>r.right))+8:8, sideB=sides.length?Math.max(...sides.map(r=>r.bottom))+8:top;
+      const railL=rail?rail.left-8:W-8, railB=rail?rail.bottom+8:top;
+      const below=Math.max(sideB,railB);
+      return [
+        {l:8,t:top,r:W-8,b:bot},
+        {l:8,t:below,r:W-8,b:bot},
+        {l:sideR,t:top,r:railL,b:bot},
+        {l:sideR,t:below,r:railL,b:bot},
+      ].filter(a=>a.r-a.l>40&&a.b-a.t>40); };
+    function coverOf(sx,sy,z){ const vx=M.x0-sx/z, vy=M.y0-sy/z, vw=W/z, vh=H/z;
+      const iw=Math.max(0,Math.min(1280,vx+vw)-Math.max(0,vx)), ih=Math.max(0,Math.min(720,vy+vh)-Math.max(0,vy)); return iw*ih*z*z; }
+    function settle(z){ const cw=mw*z, ch=mh*z; let best=null;
+      const consider=(sx,sy)=>{ const rect={l:sx,t:sy,r:sx+cw,b:sy+ch};
+        if(sx<-1||sy<-1||sx+cw>W+1||sy+ch>H+1||rectHits(rect,obs)) return;
+        const cover=coverOf(sx,sy,z), mid=(0-(M.y0-sy/z))*z+360*z, bias=Math.abs(mid-H/2);
+        if(!best||cover>best.cover+1||(Math.abs(cover-best.cover)<=1&&bias<best.bias)) best={sx,sy,cover,bias}; };
+      for(const a of anchors()){ if(cw>a.r-a.l+1||ch>a.b-a.t+1) continue;
+        const xs=[a.l, a.l+(a.r-a.l-cw)/2, a.r-cw], ys=[a.t, a.t+(a.b-a.t-ch)/2, a.b-ch];
+        for(const sx0 of xs) for(const sy0 of ys){ let sx=sx0, sy=sy0;
+          for(let n=0;n<8;n++){ const rect={l:sx,t:sy,r:sx+cw,b:sy+ch}; let hit=null; for(const o of obs) if(rect.l<o.r&&rect.r>o.l&&rect.t<o.b&&rect.b>o.t){ hit=o; break; } if(!hit) break;
+            const pushes=[{d:rect.r-hit.l,x:-1,y:0},{d:hit.r-rect.l,x:1,y:0},{d:rect.b-hit.t,x:0,y:-1},{d:hit.b-rect.t,x:0,y:1}].sort((p,q)=>p.d-q.d);
+            let moved=false; for(const p of pushes){ const nx=sx+p.x*(p.d+1), ny=sy+p.y*(p.d+1); if(nx<a.l-1||ny<a.t-1||nx+cw>a.r+1||ny+ch>a.b+1) continue; sx=nx; sy=ny; moved=true; break; }
+            if(!moved) break; }
+          consider(sx,sy); } }
+      return best; }
+    let lo=zLo, hi=zHi, win=settle(zLo);
+    for(let i=0;i<14;i++){ const mid=(lo+hi)/2, got=settle(mid); if(got){ win=got; lo=mid; } else hi=mid; }
+    const z=lo; cam.z=z; cam.fitZ=z; cam.x=M.x0-(win?win.sx:8)/z; cam.y=M.y0-(win?win.sy:8)/z; cam.fitX=cam.x; cam.fitY=cam.y; clamp(); }
+  function clamp(){ const sc=SC[loc];
+    if(loc==='garage'&&cam.fitZ){ cam.z=Math.max(cam.fitZ,Math.min(4,cam.z));
+      if(cam.z<=cam.fitZ*1.02){ cam.z=cam.fitZ; cam.x=cam.fitX; cam.y=cam.fitY; return; }
+      const vw=W/cam.z, vh=H/cam.z, m=36;
+      cam.x=vw>=sc.w?cam.fitX:Math.max(-m,Math.min(sc.w+m-vw,cam.x));
+      cam.y=vh>=sc.h?cam.fitY:Math.max(-m,Math.min(sc.h+m-vh,cam.y)); return; }
+    const zmin=Math.min(Math.min(W/sc.w,H/sc.h)*.9,cam.fitZ||1e9); cam.z=Math.max(zmin,Math.min(4,cam.z));
     const vw=W/cam.z, vh=H/cam.z, m=120; cam.x=vw>sc.w+2*m?(sc.w-vw)/2:Math.max(-m,Math.min(sc.w+m-vw,cam.x)); cam.y=vh>sc.h+2*m?(sc.h-vh)/2:Math.max(-m-60,Math.min(sc.h+m-vh,cam.y)); }
   function pan(dx,dy){ cam.x-=dx/cam.z; cam.y-=dy/cam.z; clamp(); }
   function zoomAt(sx,sy,f){ const wx=sx/cam.z+cam.x, wy=sy/cam.z+cam.y; cam.z*=f; clamp(); cam.x=wx-sx/cam.z; cam.y=wy-sy/cam.z; clamp(); }
