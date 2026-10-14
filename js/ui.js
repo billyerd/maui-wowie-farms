@@ -649,22 +649,23 @@ window.UI = (function(){
       +`<div class="row"><div class="grow"><h4>Import save</h4><p>Paste a code or choose a file</p></div><button class="btn sm sec" data-a="import">Import</button></div>`
       +extra;
   }
+  function supportPlatform(){
+    try{
+      const nav=navigator||{};
+      const p=nav.userAgentData&&nav.userAgentData.platform;
+      if(p) return String(p);
+      if(nav.platform) return String(nav.platform);
+    }catch(e){}
+    return 'unknown';
+  }
   function supportMailto(){
     const cfg=window.GAME_CONFIG||{};
     const email=String(cfg.SUPPORT_EMAIL||'[SUPPORT EMAIL]');
     const id=G.supportId?G.supportId():'';
-    const nav=navigator||{};
-    const scr=window.screen||{};
     const lines=[
-      'Game: '+(cfg.title||'Maui Wowie Farms'),
-      'Version: '+(cfg.version||''),
-      'Player ID: '+id,
-      'Device: '+(nav.platform||'unknown')+' · screen '+(scr.width||0)+'×'+(scr.height||0)+' · view '+(window.innerWidth||0)+'×'+(window.innerHeight||0)+' · dpr '+(window.devicePixelRatio||1),
-      'Browser: '+(nav.userAgent||'unknown'),
-      'Language: '+(nav.language||''),
-      '',
-      'What happened:',
-      ''
+      'Game version: '+(cfg.version||''),
+      'OS / platform: '+supportPlatform(),
+      'Anonymous player ID: '+id
     ];
     return 'mailto:'+encodeURI(email)+'?subject='+encodeURIComponent((cfg.title||'Maui Wowie Farms')+' support')+'&body='+encodeURIComponent(lines.join('\n'));
   }
@@ -673,7 +674,7 @@ window.UI = (function(){
     const head=`<div class="section-t">Help & Support</div><div class="row"><div class="grow"><h4>Help & Support</h4><p>Contact, backups, purchases, and the tutorial</p></div><button class="btn sm ${helpUi?'':'sec'}" data-a="help">${helpUi?'Close':'Open'}</button></div>`;
     if(!helpUi) return head;
     return head
-      +`<div class="row"><div class="grow"><h4>Contact Support</h4><p>Opens an email with the game version, this device, and support id ${esc(id)}. No name and no farm data.</p></div><a class="btn sm" href="${esc(supportMailto())}">Contact Support</a></div>`
+      +`<div class="row"><div class="grow"><h4>Contact Support</h4><p>Opens an email with the game version, OS / platform, and anonymous player ID ${esc(id)}.</p></div><a class="btn sm" href="${esc(supportMailto())}">Contact Support</a></div>`
       +`<div class="note"><b>Saves and backup.</b> In Settings, Export copies a backup code or downloads a file. Import asks before it replaces the farm on this device. Store purchases stay on this device.</div>`
       +`<div class="note"><b>Purchases.</b> Test mode grants the item on this device and does not charge a card. Restore purchases reapplies perks and themes already bought here.</div>`
       +`<div class="note"><b>Tutorial.</b> Tutorial, at the top of Settings, replays Unko Kuli's walkthrough on this farm at any time. It does not erase the farm. Skip it whenever you want.</div>`;
