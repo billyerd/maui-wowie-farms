@@ -4,7 +4,7 @@ window.UI = (function(){
   const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
   const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const T=()=>window.GAME_CONFIG.title;
-  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null, saveUi=null, importDraft='', exportPack=null;
+  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null, saveUi=null, importDraft='', exportPack=null, helpUi=false;
   const labA={v:null}, labB={v:null}, huntSel={v:null};
   const fmt=n=>G.fmt(n), sec=s=>G.dur(s);
   const tag=s=>`<span class="tag t-${s.rarity}">${s.rarity}</span>${s.island?'<span class="tag" style="background:#0f8f8a;color:#eafffd">Island</span>':''}${s.hemp?'<span class="tag" style="background:#6a8a3a;color:#f2ffe0">CBD</span>':''}${G.EVENT_ONLY[s.id]==='premium'?'<span class="tag" style="background:#ffd35a;color:#3a2500">Exclusive</span>':G.EVENT_ONLY[s.id]?'<span class="tag" style="background:#c05ad0;color:#fff">Festival</span>':''}`;
@@ -649,6 +649,35 @@ window.UI = (function(){
       +`<div class="row"><div class="grow"><h4>Import save</h4><p>Paste a code or choose a file</p></div><button class="btn sm sec" data-a="import">Import</button></div>`
       +extra;
   }
+  function supportMailto(){
+    const cfg=window.GAME_CONFIG||{};
+    const email=String(cfg.SUPPORT_EMAIL||'[SUPPORT EMAIL]');
+    const id=G.supportId?G.supportId():'';
+    const nav=navigator||{};
+    const scr=window.screen||{};
+    const lines=[
+      'Game: '+(cfg.title||'Maui Wowie Farms'),
+      'Version: '+(cfg.version||''),
+      'Player ID: '+id,
+      'Device: '+(nav.platform||'unknown')+' · screen '+(scr.width||0)+'×'+(scr.height||0)+' · view '+(window.innerWidth||0)+'×'+(window.innerHeight||0)+' · dpr '+(window.devicePixelRatio||1),
+      'Browser: '+(nav.userAgent||'unknown'),
+      'Language: '+(nav.language||''),
+      '',
+      'What happened:',
+      ''
+    ];
+    return 'mailto:'+encodeURI(email)+'?subject='+encodeURIComponent((cfg.title||'Maui Wowie Farms')+' support')+'&body='+encodeURIComponent(lines.join('\n'));
+  }
+  function helpBlock(){
+    const id=G.supportId?G.supportId():'';
+    const head=`<div class="section-t">Help & Support</div><div class="row"><div class="grow"><h4>Help & Support</h4><p>Contact, backups, purchases, and the tutorial</p></div><button class="btn sm ${helpUi?'':'sec'}" data-a="help">${helpUi?'Close':'Open'}</button></div>`;
+    if(!helpUi) return head;
+    return head
+      +`<div class="row"><div class="grow"><h4>Contact Support</h4><p>Opens an email with the game version, this device, and support id ${esc(id)}. No name and no farm data.</p></div><a class="btn sm" href="${esc(supportMailto())}">Contact Support</a></div>`
+      +`<div class="note"><b>Saves and backup.</b> In Settings, Export copies a backup code or downloads a file. Import asks before it replaces the farm on this device. Store purchases stay on this device.</div>`
+      +`<div class="note"><b>Purchases.</b> Test mode grants the item on this device and does not charge a card. Restore purchases reapplies perks and themes already bought here.</div>`
+      +`<div class="note"><b>Tutorial.</b> Tutorial, at the top of Settings, replays Unko Kuli's walkthrough on this farm at any time. It does not erase the farm. Skip it whenever you want.</div>`;
+  }
   PANELS.settings=()=>{
     const st=G.st;
     const tg=(k,l,on)=>`<div class="row"><div class="grow"><h4>${l}</h4></div><button class="btn sm ${on?'':'sec'}" data-a="set" data-k="${k}">${on?'On':'Off'}</button></div>`;
@@ -662,6 +691,7 @@ window.UI = (function(){
       +`<div class="row"><div class="grow"><h4>Restore purchases</h4><p>Re-apply perks and themes bought on this account</p></div><button class="btn sm sec" data-a="restore">Restore</button></div>`
       +`<div class="section-t">Privacy and ads</div><div class="row"><div class="grow"><h4>Privacy policy</h4><p>Saves, ads, payments, and analytics</p></div><a class="btn sm sec" href="privacy.html" target="_blank" rel="noopener">Open</a></div>`
       +`<div class="row"><div class="grow"><h4>Ad preference</h4><p>${window.Ads.consent()==='personalized'?'Personalized ads are allowed.':window.Ads.consent()==='contextual'?'Only non-personalized ads.':'Choose one before ads can play.'}</p></div><div class="buy2"><button class="btn sm ${window.Ads.consent()==='personalized'?'':'sec'}" data-a="adconsent" data-v="personalized">Personalized</button><button class="btn sm ${window.Ads.consent()==='contextual'?'':'sec'}" data-a="adconsent" data-v="contextual">Non-personalized</button></div></div>`
+      +helpBlock()
       +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 18+. It depicts legal, licensed cultivation as a business. Nothing in it can be bought or delivered in real life. Progress saves on this device, stays when the game updates, and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain notes are original game text. Art is painted for the game.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
       +saveBlock()
       +`<div class="row"><div class="grow"><h4>Reset farm</h4><p>Erase this device's save (store purchases stay)</p></div><button class="btn sm sec" data-a="reset">Reset</button></div>`;
@@ -725,6 +755,7 @@ window.UI = (function(){
       case 'achclaim': if(G.claimAch(d.id)) Sound.play('gem'); break;
       case 'achall': { let n=0; G.ACH.forEach(x=>{ if(G.claimAch(x.id)) n++; }); if(n){ Sound.play('gem'); toast(n+' achievements claimed!','gemt'); } break; }
       case 'tutorial': close(); if(window.Tutorial) Tutorial.replay(); break;
+      case 'help': helpUi=!helpUi; break;
       case 'reset': { const ok=await modal('<h3>Reset your farm?</h3><p>This erases your farm on this device. Store purchases are kept.</p>',[{label:'Cancel',cls:'sec',v:false},{label:'Reset',cls:'pink',v:true}]); if(ok){ G.resetAll(); R.rebuild(); close(); if(window.Tutorial) Tutorial.onPlay(true); } break; }
       case 'export': exportPack=G.exportBackup(); saveUi='export'; break;
       case 'import': saveUi='import'; break;

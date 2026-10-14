@@ -156,6 +156,15 @@ window.G = (function(){
     mk('garage','g',25,0); mk('field','f',40,100); mk('gh','h',36,200); mk('in','i',32,300);
     return P;
   }
+  // Anonymous support id. Random, stored on the save, never derived from a name or the farm.
+  function mintPlayerId(){
+    const bytes=new Uint8Array(6); let ok=false;
+    try{ if(typeof crypto!=='undefined'&&crypto.getRandomValues){ crypto.getRandomValues(bytes); ok=true; } }catch(e){}
+    if(!ok){ for(let i=0;i<bytes.length;i++) bytes[i]=Math.floor(Math.random()*256); }
+    let hex=''; for(let i=0;i<bytes.length;i++) hex+=bytes[i].toString(16).padStart(2,'0');
+    return 'p-'+hex;
+  }
+  function playerIdOk(id){ return typeof id==='string'&&/^p-[0-9a-f]{12}$/.test(id); }
   function newState(keep){
     const s={
       v:2, econ:2, cash:ECON.startCash, gems:20, xp:0, level:1, lifetime:0, runEarn:0, rebirths:0, mana:0, manaSpent:{},
@@ -172,7 +181,15 @@ window.G = (function(){
     };
     S.forEach(x=>{ if(x.tier===0) s.discovered[x.id]=true; s.market.f[x.id]=.85+Math.random()*.3; s.market.hist[x.id]=[]; });
     if(keep) Object.assign(s,keep);
+    if(!playerIdOk(s.pid)) s.pid=mintPlayerId();
     return s;
+  }
+  function supportId(){
+    if(!st) return '';
+    const prev=st.pid;
+    if(!playerIdOk(prev)) st.pid=mintPlayerId();
+    if(st.pid!==prev&&!st._holdSave) save();
+    return st.pid;
   }
   // ---------- helpers ----------
   const strain=id=>BY[id];
@@ -782,7 +799,7 @@ window.G = (function(){
     const gain=manaGain();
     const keep={streak:st.streak,dq:st.dq,wq:st.wq,ach:st.ach,gems:st.gems,xp:st.xp,level:st.level,lifetime:st.lifetime,rebirths:st.rebirths+1,discovered:st.discovered,clones:st.clones,
       pass2x:st.pass2x,vip:st.vip,cos:st.cos,mgrSlot:st.mgrSlot,pass:st.pass,sq:st.sq,vault:st.vault,cert:st.cert,lines:st.lines,boosts:st.boosts,piggy:st.piggy,theme:st.theme,themes:st.themes,rarePacks:st.rarePacks,legPacks:st.legPacks,quest:st.quest,questDone:st.questDone,stats:st.stats,settings:st.settings,time:st.time,
-      mana:st.mana+gain,manaSpent:st.manaSpent,harv:st.harv,sets:st.sets,rep:st.rep,hints:st.hints+mana('pheno'),hintRev:st.hintRev,tried:st.tried,fails:st.fails,recipes:st.recipes,playT:st.playT,fest:st.fest};
+      mana:st.mana+gain,manaSpent:st.manaSpent,harv:st.harv,sets:st.sets,rep:st.rep,hints:st.hints+mana('pheno'),hintRev:st.hintRev,tried:st.tried,fails:st.fails,recipes:st.recipes,playT:st.playT,fest:st.fest,pid:st.pid};
     st=newState(keep); st.market.f=Object.fromEntries(S.map(s=>[s.id,1])); S.forEach(s=>st.market.hist[s.id]=[]);
     st.cash+=2000*mana('roots'); st.garage=Math.min(GARAGE.length-1,mana('roots')); syncPlots();
     done('season'); emit('rebirth',{n:st.rebirths,gain}); save(); return true;
@@ -1060,6 +1077,7 @@ window.G = (function(){
     if(typeof st.cash!=='number'||!isFinite(st.cash)) st.cash=0;
     if(typeof st.gems!=='number'||!isFinite(st.gems)) st.gems=0;
     if(typeof st.level!=='number'||!isFinite(st.level)||st.level<1) st.level=1;
+    if(!playerIdOk(st.pid)) st.pid=mintPlayerId();
     st.v=2;
     migrateStrainIds(st);
     S.forEach(s=>{ if(st.market.f[s.id]==null) st.market.f[s.id]=1; if(!st.market.hist[s.id]) st.market.hist[s.id]=[]; });
@@ -1149,6 +1167,7 @@ window.G = (function(){
         for(let d=d0+1; d<=d1 && d<=d0+400; d++){ if(d%7===6) mk++; if(sz(d)!==sz(d-1)) seen.push(SEASONS[sz(d)].name); }
         off.days=d1-d0; off.markets=mk; off.seasons=seen; off.season=SEASONS[season()].name; off.pests=st.plots.filter(p=>p.owned&&p.pest).length; off.thirsty=st.plots.filter(p=>p.owned&&p.strain&&p.prog<1&&p.water<=0).length;
         off.huntDone=!!(st.hunt&&st.hunt.phenos); off.dryN=(st.dryer||[]).filter(b=>b&&b.t>=b.dur).length; } } }catch(e){ off=null; } }
+    if(raw&&!playerIdOk(raw.pid)&&!st._holdSave) save();
     return {fresh:!raw,off,migrated:false,corrupt:false,kept:schemaKept};
   }
   function applyEntitlements(){
@@ -1296,7 +1315,7 @@ window.G = (function(){
     recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
-    tick, simulate, save, load, exportBackup, parseBackup, installBackup, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
+    tick, simulate, save, load, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
     devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll, devGrantCash, devGrantGems,
   };
 })();
