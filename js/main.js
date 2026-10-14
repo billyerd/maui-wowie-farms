@@ -188,7 +188,8 @@
   pb.onclick=async()=>{
     Sound.resume(); document.getElementById('splash').classList.add('gone'); setTimeout(()=>document.getElementById('splash').remove(),600);
     const ret=await Payments.handleReturn(); if(ret&&!ret.ok) UI.toast('Purchase not completed: '+ret.error,'bad');
-    if(boot.fresh) UI.modal(`<div class="dlg">${portraitImg('Unko Kuli','dport')}<div><b>Unko Kuli</b><p>Hello, and welcome to <b>${window.GAME_CONFIG.title}</b>. This was your Grandpa's garage. Now it's yours. Follow my hand 👆</p></div></div>`,[{label:'Let\'s grow',cls:'gold'}]).then(()=>UI.storyLine(G.curQuest()));
+    if(window.Tutorial) Tutorial.onPlay(!!boot.fresh);
+    else if(boot.fresh) UI.modal(`<div class="dlg">${portraitImg('Unko Kuli','dport')}<div><b>Unko Kuli</b><p>Hello, and welcome to <b>${window.GAME_CONFIG.title}</b>. This was your Grandpa's garage. Now it's yours. Follow my hand 👆</p></div></div>`,[{label:'Let\'s grow',cls:'gold'}]).then(()=>UI.storyLine(G.curQuest()));
     if(G.st.econMigrated){ delete G.st.econMigrated; UI.modal(`<h3>Real-world prices</h3><p>Prices now follow real Hawaii costs: one bud is an eighth (3.5 g), gear and land cost what they do on Kauai, and time runs on the real clock (1 real hour = 1 game day). You kept everything you built; your cash was converted to the new prices.</p>`,[{label:'Got it!',cls:'gold'}]); }
     if(boot.corrupt) UI.modal(`<h3>Save needs a backup</h3><p>The farm stored on this device could not be read, so it was left in place. Open Settings to export it, or import a backup you already have.</p>`,[{label:'Got it!',cls:'gold'}]);
     if(boot.kept) UI.modal(`<h3>Farm kept</h3><p>This update kept the save already on this device, including your plants, cash, and crew.</p>`,[{label:'Got it!',cls:'gold'}]);

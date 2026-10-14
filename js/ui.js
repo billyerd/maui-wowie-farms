@@ -133,8 +133,9 @@ window.UI = (function(){
       const h=`${who?portraitImg(who,'gport'):'<span class="gport" style="display:grid;place-items:center;background:#24402c;border-radius:50%">🎯</span>'}<i class="gdot"></i><div class="gtx"><div class="gt">${st.questDone?'Goal complete! Tap to claim':(who?esc(who)+' · ':'')+'Goal '+(st.quest+1)+'/'+G.QUESTS.length}</div>${esc(q.t)} <span class="gr">${r}</span></div>`;
       if(g._h!==h){ const first=g._h==null; g._h=h; g.innerHTML=h; if(!first) goalPeek(4500); } g.classList.toggle('done',st.questDone); }
     else if(g._h!==''){ g._h=''; g.innerHTML=''; }
-    // tutorial: glow the button the current goal needs
-    const gq=q&&!st.questDone&&st.quest<7?{plant:'#seedBag',dry:'[data-panel=process]',sell:'[data-panel=market]',gcap:'[data-panel=upgrades]',feed:null}[q.id]:null;
+    // story glow. The tutorial card points on its own, so the two hands don't fight.
+    const tutOn=window.Tutorial&&Tutorial.active&&Tutorial.active();
+    const gq=!tutOn&&q&&!st.questDone&&st.quest<7?{plant:'#seedBag',dry:'[data-panel=process]',sell:'[data-panel=market]',gcap:'[data-panel=upgrades]',feed:null}[q.id]:null;
     $$('.guide').forEach(e=>{ if(!gq||!e.matches(gq)) e.classList.remove('guide'); }); if(gq){ const e=$(gq); if(e) e.classList.add('guide'); }
     // water/feed all gating
     const wa=$('#waterAll'), fa=$('#feedAll'); wa.classList.toggle('locked',G.lv('water')<1); if(fa) fa.classList.remove('locked');
@@ -658,6 +659,7 @@ window.UI = (function(){
       +`<div class="row"><div class="grow"><h4>Ad preference</h4><p>${window.Ads.consent()==='personalized'?'Personalized ads are allowed.':window.Ads.consent()==='contextual'?'Only non-personalized ads.':'Choose one before ads can play.'}</p></div><div class="buy2"><button class="btn sm ${window.Ads.consent()==='personalized'?'':'sec'}" data-a="adconsent" data-v="personalized">Personalized</button><button class="btn sm ${window.Ads.consent()==='contextual'?'':'sec'}" data-a="adconsent" data-v="contextual">Non-personalized</button></div></div>`
       +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 18+. It depicts legal, licensed cultivation as a business. Nothing in it can be bought or delivered in real life. Progress saves on this device, stays when the game updates, and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain notes are original game text. Art is painted for the game.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
       +saveBlock()
+      +`<div class="row"><div class="grow"><h4>Tutorial</h4><p>Unko Kuli walks through the first grow. You can skip it any time.</p></div><button class="btn sm sec" data-a="tutorial">Play</button></div>`
       +`<div class="row"><div class="grow"><h4>Reset farm</h4><p>Erase this device's save (store purchases stay)</p></div><button class="btn sm sec" data-a="reset">Reset</button></div>`;
     return {title:'Settings',sub:'',body};
   };
@@ -718,7 +720,8 @@ window.UI = (function(){
       case 'qclaim': if(G.claimQ(d.w,+d.i)){ Sound.play('coin'); } break;
       case 'achclaim': if(G.claimAch(d.id)) Sound.play('gem'); break;
       case 'achall': { let n=0; G.ACH.forEach(x=>{ if(G.claimAch(x.id)) n++; }); if(n){ Sound.play('gem'); toast(n+' achievements claimed!','gemt'); } break; }
-      case 'reset': { const ok=await modal('<h3>Reset your farm?</h3><p>This erases your farm on this device. Store purchases are kept.</p>',[{label:'Cancel',cls:'sec',v:false},{label:'Reset',cls:'pink',v:true}]); if(ok){ G.resetAll(); R.rebuild(); close(); } break; }
+      case 'tutorial': close(); if(window.Tutorial) Tutorial.replay(); break;
+      case 'reset': { const ok=await modal('<h3>Reset your farm?</h3><p>This erases your farm on this device. Store purchases are kept.</p>',[{label:'Cancel',cls:'sec',v:false},{label:'Reset',cls:'pink',v:true}]); if(ok){ G.resetAll(); R.rebuild(); close(); if(window.Tutorial) Tutorial.onPlay(true); } break; }
       case 'export': exportPack=G.exportBackup(); saveUi='export'; break;
       case 'import': saveUi='import'; break;
       case 'saveclose': saveUi=null; break;
@@ -741,7 +744,7 @@ window.UI = (function(){
     modal(`<h3>Seed pack opened!</h3><div class="grid" style="margin-top:10px">${list.map(s=>`<div class="card"><img src="${R.closeup(s,96)}" style="width:100%;border-radius:12px"><div class="nm">${esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span></div>`).join('')}</div>`,[{label:'Thanks!',cls:'gold'}]); }
   // story dialogue (Unko Kuli teaches the trade) - shown when a new goal starts
   const QUICK={plant:'Tap the seed bag, then a bucket',water:'Tap your plant to water it',harvest:'Ripe! Tap to harvest',dry:'Open Dry & Cure to dry your buds',sell:'Open Market to sell'};
-  function storyLine(q){ if(!q||!G.F.storyGoals) return; if(QUICK[q.id]&&G.st.quest<=4){ toast('👆 '+QUICK[q.id],'good'); return; } const who=q.who||'Unko Kuli'; const c=window.CHARACTERS[who];
+  function storyLine(q){ if(!q||!G.F.storyGoals) return; if(window.Tutorial&&Tutorial.active&&Tutorial.active()) return; if(QUICK[q.id]&&G.st.quest<=4){ toast('👆 '+QUICK[q.id],'good'); return; } const who=q.who||'Unko Kuli'; const c=window.CHARACTERS[who];
     modal(`<div class="dlg">${portraitImg(who,'dport')}<div><b>${esc(who)}</b><p>${esc((window.STORY_SAY&&window.STORY_SAY[q.id])||q.t)}</p></div></div>`,[{label:'Got it!',cls:'gold'}]); }
   // ---------- wiring ----------
   function init(){

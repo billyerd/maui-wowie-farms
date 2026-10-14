@@ -53,7 +53,9 @@ window.GainLane=(function(){ let lane=null; const items=[];
 window.FirstGuide=(function(){ let hand=null;
   function tick(){ try{ const st=G.st, q=G.curQuest&&G.curQuest(); let el=null;
     const busy=!document.getElementById('modal').classList.contains('hidden')||!document.getElementById('celebrate').classList.contains('hidden')||document.getElementById('splash');
-    if(q&&st.quest<=4&&!busy){
+    const tut=window.Tutorial&&Tutorial.active&&Tutorial.active();
+    if(tut&&!busy){ el=Tutorial.targetEl?Tutorial.targetEl():null; }
+    else if(q&&st.quest<=4&&!busy){
       const open=document.body.classList.contains('sheet-open');
       if(st.questDone) el=document.getElementById('goal');
       else if(q.id==='plant'&&!st.selSeed) el=document.getElementById('seedBag');

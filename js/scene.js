@@ -953,9 +953,12 @@ window.R=(function(){
     if(loc==='indoor'){ refFig(255,520,inppm(520),'bench ~0.8 m'); refFig(870,420,inppm(420),'back'); }
   }
   // first-minutes guide: a bouncing finger on the exact plant the current tutorial goal needs
-  function guide(now){ const q=G.curQuest&&G.curQuest(), st=G.st; if(!q||st.questDone||st.quest>4||loc!=='garage') return; let p=null;
-    const mine=st.plots.filter(x=>x.loc===loc&&x.owned);
-    if(q.id==='plant') p=mine.find(x=>!x.strain); else if(q.id==='water') p=mine.find(x=>x.strain&&G.isThirsty(x))||mine.find(x=>x.strain&&x.prog<1); else if(q.id==='harvest') p=mine.find(x=>x.strain&&x.prog>=1);
+  function guide(now){ const st=G.st; if(!st) return; let p=null;
+    const tut=window.Tutorial&&Tutorial.active&&Tutorial.active();
+    if(tut&&Tutorial.plot){ const id=Tutorial.plot(); if(id) p=st.plots.find(x=>x.id===id&&x.loc===loc); }
+    else { const q=G.curQuest&&G.curQuest(); if(!q||st.questDone||st.quest>4||loc!=='garage') return;
+      const mine=st.plots.filter(x=>x.loc===loc&&x.owned);
+      if(q.id==='plant') p=mine.find(x=>!x.strain); else if(q.id==='water') p=mine.find(x=>x.strain&&G.isThirsty(x))||mine.find(x=>x.strain&&x.prog<1); else if(q.id==='harvest') p=mine.find(x=>x.strain&&x.prog>=1); }
     if(!p) return; const sl=slotOf.get(p.id); if(!sl) return; const s=toS(sl.x,sl.y); const mv=st.settings.motion!==false, b=mv?Math.abs(Math.sin(now*4))*10:4;
     ctx.save(); ctx.strokeStyle='rgba(255,226,110,'+(mv?.5+.4*Math.sin(now*4):.8)+')'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(s.x,s.y-4,26+(mv?Math.sin(now*4)*4:0),11,0,0,TAU); ctx.stroke();
     ctx.font='34px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=6; ctx.fillText('👆',s.x+6,s.y+8+b); ctx.restore(); }

@@ -164,7 +164,7 @@ window.G = (function(){
       plots:freshPlots(), seeds:{'northern-lights':4}, selSeed:'northern-lights',
       inv:{wet:{},dry:{},cured:{}}, dryer:[], upg:{}, workers:{}, discovered:{}, clones:{},
       market:{f:{},hist:{},hot:null,hotT:-150,next:0}, weather:{type:'sunny',t:0,dur:90,rainbow:0},
-      time:DAY_LEN*.3, t0:Date.now()-DAY_LEN*.3*1000, tv:2, phenoRoom:false, breedLab:false, hunt:null, keepers:{}, cuts:[], cutSeeds:{}, quest:0, questDone:false, stats:{harvests:0,sold:0,bred:0,inHarv:0,plant:0,water:0,feed:0,dryLoads:0,cured:0,golden:0,mutants:0,lucky:0,legHarv:0,streakMax:0,orders:0,customers:0,phenos:0},
+      time:DAY_LEN*.3, t0:Date.now()-DAY_LEN*.3*1000, tv:2, phenoRoom:false, breedLab:false, hunt:null, keepers:{}, cuts:[], cutSeeds:{}, quest:0, questDone:false, tut:{v:1,step:0,on:false,done:false,skip:false,bought:0}, stats:{harvests:0,sold:0,bred:0,inHarv:0,plant:0,water:0,feed:0,dryLoads:0,cured:0,golden:0,mutants:0,lucky:0,legHarv:0,streakMax:0,orders:0,customers:0,phenos:0},
       streak:{n:0,last:null}, dq:null, wq:null, ach:{}, event:{id:null,t:0,next:240},
       pass2x:false, vip:false, cos:{own:{},eq:{}}, mgrSlot:false, boosts:{grow:0,price:0,pheno:0}, lines:{}, piggy:{g:0,cracked:0}, theme:'classic', themes:{classic:true}, rarePacks:0, legPacks:0,
       breed:null, lastSave:Date.now(), settings:{music:true,sfx:true,hq:true}, upkeepPaid:0, upkeepWarn:{},
@@ -389,7 +389,7 @@ window.G = (function(){
   function buildIndoor(){ if(st.inBuilt) return false; const ck=indoorChecklist(); if(!ck.slice(0,5).every(c=>c.ok)){ emit('toast',{t:'Finish the indoor checklist first',k:'bad'}); return false; } if(!spend(INDOOR.build)) return false;
     st.inBuilt=true; syncPlots(); done('indoor'); emit('indoor'); return true; }
   function seedPrice(s){ return Math.max(1,Math.round(s.game.seedCost*(1-.15*mana('vault'))*(lv('clone')?.6:1)*100)/100); }
-  function buySeeds(id,n){ const s=strain(id); if(!st.discovered[id]) return false; if(!spend(seedPrice(s)*n)) return false; st.seeds[id]=(st.seeds[id]||0)+n; if(!(st.seeds[st.selSeed]>0)) st.selSeed=id; emit('seeds',{id,n}); return true; }
+  function buySeeds(id,n){ const s=strain(id); if(!st.discovered[id]) return false; if(!spend(seedPrice(s)*n)) return false; st.seeds[id]=(st.seeds[id]||0)+n; if(!(st.seeds[st.selSeed]>0)) st.selSeed=id; if(st.tut&&typeof st.tut==='object') st.tut.bought=(st.tut.bought|0)+n; emit('seeds',{id,n}); return true; }
   function plant(p,id){
     id=id||st.selSeed; if(!p.owned||p.strain||!id) return false;
     if(!(st.seeds[id]>0)){ emit('noseed',id); return false; }
@@ -1129,6 +1129,9 @@ window.G = (function(){
       if(st.upg&&st.upg.sign==null&&st.upg.stand){ st.upg.sign=st.upg.stand; st.upg.stand=Math.min(3,st.upg.stand); }
       // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)
       if(raw&&!raw.econ){ st.econ=2; st.cash=Math.min((raw.cash||0)*2,50000+Math.pow(st.level,2)*2500); st.econMigrated=true; }
+      // Saves from before the tutorial stay in normal play. A brand-new game keeps the offer.
+      if(raw && (!raw.tut || typeof raw.tut!=='object' || Array.isArray(raw.tut))) st.tut={v:1,step:0,on:false,done:true,skip:true,bought:0};
+      else if(st.tut&&typeof st.tut==='object'){ st.tut.bought=st.tut.bought|0; st.tut.step=st.tut.step|0; if(st.tut.done||st.tut.skip) st.tut.on=false; }
       syncTime();
       const fp=freshPlots(); fp.forEach(q=>{ if(!st.plots.find(p=>p.id===q.id)) st.plots.push(q); });
       syncPlots(); migrateFeeds(st); applyEntitlements(); refreshUnlocks(); ensureQuests();
