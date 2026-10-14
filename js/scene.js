@@ -175,7 +175,8 @@ window.R=(function(){
   function uiBox(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); return r.width>=12&&r.height>=12?r:null; }
   function hudObstacles(){ const out=[]; for(const id of ['hud','toolbar','seedBag','scoutBtn','upgBtn','locTabs','clock','goal','orderBoard','eventChip']){ const r=uiBox(id); if(r) out.push({l:r.left-3,t:r.top-3,r:r.right+3,b:r.bottom+3}); } return out; }
   function rectHits(a,obs){ return obs.some(o=>a.l<o.r&&a.r>o.l&&a.t<o.b&&a.b>o.t); }
-  // Largest uniform scale that keeps the must-see box on screen and clear of the HUD. Art outside the box is cropped.
+    // Largest uniform scale that keeps the must-see box on screen and clear of the HUD.
+    // Wide screens then stop at the scale that shows the whole 1280×720 painting, letterboxed on the existing backdrop.
   function fitGarage(){
     const M=garageMust(), mw=Math.max(1,M.x1-M.x0), mh=Math.max(1,M.y1-M.y0), obs=hudObstacles();
     const zHi=Math.min(W/mw,H/mh), zLo=Math.min(zHi,.2);
@@ -209,7 +210,12 @@ window.R=(function(){
       return best; }
     let lo=zLo, hi=zHi, win=settle(zLo);
     for(let i=0;i<14;i++){ const mid=(lo+hi)/2, got=settle(mid); if(got){ win=got; lo=mid; } else hi=mid; }
-    const z=lo; cam.z=z; cam.fitZ=z; cam.x=M.x0-(win?win.sx:8)/z; cam.y=M.y0-(win?win.sy:8)/z; cam.fitX=cam.x; cam.fitY=cam.y; clamp(); }
+    let z=lo;
+    // A phone still fills the safe area (pots stay big). A wide screen can show the whole painting
+    // when that scale still clears the HUD and the owned pots stay a large part of the view.
+    const zArt=Math.min(W/1280, H/720);
+    if(zArt+0.004<z && Math.min(W,H)>=700){ const art=settle(zArt); if(art && mh*zArt>=Math.min(W,H)*0.42){ win=art; z=zArt; } }
+    cam.z=z; cam.fitZ=z; cam.x=M.x0-(win?win.sx:8)/z; cam.y=M.y0-(win?win.sy:8)/z; cam.fitX=cam.x; cam.fitY=cam.y; clamp(); }
   function clamp(){ const sc=SC[loc];
     if(loc==='garage'&&cam.fitZ){ cam.z=Math.max(cam.fitZ,Math.min(4,cam.z));
       if(cam.z<=cam.fitZ*1.02){ cam.z=cam.fitZ; cam.x=cam.fitX; cam.y=cam.fitY; return; }
@@ -781,10 +787,11 @@ window.R=(function(){
       x/=a.length; const items=[]; if(rd) items.push(['#7bc043','✂️',rd]); if(pe) items.push(['#e74c3c','🐛',pe]); if(wa) items.push([ICON.water[0],ICON.water[1],wa]); if(fo) items.push([ICON.food[0],ICON.food[1],fo]);
       if(!items.length) continue; const y=ty-9, iw=26, tw=items.length*iw+6; ctx.fillStyle='rgba(12,22,16,.82)'; ctx.beginPath(); ctx.roundRect(x-tw/2,y-9,tw,18,9); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=1; ctx.stroke();
       ctx.textBaseline='middle'; items.forEach(([c,ic,n],i)=>{ const ix=x-tw/2+3+i*iw; ctx.font='10px sans-serif'; ctx.textAlign='left'; ctx.fillText(ic,ix+1,y+.5); ctx.font='800 10px system-ui,sans-serif'; ctx.fillStyle=c; ctx.fillText(String(n),ix+14,y+.5); ctx.fillStyle='#fff'; }); }
-    // screen position of each growing plant's soil line, so a timer can tell when the next pot is too close
-    const bases=[]; for(const o of list){ if(!o.p.strain||o.p.prog>=1) continue; const f=toS(o.sl.x,o.feet!=null?o.feet:o.sl.y); bases.push({o,x:f.x,y:f.y}); }
-    const timerRoom=(o,f)=>{ if(o.sel) return true; if(crowd||inCl.has(o)||cam.z<1.35) return false; let near=1e9; for(const b of bases){ if(b.o===o) continue; if(Math.abs(b.y-f.y)<26) near=Math.min(near,Math.abs(b.x-f.x)); } return near>=48; };
-    for(const o of list){ const p=o.p, s=toS(o.sl.x,o.feet!=null?o.feet:o.sl.y), top=toS(o.sl.x,o.sl.y-o.h).y; if(o.sel&&p.strain){ const pu=.75+.25*Math.sin(now*5); ctx.strokeStyle='rgba(255,217,106,'+pu+')'; ctx.lineWidth=3; ctx.shadowColor='#ffd96a'; ctx.shadowBlur=10; ctx.beginPath(); ctx.ellipse(s.x,s.y-2,Math.max(16,(s.y-top)*.38),Math.max(6,(s.y-top)*.13),0,0,TAU); ctx.stroke(); ctx.shadowBlur=0; } if(s.x<-40||s.x>W+40||s.y<-40||s.y>H+60) continue;
+    // Ring stays on this plant's soil and inside its own spacing, so a tall plant does not circle the pots beside it.
+    function selRing(o,s){ const stn=G.strain(o.p.strain); if(!stn) return; const ps=plantSize(stn.type,o.p.prog,o.sl), ppm=o.sl.ppm||40, sp=(o.sl.sp||.6)*ppm*cam.z, canopy=ps.w*ppm*cam.z;
+      const rx=Math.max(8,Math.min(canopy*.55, sp*.42)), ry=Math.max(4,rx*.3), pu=.75+.25*Math.sin(now*5);
+      ctx.strokeStyle='rgba(255,217,106,'+pu+')'; ctx.lineWidth=3; ctx.shadowColor='#ffd96a'; ctx.shadowBlur=10; ctx.beginPath(); ctx.ellipse(s.x,s.y-2,rx,ry,0,0,TAU); ctx.stroke(); ctx.shadowBlur=0; }
+    for(const o of list){ const p=o.p, s=toS(o.sl.x,o.feet!=null?o.feet:o.sl.y), top=toS(o.sl.x,o.sl.y-o.h).y; if(o.sel&&p.strain) selRing(o,s); if(s.x<-40||s.x>W+40||s.y<-40||s.y>H+60) continue;
       if(p.strain&&p.prog>=1){ const pulse=.6+.4*Math.sin(now*4+o.sl.x), gr2=Math.max(16,(s.y-top)*(crowd?.42:.55)); ctx.globalAlpha=.42*pulse; ctx.drawImage(glowS(),s.x-gr2,(s.y+top)/2-gr2,gr2*2,gr2*2);
         /* QC: harvest-ready breathe: warm painted halo on the soil + two slow golden motes rising through the canopy */ { const br=.5+.5*Math.sin(now*2.2+o.sl.x*.7), rw=Math.max(14,(s.y-top)*.42); ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=(.16+.14*br)*ripeK(now); ctx.translate(s.x,s.y-2); ctx.scale(1,.3); ctx.drawImage(glowS(),-rw,-rw,rw*2,rw*2); ctx.restore(); ctx.save(); ctx.globalCompositeOperation='lighter'; for(let i=0;i<2;i++){ const f=((now*.35+i*.5+o.sl.x*.013)%1), mx=s.x+Math.sin(now*1.3+i*2.1+o.sl.x)*rw*.5, my=s.y-(s.y-top)*(.15+.8*f), ms=Math.max(2.5,(s.y-top)*.05); ctx.globalAlpha=.55*Math.sin(f*Math.PI); ctx.drawImage(glowS(),mx-ms,my-ms,ms*2,ms*2); } ctx.restore(); }
         ctx.globalAlpha=1; if(inCl.has(o)) continue;
@@ -797,8 +804,8 @@ window.R=(function(){
         // Optional training stays on the plant the player tapped, and on the plant card, so a room of plants in veg does not grow a scissors on every pot.
         if(o.sel){ if(G.canPrune(p)) icons.push([ICON.prune,'prune']); if(G.canTrain(p)) icons.push([ICON.top,'top']); }
         const cp=(crowd||(s.y-top)<46)&&!o.sel, gap=cp?24:30, r=cp?9:12; if(!lens.on) icons.forEach(([ic,a],i)=>{ const bx=bubX(s.x,((icons.length-1)/2)*gap+r+5)+(i-(icons.length-1)/2)*gap, byy=top-(cp?10:14)-(o.sel?0:2*Math.sin(now*3+i)); if(o.sel){ ctx.fillStyle='rgba(10,20,14,.55)'; ctx.beginPath(); ctx.arc(bx,byy,r+4,0,TAU); ctx.fill(); } badge(bx,byy,ic,r); qbub.push({x:bx,y:byy,act:{type:'qa',a,p}}); });
-        // Small time label just under the soil. Hidden at the wide view, where it would sit on the next pot; the plant you tapped still shows its own.
-        if(p.prog<1&&timerRoom(o,s)){ pill(s.x,s.y+12,G.dur(G.timeLeft(p)),'rgba(10,20,14,.72)','#e9ffd6',9); } }
+        // One timer: the plant the player tapped, at every zoom, just under its soil. Drawn in this overlay pass so it stays readable on top of the leaves in front of it.
+        if(o.sel&&p.prog<1){ const r=pill(s.x,s.y+12,G.dur(G.timeLeft(p)),'rgba(10,20,14,.9)','#e9ffd6',9); ctx.strokeStyle='rgba(233,255,214,.9)'; ctx.lineWidth=1.25; rr(r.x,r.y,r.w,r.h,r.h/2); ctx.stroke(); } }
       else if(p.owned&&o.hasSeed){ // clean "plant here" badge: solid green disc, white rim, rounded plus, soft drop shadow, gentle bob
         const a=.5+.5*Math.sin(now*3+s.x*.05), r=9, cx=s.x, cy=s.y-8-a*1.5; ctx.save(); ctx.shadowColor='rgba(0,0,0,.45)'; ctx.shadowBlur=4; ctx.shadowOffsetY=1.5; const g=ctx.createLinearGradient(0,cy-r,0,cy+r); g.addColorStop(0,'#6fdc7c'); g.addColorStop(1,'#2a8f43'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.fill(); ctx.restore();
         ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.stroke(); ctx.lineCap='round'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(cx-4,cy); ctx.lineTo(cx+4,cy); ctx.moveTo(cx,cy-4); ctx.lineTo(cx,cy+4); ctx.stroke(); ctx.lineCap='butt'; }
@@ -858,7 +865,7 @@ window.R=(function(){
         ctx.strokeStyle='#3d4247'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(d.x,d.y-.38*k); ctx.lineTo(d.x,d.y-top); ctx.lineTo(m0.x,m0.y-top); ctx.moveTo(c.x,c.y-.38*k); ctx.lineTo(c.x,c.y-top); ctx.lineTo(m1.x,m1.y-top); ctx.stroke();
         ctx.lineCap='round'; ctx.lineWidth=5; ctx.strokeStyle='#26292d'; ctx.beginPath(); ctx.moveTo(m0.x,m0.y-top); ctx.lineTo(m1.x,m1.y-top); ctx.stroke();
         ctx.lineWidth=1.8; ctx.strokeStyle='#fff3d6'; ctx.shadowColor='#ffe9b0'; ctx.shadowBlur=6; ctx.beginPath(); ctx.moveTo(m0.x+3,m0.y-top+2.4); ctx.lineTo(m1.x-3,m1.y-top+2.4); ctx.stroke(); ctx.shadowBlur=0; ctx.lineCap='butt'; }});
-      { const role=G.garageRole(); if(role!=='grow'){ list.push({y:1e4,draw:()=>phenoDecor(role,now)}); if(role==='pheno') list.push({y:GP(1.25,.32).y,draw:()=>phenoDecor(role,now,'bench')}); signFn=(()=>{ const q=toS(420,4); const sb=(t,bg,fg)=>signBoard(Math.max(125,Math.min(W-125,q.x)),Math.max(insets().top+2,q.y-34),t,bg,fg); sb(role==='pheno'?(G.st.hunt?'PHENO ROOM · HUNT ON':'PHENO ROOM'):'GARAGE STORAGE',role==='pheno'?'#2a1838':'#e8dcc4',role==='pheno'?'#ff9be9':'#4a3a2a'); }); } }
+      { const role=G.garageRole(); if(role!=='grow'){ list.push({y:1e4,draw:()=>phenoDecor(role,now)}); if(role==='pheno') list.push({y:GP(1.25,.32).y,draw:()=>phenoDecor(role,now,'bench')}); signFn=()=>{ const label=role==='pheno'?(G.st.hunt?'PHENO ROOM · HUNT ON':'PHENO ROOM'):'GARAGE STORAGE'; const q=toS(420,4); const p=fitSign(label,q.x,Math.max(insets().top+2,q.y-34)); signBoard(p.x,p.y,label,role==='pheno'?'#2a1838':'#e8dcc4',role==='pheno'?'#ff9be9':'#4a3a2a'); }; } }
       if(G.lv('dehu')){ const p=GP(3.55,5.9); ctx.fillStyle='#e9ecef'; ctx.fillRect(p.x-12,p.y-34,24,34); ctx.fillStyle='#9aa'; ctx.fillRect(p.x-9,p.y-30,18,6); }
     }
     if(loc==='farm'){
@@ -1119,8 +1126,23 @@ window.R=(function(){
     ctx.restore(); ctx.beginPath(); ctx.arc(lens.x,lens.y,r,0,TAU); ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=10; ctx.strokeStyle='#2a1c0e'; ctx.lineWidth=9; ctx.stroke(); ctx.shadowBlur=0; ctx.strokeStyle='#f0c45a'; ctx.lineWidth=4; ctx.stroke(); ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(lens.x,lens.y,r-4,3.6,5.2); ctx.stroke();
     if(G.lv('loupe')){ const t=performance.now()/1000; for(const o of lastOvl){ if(!(o.p&&o.p.eggs>0)) continue; const q=toS(o.sl.x,o.sl.y-(o.h||20)*.5); if(Math.hypot(q.x-lens.x,q.y-lens.y)<r) continue; ctx.globalAlpha=.6+.4*Math.sin(t*5); ctx.fillStyle='#ff9f2e'; ctx.beginPath(); ctx.arc(q.x,q.y,5,0,TAU); ctx.fill(); ctx.globalAlpha=1; } }
     ctx.strokeStyle='#3a2a18'; ctx.lineWidth=9; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(lens.x+r*.72,lens.y+r*.72); ctx.lineTo(lens.x+r*1.05,lens.y+r*1.05); ctx.stroke(); ctx.lineCap='butt'; ctx.restore(); }
-  // painted-wood sign on the garage wall
+  // painted-wood sign on the garage wall. x is the center, y is the top.
   function signBoard(x,y,t,bg,fg){ ctx.save(); ctx.font='900 18px system-ui,sans-serif'; const w=ctx.measureText(t).width+28; ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(x-w/2+3,y+3,w,30); ctx.fillStyle=bg; ctx.fillRect(x-w/2,y,w,30); ctx.strokeStyle=fg; ctx.lineWidth=2; ctx.strokeRect(x-w/2+3,y+3,w-6,24); ctx.fillStyle=fg; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(t,x,y+16); ctx.restore(); }
+  // Keep the whole board on screen and off the HUD. Prefer the wall anchor; slide to the nearest clear spot.
+  function fitSign(text,ax,ay){ ctx.save(); ctx.font='900 18px system-ui,sans-serif'; const w=ctx.measureText(text).width+28, h=30, m=12; ctx.restore();
+    const obs=hudObstacles();
+    // The left seed / scout / upgrades stack is one column. Keep the sign out of that lane, including the space directly under the lowest button.
+    const sides=['seedBag','scoutBtn','upgBtn'].map(uiBox).filter(Boolean);
+    if(sides.length){ const rgt=Math.max(...sides.map(r=>r.right))+14; obs.push({l:-40,t:-40,r:rgt,b:H+40}); }
+    const clamp=(x,y)=>({x:Math.max(m+w/2,Math.min(W-m-w/2,x)), y:Math.max(m,Math.min(H-h-m,y))});
+    const clear=(x,y)=>{ const rect={l:x-w/2,t:y,r:x+w/2,b:y+h}; return !rectHits(rect,obs); };
+    const a0=clamp(ax,ay); if(clear(a0.x,a0.y)) return a0;
+    let best=null;
+    for(const dy of [0,40,-40,80,-80,120,160,200,-120]) for(const dx of [0,60,-60,120,-120,180,240,300,380,460,560,-180,-240]){
+      const p=clamp(ax+dx,ay+dy); if(!clear(p.x,p.y)) continue; const d=(p.x-ax)*(p.x-ax)+(p.y-ay)*(p.y-ay); if(!best||d<best.d) best={x:p.x,y:p.y,d}; }
+    if(best) return best;
+    const sideR=sides.length?Math.max(...sides.map(r=>r.right))+10:m;
+    return clamp(Math.max(sideR+w/2,ax), ay); }
   // pheno room makeover: pink full-spectrum glow, pheno tags on each pot, a breeding bench with labelled clone domes
   const cutCache=new Map();
   // pheno room glow: smooth radial gradient baked once at low res and scaled up (a full-room gradient fill each frame was a big fill-rate cost)

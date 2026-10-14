@@ -78,7 +78,7 @@ window.UI = (function(){
     modal(`<div class="reveal"><img class="r-sil" src="${R.closeup(s,220,true)}" alt=""><img class="r-real" src="${R.closeup(s,220)}" alt=""></div><div style="font-size:12px;font-weight:900;letter-spacing:3px;color:#d9a8ff">PHENO DISCOVERED</div><h3>${esc(s.name)}</h3><div>${tag(s)}</div><p>${esc(s.parents.join(' × '))}<br>Recipe recorded in your Strain Book. Seeds unlocked (+3 in your bag).</p>`,[{label:'Details',cls:'sec',v:'d'},{label:'Thanks!',cls:'gold'}]).then(v=>{ if(v==='d') strainModal(s.id); }); }
 
   // ---------- HUD ----------
-  let shownCash=0, cash0=0, cashTo=0, cashT0=0;
+  let shownCash=0;
   const LOCI={garage:'🏠',farm:'🌿',indoor:'🏭'};
   function landReq(){ const st=G.st; return [{t:'Reach level '+G.LAND_LEVEL,ok:st.level>=G.LAND_LEVEL,p:Math.min(1,(st.level-1+st.xp/G.xpNeed(st.level))/(G.LAND_LEVEL-1))},{t:'Save '+fmt(G.LAND_COST),ok:st.cash>=G.LAND_COST,p:st.cash/G.LAND_COST}]; }
   let goalT=0; function goalPeek(ms){ const g=$('#goal'); if(!g) return; g.classList.add('open'); clearTimeout(goalT); goalT=setTimeout(()=>g.classList.remove('open'),ms); }
@@ -105,7 +105,10 @@ window.UI = (function(){
   }
   function hud(dt){
     const st=G.st;
-    if(st.cash!==cashTo){ cash0=shownCash; cashTo=st.cash; cashT0=performance.now(); } { const k=Math.min(1,(performance.now()-cashT0)/650); shownCash=cash0+(cashTo-cash0)*Ease.outCubic(k); if(k>=1&&shownCash!==cashTo){ shownCash=cashTo; } }
+    // Chase the live balance. Restarting a timed ease whenever cash changes (upkeep does, every frame) froze the label on the value from load.
+    { const target=st.cash, gap=target-shownCash;
+      if(Math.abs(gap)<0.5) shownCash=target;
+      else { const dt0=Math.max(0,Math.min(0.25,typeof dt==='number'&&dt>0?dt:0)), k=dt0?1-Math.pow(0.001,dt0/0.45):0; shownCash+=gap*k; if(Math.abs(shownCash-target)<0.5) shownCash=target; } }
     $('#cash').textContent=fmt(shownCash); $('#gems').textContent=G.num(st.gems);
     $('#lvl').textContent=st.level; $('#xpfill').style.width=Math.min(100,st.xp/G.xpNeed(st.level)*100)+'%';
     const m=G.earnMult(); $('#multBadge').textContent='x'+(m<10?m.toFixed(1):Math.round(m)); $('#multBadge').style.display=m>1.001?'':'none';
