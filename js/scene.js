@@ -653,6 +653,17 @@ window.R=(function(){
       if(st().land) ctx.drawImage(groundDecor(),100,600);
     }
   }
+  // Garage buckets and rack pots are drawn above the slot (the slot is the bucket bottom / table).
+  // The plant, its selection ring and its timer all use the soil line, or they slide down the pot as you zoom.
+  function potLift(sl){ return (sl.kind==='pot'?.32:sl.kind==='pot2'||sl.kind==='rackpot'?.24:0)*(sl.ppm||0); }
+  // A few growth sprites have one or two clear rows under the stem. Shift those so the opaque feet sit on the soil.
+  const footC=new WeakMap();
+  function footFrac(img){ const src=img&&img.c; if(!src) return 0; const hit=footC.get(src); if(hit!=null) return hit;
+    const w=src.naturalWidth||src.width, h=src.naturalHeight||src.height; if(!w||!h){ footC.set(src,0); return 0; }
+    let x; try{ if(typeof src.getContext==='function') x=src.getContext('2d',{willReadFrequently:true});
+      else { const c=document.createElement('canvas'); c.width=w; c.height=h; x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(src,0,0); }
+      let pad=0; for(let row=h-1;row>=0&&pad<6;row--){ const d=x.getImageData(0,row,w,1).data; let mx=0; for(let i=3;i<d.length;i+=4) if(d[i]>mx) mx=d[i]; if(mx>=48) break; pad++; }
+      const f=pad/h; footC.set(src,f); return f; }catch(e){ footC.set(src,0); return 0; } }
   // ---------------- plant drawing ----------------
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -674,12 +685,13 @@ window.R=(function(){
       ctx.strokeStyle='#7fae4a'; ctx.lineWidth=1.4; for(const f of [.35,.6,.82]){ ctx.beginPath(); ctx.moveTo(-1,-sh2*f); ctx.lineTo(7,-sh2*f+2); ctx.stroke(); } }
     if(p._shake>0&&G.st.settings.motion!==false) ctx.rotate(Math.sin(p._shake*40)*p._shake*.14);
     ctx.rotate(sway); ctx.scale(flip,droop);
-    if(pi&&pi.a){ const img=pi.a, w=fitW(img);
-      ctx.drawImage(sick(img,hk,seed),-w/2,-hpx,w,hpx);
-      if(pi.b&&pi.mix>0){ const w2=fitW(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx,w2,hpx); ctx.globalAlpha=1; } }
+    let foot=0;
+    if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
+      ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
+      if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
     else if(window.Art){ const stg=G.stage(p); const sp=Art.plantSprite(st,Math.min(stg,4),1); const k=hpx/(sp.h*.9); ctx.drawImage(sp.c,-sp.ox*k,-sp.oy*k,sp.c.width*k,sp.c.height*k); }
     ctx.restore();
-    return hpx;
+    return hpx*(1-foot);
   }
   // per-sprite health variants, cached (effects are clipped to the plant's own pixels, never the ground behind it)
   const sickC=new WeakMap();
@@ -714,7 +726,10 @@ window.R=(function(){
       x/=a.length; const items=[]; if(rd) items.push(['#7bc043','✂️',rd]); if(pe) items.push(['#e74c3c','🐛',pe]); if(wa) items.push([ICON.water[0],ICON.water[1],wa]); if(fo) items.push([ICON.food[0],ICON.food[1],fo]);
       if(!items.length) continue; const y=ty-9, iw=26, tw=items.length*iw+6; ctx.fillStyle='rgba(12,22,16,.82)'; ctx.beginPath(); ctx.roundRect(x-tw/2,y-9,tw,18,9); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=1; ctx.stroke();
       ctx.textBaseline='middle'; items.forEach(([c,ic,n],i)=>{ const ix=x-tw/2+3+i*iw; ctx.font='10px sans-serif'; ctx.textAlign='left'; ctx.fillText(ic,ix+1,y+.5); ctx.font='800 10px system-ui,sans-serif'; ctx.fillStyle=c; ctx.fillText(String(n),ix+14,y+.5); ctx.fillStyle='#fff'; }); }
-    for(const o of list){ const p=o.p, s=toS(o.sl.x,o.sl.y), top=toS(o.sl.x,o.sl.y-o.h).y; if(o.sel&&p.strain){ const pu=.75+.25*Math.sin(now*5); ctx.strokeStyle='rgba(255,217,106,'+pu+')'; ctx.lineWidth=3; ctx.shadowColor='#ffd96a'; ctx.shadowBlur=10; ctx.beginPath(); ctx.ellipse(s.x,s.y-2,Math.max(16,(s.y-top)*.38),Math.max(6,(s.y-top)*.13),0,0,TAU); ctx.stroke(); ctx.shadowBlur=0; } if(s.x<-40||s.x>W+40||s.y<-40||s.y>H+60) continue;
+    // screen position of each growing plant's soil line, so a timer can tell when the next pot is too close
+    const bases=[]; for(const o of list){ if(!o.p.strain||o.p.prog>=1) continue; const f=toS(o.sl.x,o.feet!=null?o.feet:o.sl.y); bases.push({o,x:f.x,y:f.y}); }
+    const timerRoom=(o,f)=>{ if(o.sel) return true; if(crowd||inCl.has(o)||cam.z<1.35) return false; let near=1e9; for(const b of bases){ if(b.o===o) continue; if(Math.abs(b.y-f.y)<26) near=Math.min(near,Math.abs(b.x-f.x)); } return near>=48; };
+    for(const o of list){ const p=o.p, s=toS(o.sl.x,o.feet!=null?o.feet:o.sl.y), top=toS(o.sl.x,o.sl.y-o.h).y; if(o.sel&&p.strain){ const pu=.75+.25*Math.sin(now*5); ctx.strokeStyle='rgba(255,217,106,'+pu+')'; ctx.lineWidth=3; ctx.shadowColor='#ffd96a'; ctx.shadowBlur=10; ctx.beginPath(); ctx.ellipse(s.x,s.y-2,Math.max(16,(s.y-top)*.38),Math.max(6,(s.y-top)*.13),0,0,TAU); ctx.stroke(); ctx.shadowBlur=0; } if(s.x<-40||s.x>W+40||s.y<-40||s.y>H+60) continue;
       if(p.strain&&p.prog>=1){ const pulse=.6+.4*Math.sin(now*4+o.sl.x), gr2=Math.max(16,(s.y-top)*(crowd?.42:.55)); ctx.globalAlpha=.42*pulse; ctx.drawImage(glowS(),s.x-gr2,(s.y+top)/2-gr2,gr2*2,gr2*2);
         /* QC: harvest-ready breathe: warm painted halo on the soil + two slow golden motes rising through the canopy */ { const br=.5+.5*Math.sin(now*2.2+o.sl.x*.7), rw=Math.max(14,(s.y-top)*.42); ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=(.16+.14*br)*ripeK(now); ctx.translate(s.x,s.y-2); ctx.scale(1,.3); ctx.drawImage(glowS(),-rw,-rw,rw*2,rw*2); ctx.restore(); ctx.save(); ctx.globalCompositeOperation='lighter'; for(let i=0;i<2;i++){ const f=((now*.35+i*.5+o.sl.x*.013)%1), mx=s.x+Math.sin(now*1.3+i*2.1+o.sl.x)*rw*.5, my=s.y-(s.y-top)*(.15+.8*f), ms=Math.max(2.5,(s.y-top)*.05); ctx.globalAlpha=.55*Math.sin(f*Math.PI); ctx.drawImage(glowS(),mx-ms,my-ms,ms*2,ms*2); } ctx.restore(); }
         ctx.globalAlpha=1; if(inCl.has(o)) continue;
@@ -727,7 +742,8 @@ window.R=(function(){
         // Optional training stays on the plant the player tapped, and on the plant card, so a room of plants in veg does not grow a scissors on every pot.
         if(o.sel){ if(G.canPrune(p)) icons.push([ICON.prune,'prune']); if(G.canTrain(p)) icons.push([ICON.top,'top']); }
         const cp=(crowd||(s.y-top)<46)&&!o.sel, gap=cp?24:30, r=cp?9:12; if(!lens.on) icons.forEach(([ic,a],i)=>{ const bx=bubX(s.x,((icons.length-1)/2)*gap+r+5)+(i-(icons.length-1)/2)*gap, byy=top-(cp?10:14)-(o.sel?0:2*Math.sin(now*3+i)); if(o.sel){ ctx.fillStyle='rgba(10,20,14,.55)'; ctx.beginPath(); ctx.arc(bx,byy,r+4,0,TAU); ctx.fill(); } badge(bx,byy,ic,r); qbub.push({x:bx,y:byy,act:{type:'qa',a,p}}); });
-        if(o.sel){ const tl=G.timeLeft(p); pill(s.x,s.y+12,G.dur(tl),'rgba(10,20,14,.72)','#e9ffd6',10); } }
+        // Small time label just under the soil. Hidden at the wide view, where it would sit on the next pot; the plant you tapped still shows its own.
+        if(p.prog<1&&timerRoom(o,s)){ pill(s.x,s.y+12,G.dur(G.timeLeft(p)),'rgba(10,20,14,.72)','#e9ffd6',9); } }
       else if(p.owned&&o.hasSeed){ // clean "plant here" badge: solid green disc, white rim, rounded plus, soft drop shadow, gentle bob
         const a=.5+.5*Math.sin(now*3+s.x*.05), r=9, cx=s.x, cy=s.y-8-a*1.5; ctx.save(); ctx.shadowColor='rgba(0,0,0,.45)'; ctx.shadowBlur=4; ctx.shadowOffsetY=1.5; const g=ctx.createLinearGradient(0,cy-r,0,cy+r); g.addColorStop(0,'#6fdc7c'); g.addColorStop(1,'#2a8f43'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.fill(); ctx.restore();
         ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.stroke(); ctx.lineCap='round'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(cx-4,cy); ctx.lineTo(cx+4,cy); ctx.moveTo(cx,cy-4); ctx.lineTo(cx,cy+4); ctx.stroke(); ctx.lineCap='butt'; }
@@ -829,13 +845,14 @@ window.R=(function(){
     // changes visibly), and drawn as a single item. Overlays (icons, ripe glow) still come from the per-plot entries.
     const useCache=loc==='farm'&&cam.z<.8&&!SCALE_DEBUG, cachedT={};
     for(const p of plots){ const sl=slotOf.get(p.id); if(!sl) continue;
-      if(useCache&&p.owned&&p.zone==='field'&&p.strain&&!(p._pop>0)&&!(p._shake>0)){ const o={p,sl,h:plantSize(G.strain(p.strain).type,p.prog,sl).h*sl.ppm,sel:selId===p.id,hasSeed}; (cachedT[sl.ter]=cachedT[sl.ter]||[]).push(p); list.push({y:sl.y,draw:()=>{},o}); fronts.push(null); continue; }
+      if(useCache&&p.owned&&p.zone==='field'&&p.strain&&!(p._pop>0)&&!(p._shake>0)){ const o={p,sl,h:plantSize(G.strain(p.strain).type,p.prog,sl).h*sl.ppm,feet:sl.y,sel:selId===p.id,hasSeed}; (cachedT[sl.ter]=cachedT[sl.ter]||[]).push(p); list.push({y:sl.y,draw:()=>{},o}); fronts.push(null); continue; }
       if(!p.owned){ if(loc==='indoor'&&st.inBuilt&&sl.kind==='art'){ list.push({y:sl.sortY!=null?sl.sortY:sl.y,draw:()=>{ ctx.fillStyle='rgba(10,14,20,.55)'; ctx.beginPath(); ctx.ellipse(sl.x,sl.y,sl.pw*.55,sl.pw*.25,0,0,TAU); ctx.fill(); }}); } continue; }
-      const o={p,sl,h:20,sel:selId===p.id,hasSeed}; list.push({y:sl.sortY!=null?sl.sortY:sl.y,draw:()=>{
-        if(sl.kind==='pot'){ const h=.32*sl.ppm; ctx.save(); ctx.translate(0,-h); bucketPot(sl.x,sl.y,sl.ppm); ctx.restore(); }
-        else if(sl.kind==='pot2'||sl.kind==='rackpot'){ const small=sl.kind!=='pot'; const h=(small?.24:.32)*sl.ppm; ctx.save(); ctx.translate(0,-h); fabricPot(sl.x,sl.y,sl.ppm,small,G.lv('trays')&&p.zone==='garage'); ctx.restore(); }
+      const o={p,sl,h:20,feet:sl.y,sel:selId===p.id,hasSeed}; list.push({y:sl.sortY!=null?sl.sortY:sl.y,draw:()=>{
+        const yoff=potLift(sl); o.feet=sl.y-yoff;
+        if(sl.kind==='pot'){ ctx.save(); ctx.translate(0,-yoff); bucketPot(sl.x,sl.y,sl.ppm); ctx.restore(); }
+        else if(sl.kind==='pot2'||sl.kind==='rackpot'){ const small=sl.kind!=='pot'; ctx.save(); ctx.translate(0,-yoff); fabricPot(sl.x,sl.y,sl.ppm,small,G.lv('trays')&&p.zone==='garage'); ctx.restore(); }
         else if(sl.kind==='soil'||sl.kind==='bed') soilMound(sl.x,sl.y,sl.ppm);
-        if(p.strain){ const yoff=(sl.kind==='pot'?.32:sl.kind==='pot2'||sl.kind==='rackpot'?.24:0)*sl.ppm; ctx.save(); ctx.translate(0,-yoff); const sl2=sl; o.h=drawPlantAt(p,null,sl2,now)+yoff; ctx.restore(); }
+        if(p.strain){ ctx.save(); ctx.translate(0,-yoff); o.h=drawPlantAt(p,null,sl,now)+yoff; ctx.restore(); }
         else o.h=12; }}); fronts.push(null); list[list.length-1].o=o; }
     for(const k in cachedT){ const P=cachedT[k]; const ys=P.map(p=>slotOf.get(p.id).y); list.push({y:Math.max(...ys)+.5,draw:()=>drawPatch(k,P)}); }
     list.sort((a,b)=>a.y-b.y); const ovl=[];
@@ -1033,8 +1050,8 @@ window.R=(function(){
       cam.z=z1; cam.x=wx-lens.x/z1; cam.y=wy-lens.y/z1; ctx.imageSmoothingQuality='high';
       ctx.setTransform(D*z1,0,0,D*z1,-cam.x*z1*D,-cam.y*z1*D);
       const vis=lastOvl.filter(o=>o.p&&o.p.strain&&o.sl).sort((a,b)=>a.sl.y-b.sl.y);
-      for(const o of vis){ const sl=o.sl, q=toS(sl.x,sl.y); if(Math.abs(q.x-lens.x)>r*1.6||q.y<lens.y-r*.4||q.y>lens.y+r*2.6) continue;
-        const yoff=(sl.kind==='pot'?.32:sl.kind==='pot2'||sl.kind==='rackpot'?.24:0)*sl.ppm; ctx.save(); ctx.translate(0,-yoff); try{ drawPlantAt(o.p,null,sl,now); }catch(e){} ctx.restore(); }
+      for(const o of vis){ const sl=o.sl, yoff=potLift(sl), q=toS(sl.x,sl.y-yoff); if(Math.abs(q.x-lens.x)>r*1.6||q.y<lens.y-r*.4||q.y>lens.y+r*2.6) continue;
+        ctx.save(); ctx.translate(0,-yoff); try{ drawPlantAt(o.p,null,sl,now); }catch(e){} ctx.restore(); }
       cam.z=z0; cam.x=x0; cam.y=y0; G.st.settings.hq=hq0; ctx.setTransform(D,0,0,D,0,0); }
     for(const o of lastOvl){ const p=o.p, sl=o.sl; if(!p||!(p.eggs>0)||!p.strain) continue; const h=o.h||20;
       const q=toS(sl.x,sl.y-h*.45), mx=lens.x+(q.x-lens.x)*Z, my=lens.y+(q.y-lens.y)*Z; if(Math.hypot(mx-lens.x,my-lens.y)>r+20) continue; const sd=hash(p.id);
