@@ -650,7 +650,9 @@ window.UI = (function(){
     const st=G.st;
     const tg=(k,l,on)=>`<div class="row"><div class="grow"><h4>${l}</h4></div><button class="btn sm ${on?'':'sec'}" data-a="set" data-k="${k}">${on?'On':'Off'}</button></div>`;
     const sl=(k,l,d)=>`<div class="row slrow"><div class="grow"><h4>${l}</h4><p>${d}</p></div><input type="range" min="0" max="100" step="5" data-vol="${k}" aria-label="${l} volume"><b class="slv" data-volv="${k}"></b></div>`;
-    const body=(window.TestMenu?TestMenu.html():'')+(window.DevPanel?DevPanel.html():'')+`<div class="section-t">Sound</div>`+sl('vMusic','Music','Island soundtrack: ukulele, slack-key, reggae')+sl('vAmb','Ambience','Waves, wind, birds and night insects')+sl('vSfx','Sound effects','Harvest plucks, coins, steel-guitar level-ups')
+    const body=(window.TestMenu?TestMenu.html():'')+(window.DevPanel?DevPanel.html():'')
+      +`<div class="section-t">Tutorial</div><div class="row"><div class="grow"><h4>Tutorial</h4><p>Replay Unko Kuli's walkthrough on this farm, any time. Skip it whenever you want.</p></div><button class="btn sm" data-a="tutorial">Tutorial</button></div>`
+      +`<div class="section-t">Sound</div>`+sl('vMusic','Music','Island soundtrack: ukulele, slack-key, reggae')+sl('vAmb','Ambience','Waves, wind, birds and night insects')+sl('vSfx','Sound effects','Harvest plucks, coins, steel-guitar level-ups')
       +`<div class="section-t">Comfort</div>`+tg('vib','Vibration (haptics)',st.settings.vib!==false)+tg('shake','Screen shake',st.settings.shake!==false)+tg('motion','Motion effects (confetti, plant sway)',st.settings.motion!==false)
       +`<div class="section-t">Performance</div>`+tg('hq','High quality graphics',st.settings.hq)+tg('autoQ','Auto quality (lower detail if the game runs slowly)',st.settings.autoQ!==false)
       +`<div class="row"><div class="grow"><h4>Daily gift</h4><p>Login streak: day ${st.streak.n||0}</p></div><button class="btn sm gem" data-a="daily" ${G.dailyReady()?'':'disabled'}>${G.dailyReady()?'Claim':'Claimed'}</button></div>`
@@ -659,7 +661,6 @@ window.UI = (function(){
       +`<div class="row"><div class="grow"><h4>Ad preference</h4><p>${window.Ads.consent()==='personalized'?'Personalized ads are allowed.':window.Ads.consent()==='contextual'?'Only non-personalized ads.':'Choose one before ads can play.'}</p></div><div class="buy2"><button class="btn sm ${window.Ads.consent()==='personalized'?'':'sec'}" data-a="adconsent" data-v="personalized">Personalized</button><button class="btn sm ${window.Ads.consent()==='contextual'?'':'sec'}" data-a="adconsent" data-v="contextual">Non-personalized</button></div></div>`
       +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 18+. It depicts legal, licensed cultivation as a business. Nothing in it can be bought or delivered in real life. Progress saves on this device, stays when the game updates, and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain notes are original game text. Art is painted for the game.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
       +saveBlock()
-      +`<div class="row"><div class="grow"><h4>Tutorial</h4><p>Unko Kuli walks through the first grow. You can skip it any time.</p></div><button class="btn sm sec" data-a="tutorial">Play</button></div>`
       +`<div class="row"><div class="grow"><h4>Reset farm</h4><p>Erase this device's save (store purchases stay)</p></div><button class="btn sm sec" data-a="reset">Reset</button></div>`;
     return {title:'Settings',sub:'',body};
   };

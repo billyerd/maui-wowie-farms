@@ -94,28 +94,67 @@ window.Tutorial=(function(){
     el=document.createElement('div'); el.id='tutc'; el.className='hidden'; el.setAttribute('role','status');
     el.innerHTML=(window.portraitImg?portraitImg('Unko Kuli','gport'):'')+'<div class="gtx"><div class="gt"></div><p></p><div class="acts"></div></div>';
     document.body.appendChild(el);
-    el.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('button'); if(!b) return; const a=b.dataset.a; if(a==='skip') skip(); else if(a==='next') next(); else if(a==='done') finish(); });
+    el.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('button'); if(!b) return; const a=b.dataset.a; if(a==='play') start(); else if(a==='skip') skip(); else if(a==='next') next(); else if(a==='done') finish(); });
     return el;
   }
-  function overlaps(a,b){ return !(a.right<b.left+4||a.left>b.right-4||a.bottom<b.top+4||a.top>b.bottom-4); }
-  function box(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); if(r.width<2||r.height<2||getComputedStyle(e).display==='none'||getComputedStyle(e).visibility==='hidden') return null; return r; }
+  function overlaps(a,b){ return a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top; }
+  function domBox(el,pad){
+    if(!el||!el.getBoundingClientRect||!el.getClientRects().length) return null;
+    const r=el.getBoundingClientRect(); if(r.width<2||r.height<2) return null;
+    const s=getComputedStyle(el); if(s.display==='none'||s.visibility==='hidden'||Number(s.opacity)===0) return null;
+    pad=pad||0; return {left:r.left-pad,top:r.top-pad,right:r.right+pad,bottom:r.bottom+pad};
+  }
+  function keepClear(){
+    const hard=[], soft=[];
+    if(window.R&&R.plotRect&&G.st){ for(const p of G.st.plots){ if(!p.owned||p.loc!==G.st.loc) continue; const r=R.plotRect(p); if(r&&r.right-r.left>2&&r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth) hard.push(r); } }
+    if(window.R&&R._qb){ try{ const cv=document.getElementById('game'), cr=cv?cv.getBoundingClientRect():{left:0,top:0}; for(const b of R._qb()){ if(!b||!isFinite(b.x)||!isFinite(b.y)) continue; hard.push({left:b.x+cr.left-26,top:b.y+cr.top-26,right:b.x+cr.left+26,bottom:b.y+cr.top+26}); } }catch(e){} }
+    const tr=domBox(targetEl(),12); if(tr) hard.push(tr);
+    const gear=domBox(document.getElementById('settingsBtn'),6); if(gear) soft.push(gear);
+    ['seedBag','scoutBtn','upgBtn','orderBoard','goal','toolbar','locTabs','hud'].forEach(id=>{ const b=domBox(document.getElementById(id),4); if(b) soft.push(b); });
+    const pop=document.getElementById('pop'); if(pop&&!pop.classList.contains('hidden')){ const pr=domBox(pop,6); if(pr) hard.push(pr); }
+    return {hard, soft};
+  }
+  function sheetCard(){ const sh=document.getElementById('sheet'); if(!sh||sh.classList.contains('hidden')) return null; return domBox(sh.querySelector('.sheet-card')||sh,0); }
   function place(){
     const el=document.getElementById('tutc'); if(!el||el.classList.contains('hidden')) return;
-    const goal=box('goal'); const bar=box('toolbar');
-    const tgt=targetEl(); const tr=tgt&&tgt.getClientRects&&tgt.getClientRects().length?tgt.getBoundingClientRect():null;
-    const pad=8;
-    el.style.left=pad+'px';
-    el.style.width=Math.min(340, innerWidth-pad*2)+'px';
-    const h=el.offsetHeight||130;
-    const belowGoal=goal?goal.bottom+pad:70;
-    const aboveBar=bar?bar.top-h-pad:innerHeight-h-pad;
-    const high=tr&&(tr.top+tr.height/2)<innerHeight*.42;
-    const fit=t=>Math.max(pad, Math.min(t, innerHeight-h-pad));
-    let top=fit(high?aboveBar:belowGoal);
-    el.style.top=top+'px';
-    if(!tr||tr.width<2) return;
-    const hits=t=>{ const a={left:pad,top:t,right:pad+el.offsetWidth,bottom:t+h}; return overlaps(a,tr); };
-    if(hits(top)) el.style.top=fit(high?belowGoal:aboveBar)+'px';
+    const pad=8, maxW=Math.min(340, innerWidth-pad*2);
+    const zones=keepClear(), sheet=sheetCard();
+    const focus=domBox(targetEl(),0);
+    function spot(w,hh,extra){
+      const forbid=zones.hard.concat(extra||[]);
+      const xs=[]; const push=x=>{ x=Math.round(Math.max(pad, Math.min(x, innerWidth-pad-w))); if(xs.indexOf(x)<0) xs.push(x); };
+      push(pad); push(innerWidth-pad-w); push((innerWidth-w)/2);
+      const side=document.getElementById('upgBtn'); if(side&&side.getClientRects().length){ const r=side.getBoundingClientRect(); if(r.width) push(r.right+8); }
+      let best=null, bestScore=-1e9;
+      for(let y=pad; y<=innerHeight-hh-pad; y+=8){
+        for(let i=0;i<xs.length;i++){ const x=xs[i];
+          const c={left:x,top:y,right:x+w,bottom:y+hh};
+          let hit=false; for(let k=0;k<forbid.length;k++) if(overlaps(c,forbid[k])){ hit=true; break; }
+          if(hit) continue;
+          const cx=x+w/2, cy=y+hh/2;
+          let score=focus?Math.hypot(cx-(focus.left+focus.right)/2, cy-(focus.top+focus.bottom)/2):Math.min(y, innerHeight-(y+hh));
+          if(sheet&&overlaps(c,sheet)) score-=280;
+          if(cy>innerHeight*.28&&cy<innerHeight*.72) score-=120;
+          if(score>bestScore){ bestScore=score; best={x:x,y:y}; }
+        }
+      }
+      return best;
+    }
+    el.classList.remove('compact');
+    el.style.width=maxW+'px';
+    let w=maxW, h=el.offsetHeight||120, found=spot(w,h,zones.soft);
+    if(!found){ el.classList.add('compact'); h=el.offsetHeight||100; found=spot(w,h,zones.soft); }
+    if(!found){ w=Math.min(maxW, 240); el.style.width=w+'px'; h=el.offsetHeight||100; found=spot(w,h,zones.soft)||spot(w,h,[]); }
+    if(!found){ el.classList.add('compact'); w=Math.min(220, maxW); el.style.width=w+'px'; h=el.offsetHeight||88; found=spot(w,h,[])||spot(w,h,zones.soft); }
+    if(!found) return;
+    el.style.left=found.x+'px'; el.style.top=found.y+'px';
+    const card={left:found.x,top:found.y,right:found.x+el.offsetWidth,bottom:found.y+el.offsetHeight};
+    el.style.zIndex=(sheet&&overlaps(card,sheet))?'34':'12';
+  }
+  function fill(el,head,tip,acts){
+    const sig=head+'\n'+tip+'\n'+acts.map(a=>a.a+a.cls+a.label).join('|');
+    if(el._sig!==sig){ el._sig=sig; el.querySelector('.gt').textContent=head; el.querySelector('p').textContent=tip;
+      el.querySelector('.acts').innerHTML=acts.map(a=>'<button type="button" class="btn '+(a.cls||'')+'" data-a="'+a.a+'">'+a.label+'</button>').join(''); }
   }
   function paint(){
     const t=tut(); if(!t||!t.on||t.done){ hide(); return; }
@@ -123,10 +162,8 @@ window.Tutorial=(function(){
     const head=step?'Unko Kuli · '+(i+1)+'/'+STEPS.length:'Unko Kuli';
     const tip=say(step||{id:'done'});
     const acts=step?[{a:'skip',cls:'sec',label:'Skip'},{a:'next',cls:'',label:'Next'}]:[{a:'skip',cls:'sec',label:'Skip'},{a:'done',cls:'gold',label:"Let's grow"}];
-    const sig=head+'\n'+tip+'\n'+acts.map(a=>a.a+a.cls+a.label).join('|');
-    if(el._sig!==sig){ el._sig=sig; el.querySelector('.gt').textContent=head; el.querySelector('p').textContent=tip;
-      el.querySelector('.acts').innerHTML=acts.map(a=>'<button class="btn '+(a.cls||'')+'" data-a="'+a.a+'">'+a.label+'</button>').join(''); }
-    el.classList.remove('hidden'); place();
+    fill(el,head,tip,acts);
+    el.dataset.mode='coach'; el.classList.remove('hidden'); place();
   }
   function hide(){ const el=document.getElementById('tutc'); if(el) el.classList.add('hidden'); }
   function advance(from){
@@ -138,15 +175,25 @@ window.Tutorial=(function(){
   function resumeStory(){ try{ if(window.UI&&UI.storyLine&&G.curQuest) UI.storyLine(G.curQuest()); }catch(e){} }
   function skip(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=true; G.save(); hide(); if(window.UI&&UI.toast) UI.toast('Tutorial skipped. You can replay it in Settings.'); resumeStory(); }
   function finish(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=false; t.step=STEPS.length; G.save(); hide(); resumeStory(); }
-  function start(){ const t=tut(); if(!t) return; t.on=true; t.done=false; t.skip=false; t.step=0; snap(); G.save(); paint(); }
+  function start(){ const t=tut(); if(!t) return; t.on=true; t.done=false; t.skip=false; t.step=0; t.bought=t.bought|0; snap(); G.save(); paint(); }
   function offer(){
-    const html='<div class="dlg">'+(window.portraitImg?portraitImg('Unko Kuli','dport'):'')+'<div><b>Unko Kuli</b><p>This was your Grandpa\'s garage. Now it\'s yours. I can walk you through the first grow, or you can jump in.</p></div></div>';
-    UI.modal(html,[{label:'Play tutorial',cls:'gold',v:'play'},{label:'Skip',cls:'sec',v:'skip'}]).then(v=>{ if(v==='play') start(); else skip(); });
+    const t=tut(); if(!t) return;
+    const el=ensure();
+    fill(el,'Unko Kuli',"This was your Grandpa's garage. Now it's yours. I can walk you through the first grow, or you can jump in.",[{a:'play',cls:'gold',label:'Play tutorial'},{a:'skip',cls:'sec',label:'Skip'}]);
+    el.dataset.mode='offer'; el.classList.remove('hidden'); place();
+    requestAnimationFrame(()=>place());
   }
   function onPlay(fresh){ const t=tut(); if(!t) return; if(t.on&&!t.done){ ensureBase(); paint(); return; } hide(); if(fresh&&!t.done&&!t.skip) offer(); }
-  function replay(){ start(); }
+  function replay(){
+    const st=window.G&&G.st; if(!st) return;
+    if(!st.tut||typeof st.tut!=='object'||Array.isArray(st.tut)) st.tut={v:1,step:0,on:false,done:false,skip:false,bought:0};
+    start();
+  }
   if(window.G&&G.on) ['seeds','plant','water','feed','harvest','dryload','sold','order','hire','land'].forEach(n=>G.on(n,sync));
-  setInterval(sync,400);
-  window.addEventListener('resize',()=>{ if(active()) place(); });
+  function follow(){ try{ const el=document.getElementById('tutc'); if(!el||el.classList.contains('hidden')) return; if(active()) sync(); else place(); }catch(e){} }
+  const watch=new MutationObserver(follow);
+  ['sheet','pop'].forEach(id=>{ const n=document.getElementById(id); if(n) watch.observe(n,{attributes:true,attributeFilter:['class']}); });
+  setInterval(follow,400);
+  window.addEventListener('resize',()=>{ const el=document.getElementById('tutc'); if(el&&!el.classList.contains('hidden')) place(); });
   return {onPlay, replay, active, targetEl, plot};
 })();

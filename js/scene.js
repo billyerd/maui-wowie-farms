@@ -1194,6 +1194,19 @@ window.R=(function(){
   }
   const st=()=>G.st;
   function screenOf(p){ const sl=slotOf.get(p.id); if(!sl||p.loc!==loc) return null; return toS(sl.x,sl.y); }
+  // Screen box of an owned pot, including the plant, the bucket, and the pointing finger under it.
+  function plotRect(p){
+    if(!p||p.loc!==loc||!p.owned) return null;
+    const sl=slotOf.get(p.id); if(!sl) return null;
+    const ppm=sl.ppm||40, z=cam.z||1, lift=potLift(sl);
+    let hh=.55*ppm;
+    if(p.strain){ try{ const s=G.strain(p.strain); if(s) hh=Math.max(.45,plantSize(s.type,p.prog,sl).h)*ppm; }catch(e){} }
+    const hw=Math.max(Math.min(.45,(sl.sp||.6)*.55)*ppm, 32/z);
+    const top=sl.y-lift-hh-24/z, bot=sl.y+Math.max(.28*ppm, 22/z)+42/z;
+    const a=toS(sl.x-hw, top), b=toS(sl.x+hw, bot);
+    const cv=document.getElementById('game'), cr=cv?cv.getBoundingClientRect():{left:0,top:0};
+    return {left:Math.min(a.x,b.x)+cr.left, top:Math.min(a.y,b.y)+cr.top, right:Math.max(a.x,b.x)+cr.left, bottom:Math.max(a.y,b.y)+cr.top};
+  }
 
   // ---------------- strain close-up (strain book) ----------------
   const cups={};
@@ -1210,5 +1223,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();
