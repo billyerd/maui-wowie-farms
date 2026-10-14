@@ -190,7 +190,8 @@
     const ret=await Payments.handleReturn(); if(ret&&!ret.ok) UI.toast('Purchase not completed: '+ret.error,'bad');
     if(boot.fresh) UI.modal(`<div class="dlg">${portraitImg('Unko Kuli','dport')}<div><b>Unko Kuli</b><p>Hello, and welcome to <b>${window.GAME_CONFIG.title}</b>. This was your Grandpa's garage. Now it's yours. Follow my hand 👆</p></div></div>`,[{label:'Let\'s grow',cls:'gold'}]).then(()=>UI.storyLine(G.curQuest()));
     if(G.st.econMigrated){ delete G.st.econMigrated; UI.modal(`<h3>Real-world prices</h3><p>Prices now follow real Hawaii costs: one bud is an eighth (3.5 g), gear and land cost what they do on Kauai, and time runs on the real clock (1 real hour = 1 game day). You kept everything you built; your cash was converted to the new prices.</p>`,[{label:'Got it!',cls:'gold'}]); }
-    if(boot.migrated) UI.modal(`<h3>Big update!</h3><p>Your journey now starts in the garage and grows to land, a greenhouse and an indoor facility. You kept your level, gems and perks, plus a starter bonus and 3 hint tokens.</p>`,[{label:'Got it!',cls:'gold'}]);
+    if(boot.corrupt) UI.modal(`<h3>Save needs a backup</h3><p>The farm stored on this device could not be read, so it was left in place. Open Settings to export it, or import a backup you already have.</p>`,[{label:'Got it!',cls:'gold'}]);
+    if(boot.kept) UI.modal(`<h3>Farm kept</h3><p>This update kept the save already on this device, including your plants, cash, and crew.</p>`,[{label:'Got it!',cls:'gold'}]);
     else if(boot.off) showAway(boot.off,boot.off.away,boot.off.cap);
     if(G.dailyReady()&&!boot.fresh&&!window.TEST_MODE){   // test mode: gift only via Settings > Test so QC can capture clean screens
  window.__streakSaved=G.streakSaved(); G.claimDaily(); }

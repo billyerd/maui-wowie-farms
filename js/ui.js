@@ -4,7 +4,7 @@ window.UI = (function(){
   const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
   const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const T=()=>window.GAME_CONFIG.title;
-  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null;
+  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null, saveUi=null, importDraft='', exportPack=null;
   const labA={v:null}, labB={v:null}, huntSel={v:null};
   const fmt=n=>G.fmt(n), sec=s=>G.dur(s);
   const tag=s=>`<span class="tag t-${s.rarity}">${s.rarity}</span>${s.island?'<span class="tag" style="background:#0f8f8a;color:#eafffd">Island</span>':''}${s.hemp?'<span class="tag" style="background:#6a8a3a;color:#f2ffe0">CBD</span>':''}${G.EVENT_ONLY[s.id]==='premium'?'<span class="tag" style="background:#ffd35a;color:#3a2500">Exclusive</span>':G.EVENT_ONLY[s.id]?'<span class="tag" style="background:#c05ad0;color:#fff">Festival</span>':''}`;
@@ -300,12 +300,12 @@ window.UI = (function(){
   };
   // Upgrades / build
   function upRow(k,isW){
-    const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l), price=c<=0?'Free':fmt(c);
+    const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l), price=c<=0?(isW&&l>0?'Train':'Free'):fmt(c);
     let lock=''; if(isW&&!G.workerOk(k)) lock=G.st.level<d.level?ico('lock')+'Lv '+d.level:'Needs location'; else if(!isW&&!G.upgNeedOk(d)) lock='Needs location'; else if(!isW&&d.lvl&&G.st.level<d.lvl) lock=ico('lock')+'Lv '+d.lvl;
     const name=d.steps?`${esc(d.name)}: <span style="color:var(--acc)">${esc(d.steps[l])}</span>`:esc(d.name);
     const desc=d.steps?(done?esc(d.descs[l]):`Next: <b>${esc(d.steps[l+1])}</b> · ${esc(d.descs[l+1])}`):esc(d.desc);
     const who=isW&&window.CHARACTERS?Object.keys(window.CHARACTERS).find(n=>n!=='Unko Kuli'&&d.name.startsWith(n)):null;
-    return `<div class="row">${who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'')}<div class="grow"><h4>${name} ${max>1?pips(l,max):''}</h4><p>${desc}</p></div>${done?'<span class="chip">'+(max>1?'MAX':'Owned')+'</span>':`<button class="btn sm ${isW?'pink':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${G.st.cash<c||lock?'disabled':''}>${lock||price}</button>`}</div>`;
+    return `<div class="row">${who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'')}<div class="grow"><h4>${name} ${max>1?pips(l,max):''}</h4><p>${desc}</p></div>${done?'<span class="chip">'+(max>1?'MAX':'Owned')+'</span>':`<button class="btn sm ${isW?'pink':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${(c>0&&G.st.cash<c)||lock?'disabled':''}>${lock||price}</button>`}</div>`;
   }
   function stepCard(kind,label){ const n=G.nextStep(kind); if(!n) return `<div class="row"><div class="grow"><h4>${label}: all space bought</h4></div><span class="chip">MAX</span></div>`;
     return `<div class="row">${window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('step_'+kind,'step')}">`:''}<div class="grow"><h4>${esc(n.name)}</h4><p>${esc(n.desc||('+'+n.add+' plant spaces'))}</p></div><button class="btn sm gold" data-a="step" data-k="${kind}" ${G.st.cash<n.cost?'disabled':''}>${fmt(n.cost)}</button></div>`; }
@@ -330,7 +330,7 @@ window.UI = (function(){
         body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build indoor facility · ${fmt(G.INDOOR.build)}</button>`; }
       else { body+=`<div class="section-t">Benches · ${G.capOf('in')}/32 pots</div>`+stepCard('bench','Benches')+upkeepBox('indoor')+`<div class="section-t">Facility gear</div>`+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); } }
     else if(tab==='lines'){ body+=`<div class="note">The hose unlocks <b>Water all</b>. Each plant needs one free feed at halfway. <b>Feed all</b> does that for this room and does not need a purchase.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
-    else { body+=Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
+    else { body+=`<div class="note">Each helper has a one-time hire price. Training after that is free, and hired helpers take no wages. Crew you already hired stay on the farm.</div>`+Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
     return {title:'Upgrades',sub:'Every upgrade is earnable in game.',tabs,body};
   };
   // Pheno Room: pheno-hunting mystery
@@ -621,6 +621,26 @@ window.UI = (function(){
     body+=`<div class="note">Free to play: every non-cosmetic item here can also be earned in game. Purchases are saved on this device.</div>`;
     return {title:'Island Shop',sub:`${ico('gem')} ${G.num(st.gems)} gems`,tabs:[['featured','Featured'],['pass','Grower Pass'],['gemstore','Gems & Boosts'],['style','Style'],['strains','Exclusive'],['themes','Themes']],body};
   };
+  function saveBlock(){
+    const pack=exportPack;
+    let extra='';
+    if(saveUi==='export'&&pack){
+      extra=`<textarea class="savebox" readonly aria-label="Backup code">${esc(pack.code)}</textarea>`
+        +`<div class="buy2"><button class="btn sm" data-a="savecopy">Copy code</button><button class="btn sm sec" data-a="savedown">Download file</button><button class="btn sm sec" data-a="saveclose">Close</button></div>`
+        +(pack.corrupt?'<p class="note">This save could not be read. Copy or download it before you import a different farm.</p>':'<p class="note">Keep this code or file somewhere safe. Store purchases stay on this device and are not inside the backup.</p>');
+    } else if(saveUi==='import'){
+      extra=`<textarea class="savebox" data-savecode="in" aria-label="Backup code to restore" placeholder="Paste a backup code or JSON">${esc(importDraft)}</textarea>`
+        +`<input class="savefile" type="file" accept="application/json,.json,.txt,text/plain" data-savefile="1" aria-label="Backup file">`
+        +`<div class="buy2"><button class="btn sm pink" data-a="saveimportgo">Restore</button><button class="btn sm sec" data-a="saveclose">Close</button></div>`
+        +`<p class="note">Restore asks before it replaces the farm on this device. Store purchases on this device stay.</p>`;
+    }
+    return `<div class="section-t">Save</div>`
+      +`<div class="note">The farm is stored in this browser and kept when the game updates. Export a backup before you clear site data or switch devices.</div>`
+      +(G.st._holdSave?'<div class="note"><b>The save on this device could not be read.</b> It has not been overwritten. Export it, or import a backup.</div>':'')
+      +`<div class="row"><div class="grow"><h4>Export save</h4><p>Copy a backup code or download a file</p></div><button class="btn sm sec" data-a="export">Export</button></div>`
+      +`<div class="row"><div class="grow"><h4>Import save</h4><p>Paste a code or choose a file</p></div><button class="btn sm sec" data-a="import">Import</button></div>`
+      +extra;
+  }
   PANELS.settings=()=>{
     const st=G.st;
     const tg=(k,l,on)=>`<div class="row"><div class="grow"><h4>${l}</h4></div><button class="btn sm ${on?'':'sec'}" data-a="set" data-k="${k}">${on?'On':'Off'}</button></div>`;
@@ -632,7 +652,8 @@ window.UI = (function(){
       +`<div class="row"><div class="grow"><h4>Restore purchases</h4><p>Re-apply perks and themes bought on this account</p></div><button class="btn sm sec" data-a="restore">Restore</button></div>`
       +`<div class="section-t">Privacy and ads</div><div class="row"><div class="grow"><h4>Privacy policy</h4><p>Saves, ads, payments, and analytics</p></div><a class="btn sm sec" href="privacy.html" target="_blank" rel="noopener">Open</a></div>`
       +`<div class="row"><div class="grow"><h4>Ad preference</h4><p>${window.Ads.consent()==='personalized'?'Personalized ads are allowed.':window.Ads.consent()==='contextual'?'Only non-personalized ads.':'Choose one before ads can play.'}</p></div><div class="buy2"><button class="btn sm ${window.Ads.consent()==='personalized'?'':'sec'}" data-a="adconsent" data-v="personalized">Personalized</button><button class="btn sm ${window.Ads.consent()==='contextual'?'':'sec'}" data-a="adconsent" data-v="contextual">Non-personalized</button></div></div>`
-      +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 18+. It depicts legal, licensed cultivation as a business. Nothing in it can be bought or delivered in real life. Progress saves on this device and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain notes are original game text. Art is painted for the game.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
+      +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 18+. It depicts legal, licensed cultivation as a business. Nothing in it can be bought or delivered in real life. Progress saves on this device, stays when the game updates, and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain notes are original game text. Art is painted for the game.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
+      +saveBlock()
       +`<div class="row"><div class="grow"><h4>Reset farm</h4><p>Erase this device's save (store purchases stay)</p></div><button class="btn sm sec" data-a="reset">Reset</button></div>`;
     return {title:'Settings',sub:'',body};
   };
@@ -651,7 +672,7 @@ window.UI = (function(){
       case 'order': G.fillOrder(d.id); break;
       case 'serve': G.serveCust(d.id); break;
       case 'upg': if(G.buyUpg(d.k)){ Sound.play('buy'); toast(G.UPG[d.k].name+' upgraded!','good'); } break;
-      case 'hire': if(G.hire(d.k)){ Sound.play('buy'); toast(G.WORKERS[d.k].name.split(',')[0]+' joined the farm. Welcome aboard!','good'); } break;
+      case 'hire': if(G.hire(d.k)){ Sound.play('buy'); const who=G.WORKERS[d.k].name.split(',')[0]; toast(G.wk(d.k)===1?who+' joined the farm. One-time hire, no wages.':who+' trained. Still no wages.','good'); } break;
       case 'step': if(G.buyStep(d.k)){ Sound.play('buy'); } break;
       case 'land': if(G.buyLand()){ G.setLoc('farm'); close(); } break;
       case 'ghbuild': if(G.buildGH()){ close(); G.setLoc('farm'); } break;
@@ -694,6 +715,21 @@ window.UI = (function(){
       case 'achclaim': if(G.claimAch(d.id)) Sound.play('gem'); break;
       case 'achall': { let n=0; G.ACH.forEach(x=>{ if(G.claimAch(x.id)) n++; }); if(n){ Sound.play('gem'); toast(n+' achievements claimed!','gemt'); } break; }
       case 'reset': { const ok=await modal('<h3>Reset your farm?</h3><p>This erases your farm on this device. Store purchases are kept.</p>',[{label:'Cancel',cls:'sec',v:false},{label:'Reset',cls:'pink',v:true}]); if(ok){ G.resetAll(); R.rebuild(); close(); } break; }
+      case 'export': exportPack=G.exportBackup(); saveUi='export'; break;
+      case 'import': saveUi='import'; break;
+      case 'saveclose': saveUi=null; break;
+      case 'savecopy': { const pack=exportPack||G.exportBackup(); let copied=false;
+        try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(pack.code); copied=true; } }catch(e){}
+        if(!copied){ const ta=document.querySelector('textarea.savebox'); if(ta){ ta.focus(); ta.select(); try{ copied=document.execCommand('copy'); }catch(e){} } }
+        toast(copied?'Backup code copied':'Select the code and copy it', copied?'good':''); break; }
+      case 'savedown': { const pack=exportPack||G.exportBackup(); const blob=new Blob([pack.json],{type:pack.corrupt?'text/plain':'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=pack.file; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500); toast('Backup file downloaded','good'); break; }
+      case 'saveimportgo': { const ta=document.querySelector('textarea[data-savecode="in"]'); const text=ta?ta.value:importDraft; let save;
+        try{ save=G.parseBackup(text); }catch(err){ toast(err.message||'That backup is not valid','bad'); break; }
+        const crew=save.workers&&typeof save.workers==='object'?Object.keys(save.workers).filter(k=>save.workers[k]>0).length:0;
+        const ok=await modal(`<h3>Replace this farm?</h3><p>The backup becomes the farm on this device: level ${Math.floor(save.level||1)}, ${esc(G.fmt(typeof save.cash==='number'?save.cash:0))}${crew?', '+crew+' hired helper'+(crew===1?'':'s'):''}. Store purchases on this device stay.</p>`,[{label:'Cancel',cls:'sec',v:false},{label:'Replace farm',cls:'pink',v:true}]);
+        if(!ok) break;
+        const r=G.installBackup(save); if(!r.ok){ toast(r.error||'Could not store that backup','bad long'); break; }
+        saveUi=null; importDraft=''; exportPack=null; R.rebuild(); close(); toast('Farm restored','good'); break; }
     }
     G.save(); render();
   }
@@ -718,9 +754,9 @@ window.UI = (function(){
     $('#sheetClose').onclick=close; $('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') close(); });
     $('#sheetTabs').addEventListener('click',e=>{ const b=e.target.closest('button[data-tab]'); if(b){ tab=b.dataset.tab; render(true); Sound.play('tap'); } });
     const del=e=>{ const b=e.target.closest('[data-a]'); if(!b||b.disabled) return; act(b.dataset.a,b.dataset); };
-    $('#sheetBody').addEventListener('input',e=>{ const i=e.target.closest('input[data-vol]'); if(!i) return; G.st.settings[i.dataset.vol]=+i.value; if(window.applySettings) applySettings(); syncVol($('#sheetBody')); if(i.dataset.vol==='vSfx') Sound.play('coin'); });
+    $('#sheetBody').addEventListener('input',e=>{ const ta=e.target.closest('textarea[data-savecode="in"]'); if(ta){ importDraft=ta.value; return; } const i=e.target.closest('input[data-vol]'); if(!i) return; G.st.settings[i.dataset.vol]=+i.value; if(window.applySettings) applySettings(); syncVol($('#sheetBody')); if(i.dataset.vol==='vSfx') Sound.play('coin'); });
     $('#sheetBody').addEventListener('click',del); $('#sheetFoot').addEventListener('click',del);
-    $('#sheetBody').addEventListener('change',e=>{ const s=e.target.closest('select[data-sel]'); if(!s) return; (s.dataset.sel==='A'?labA:s.dataset.sel==='H'?huntSel:labB).v=s.value; render(); });
+    $('#sheetBody').addEventListener('change',e=>{ const s=e.target.closest('select[data-sel]'); if(s){ (s.dataset.sel==='A'?labA:s.dataset.sel==='H'?huntSel:labB).v=s.value; render(); return; } const f=e.target.closest('input[data-savefile]'); if(!f||!f.files||!f.files[0]) return; f.files[0].text().then(t=>{ importDraft=t; saveUi='import'; render(); toast('Backup file loaded. Review it, then tap Restore.','good'); }).catch(()=>toast('Could not read that file','bad')); });
     $('#sheet').addEventListener('pointerdown',()=>lastPointer=performance.now(),true);
     $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
     $('#goal').onclick=()=>{ const g=$('#goal'); if(!g.classList.contains('open')){ goalPeek(5000); return; } if(G.st.questDone){ if(G.claimQuest()) Sound.play('level'); } else open('quests','story'); };

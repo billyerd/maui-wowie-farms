@@ -110,12 +110,12 @@ window.G = (function(){
   };
   // Managers (one per location) + two farm-wide helpers.
   const WORKERS_ALL = {
-    farmhand:{loc:'all', name:'Kai the farmhand', desc:'Harvests, replants, waters, feeds and treats plants in every location you own', base:300, mul:3, max:3, level:2},
-    mgrG:    {loc:'garage', name:'Kai, garage manager', desc:'Harvests, replants, waters and treats the garage', base:300, mul:3, max:3, level:2},
-    mgrF:    {loc:'farm',   name:'Malia, farm manager', desc:'Harvests, replants, waters and treats terraces + greenhouse', base:4000, mul:3, max:3, level:7, need:'land'},
-    mgrI:    {loc:'indoor', name:'Nick, indoor manager', desc:'Harvests, replants, waters and treats the indoor facility', base:30000, mul:3, max:3, level:12, need:'in'},
-    runner:  {loc:'all', name:'Leilani the runner', desc:'Carries fresh harvests to the drying racks', base:1200, mul:3, max:3, level:5},
-    merchant:{loc:'all', name:'Noa the merchant', desc:'Sells dried and cured buds when prices are fair or better', base:4000, mul:3, max:3, level:6},
+    farmhand:{loc:'all', name:'Kai the farmhand', desc:'Harvests, replants, waters, feeds and treats plants in every location you own. One-time hire, no wages.', base:300, mul:1, max:3, level:2, once:true},
+    mgrG:    {loc:'garage', name:'Kai, garage manager', desc:'Harvests, replants, waters and treats the garage. One-time hire, no wages.', base:300, mul:1, max:3, level:2, once:true},
+    mgrF:    {loc:'farm',   name:'Malia, farm manager', desc:'Harvests, replants, waters and treats terraces + greenhouse. One-time hire, no wages.', base:4000, mul:1, max:3, level:7, need:'land', once:true},
+    mgrI:    {loc:'indoor', name:'Nick, indoor manager', desc:'Harvests, replants, waters and treats the indoor facility. One-time hire, no wages.', base:30000, mul:1, max:3, level:12, need:'in', once:true},
+    runner:  {loc:'all', name:'Leilani the runner', desc:'Carries fresh harvests to the drying racks. One-time hire, no wages.', base:1200, mul:1, max:3, level:5, once:true},
+    merchant:{loc:'all', name:'Noa the merchant', desc:'Sells dried and cured buds when prices are fair or better. One-time hire, no wages.', base:4000, mul:1, max:3, level:6, once:true},
   };
   const WORKERS = Object.fromEntries(Object.entries(WORKERS_ALL).filter(([k])=>F.managers?k!=='farmhand':!/^mgr/.test(k)));
   const WEATHER = {
@@ -176,7 +176,8 @@ window.G = (function(){
   }
   // ---------- helpers ----------
   const strain=id=>BY[id];
-  const cost=(def,lvl)=>def.costs?def.costs[lvl+1]:Math.round(def.base*Math.pow(def.mul,lvl));
+  // once: the first level is the only cash price. Later levels are free (workers: no wages, no repeat hire fee).
+  const cost=(def,lvl)=>def.once?(lvl>0?0:Math.round(def.base)):def.costs?def.costs[lvl+1]:Math.round(def.base*Math.pow(def.mul,lvl));
   const maxLv=d=>d.costs?d.costs.length-1:d.max;
   const lv=k=>st.upg[k]||0;
   const wk=k=>st.workers[k]||0;
@@ -796,7 +797,7 @@ window.G = (function(){
     let n=0; const R={cash:0,gems:0,hints:0};
     while(st.questDone&&(q=curQuest())&&questSat(QUESTS[st.quest+1])){ payQuest(q); for(const k in R) R[k]+=q.r[k]||0; st.quest++; st.questDone=true; n++; }
     if(n){ emit('questcatchup',{n,R}); emit('toast',{t:'Caught up on '+n+' story goal'+(n>1?'s':'')+': '+[R.cash?fmt(R.cash):'',R.gems?R.gems+' gems':'',R.hints?R.hints+' hints':''].filter(Boolean).join(', '),k:'good'}); } }
-  function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; payQuest(q); if(q.r.mgr&&WORKERS[q.r.mgr]&&!wk(q.r.mgr)){ st.workers[q.r.mgr]=1; emit('toast',{t:'Kai joined as your garage manager! He keeps harvesting and replanting while you are away.',k:'gemt'}); } else if(q.r.mgr&&!WORKERS[q.r.mgr]&&WORKERS.farmhand&&!wk('farmhand')) st.workers.farmhand=1;
+  function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; payQuest(q); if(q.r.mgr&&WORKERS[q.r.mgr]&&!wk(q.r.mgr)){ st.workers[q.r.mgr]=1; emit('toast',{t:'Kai joined as your garage manager! He keeps harvesting and replanting while you are away. One-time hire, no wages.',k:'gemt'}); } else if(q.r.mgr&&!WORKERS[q.r.mgr]&&WORKERS.farmhand&&!wk('farmhand')) st.workers.farmhand=1;
     if(q.r.hints) emit('toast',{t:'+'+q.r.hints+' hint token'+(q.r.hints>1?'s':''),k:'gemt'});
     st.quest++; st.questDone=false; checkQuest(); emit('questclaim',q); return true; }
   // ---------- login streak, daily / weekly quests, achievements, events ----------
@@ -955,7 +956,104 @@ window.G = (function(){
   function setTime(x){ st.t0=Date.now()-x*1000; st.time=x; }
   const OFFLINE_CAP=()=>(st.vip?96:72)*3600;
   // ---------- save ----------
-  function save(){ st.lastSave=Date.now(); Store.set(CFG.saveKey,JSON.stringify(st)); }
+  // The localStorage key never changes with the schema version. Older and newer JSON is merged in;
+  // a version bump must not delete the key or replace the farm with a fresh one.
+  let saveWarnAt=0;
+  function saveFailText(r){
+    const blob=((r&&r.error)||'')+' '+((r&&r.message)||'');
+    if(/quota/i.test(blob)) return 'Could not save: this browser is out of storage space. Export a backup from Settings.';
+    if(/security|denied/i.test(blob)) return 'Could not save on this device. Export a backup from Settings before you leave.';
+    return 'Could not save the farm. Export a backup from Settings before you leave.';
+  }
+  function warnSave(r){
+    const t=typeof r==='string'?r:saveFailText(r);
+    const now=Date.now(); if(now-saveWarnAt<15000) return; saveWarnAt=now;
+    emit('toast',{t,k:'bad long'});
+  }
+  if(window.Store&&Store.onWriteFail) Store.onWriteFail((k,r)=>{ if(k===CFG.saveKey) warnSave(r); });
+  function save(){
+    if(st._holdSave){ warnSave('The save on this device could not be read, so it was not overwritten. Export it from Settings.'); return false; }
+    st.lastSave=Date.now();
+    let json; try{ json=JSON.stringify(st); }catch(e){ warnSave('Could not save the farm. Export a backup from Settings before you leave.'); return false; }
+    const r=Store.set(CFG.saveKey,json);
+    if(r&&r.ok===false){ warnSave(r); return false; }
+    return true;
+  }
+  function toB64(str){
+    const bytes=new TextEncoder().encode(str); let bin='';
+    for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
+    return btoa(bin);
+  }
+  function fromB64(b64){
+    const bin=atob(b64); const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function exportBackup(){
+    if(st._holdSave) return {corrupt:true, code:st._holdSave, json:st._holdSave, file:'maui-wowie-farms-save-raw.txt'};
+    const save=JSON.parse(JSON.stringify(st));
+    delete save.econMigrated; delete save.schemaNote;
+    const wrap={mwf:1, game:CFG.title||'Maui Wowie Farms', exported:st.lastSave||Date.now(), save};
+    const json=JSON.stringify(wrap);
+    return {corrupt:false, code:'MWF1.'+toB64(json), json, file:'maui-wowie-farms-save.json'};
+  }
+  function parseBackup(text){
+    let s=String(text||'').replace(/^\uFEFF/,'').trim();
+    if(!s) throw new Error('Paste a backup code or choose a file first.');
+    if(/^MWF1\./i.test(s)){
+      try{ s=fromB64(s.slice(5).replace(/\s+/g,'')); }
+      catch(e){ throw new Error('That backup code is damaged.'); }
+    }
+    let data; try{ data=JSON.parse(s); }catch(e){ throw new Error('That backup is not valid.'); }
+    let save=data;
+    if(data&&typeof data==='object'&&!Array.isArray(data)&&data.mwf===1&&data.save&&typeof data.save==='object'&&!Array.isArray(data.save)) save=data.save;
+    if(!save||typeof save!=='object'||Array.isArray(save)) throw new Error('That file is not a farm save.');
+    if(save.v!=null&&typeof save.v!=='number') throw new Error('That save has a bad version.');
+    if(save.cash!=null&&typeof save.cash!=='number') throw new Error('That save has a bad cash value.');
+    if(save.level!=null&&typeof save.level!=='number') throw new Error('That save has a bad level.');
+    if(save.plots!=null&&!Array.isArray(save.plots)) throw new Error('That save has a bad plot list.');
+    if(save.workers!=null&&(typeof save.workers!=='object'||Array.isArray(save.workers))) throw new Error('That save has a bad crew list.');
+    const known=typeof save.v==='number'||typeof save.cash==='number'||Array.isArray(save.plots)||(save.workers&&typeof save.workers==='object');
+    if(!known) throw new Error('That file is missing farm data.');
+    return save;
+  }
+  function installBackup(saveObj){
+    let clean; try{ clean=JSON.parse(JSON.stringify(saveObj)); }catch(e){ return {ok:false, error:'That backup could not be stored.'}; }
+    delete clean._holdSave; delete clean.econMigrated; delete clean.schemaNote;
+    const json=JSON.stringify(clean);
+    const r=Store.set(CFG.saveKey,json);
+    if(r&&r.ok===false) return {ok:false, error:saveFailText(r)};
+    if(Store.get(CFG.saveKey)!==json) return {ok:false, error:'The backup was not stored on this device.'};
+    load();
+    return {ok:true};
+  }
+  function adoptSave(raw){
+    const prevV=raw.v;
+    st=Object.assign(newState(),raw);
+    st.stats=Object.assign(newState().stats,(raw.stats&&typeof raw.stats==='object'&&!Array.isArray(raw.stats))?raw.stats:{});
+    if(!raw.event||typeof raw.event!=='object') st.event={id:null,t:0,next:240};
+    if(!Array.isArray(st.plots)) st.plots=freshPlots();
+    st.plots=st.plots.filter(p=>p&&typeof p==='object');
+    if(raw.workers&&typeof raw.workers==='object'&&!Array.isArray(raw.workers)) st.workers=Object.assign({},raw.workers);
+    else st.workers={};
+    if(!st.upg||typeof st.upg!=='object'||Array.isArray(st.upg)) st.upg={};
+    if(!st.seeds||typeof st.seeds!=='object'||Array.isArray(st.seeds)) st.seeds={};
+    if(!st.discovered||typeof st.discovered!=='object'||Array.isArray(st.discovered)) st.discovered={};
+    if(!st.settings||typeof st.settings!=='object'||Array.isArray(st.settings)) st.settings={music:true,sfx:true,hq:true};
+    if(!st.themes||typeof st.themes!=='object') st.themes={classic:true};
+    if(!st.inv||typeof st.inv!=='object'||Array.isArray(st.inv)) st.inv={wet:{},dry:{},cured:{}};
+    ['wet','dry','cured'].forEach(k=>{ if(!st.inv[k]||typeof st.inv[k]!=='object') st.inv[k]={}; });
+    if(!st.market||typeof st.market!=='object'||Array.isArray(st.market)) st.market={f:{},hist:{},hot:null,hotT:-150,next:0};
+    if(!st.market.f||typeof st.market.f!=='object') st.market.f={};
+    if(!st.market.hist||typeof st.market.hist!=='object') st.market.hist={};
+    if(typeof st.cash!=='number'||!isFinite(st.cash)) st.cash=0;
+    if(typeof st.gems!=='number'||!isFinite(st.gems)) st.gems=0;
+    if(typeof st.level!=='number'||!isFinite(st.level)||st.level<1) st.level=1;
+    st.v=2;
+    migrateStrainIds(st);
+    S.forEach(s=>{ if(st.market.f[s.id]==null) st.market.f[s.id]=1; if(!st.market.hist[s.id]) st.market.hist[s.id]=[]; });
+    return prevV;
+  }
   function migrateGarage(st){ if(st&&!st.garageV){ st.garageV=2; st.garage=Math.max(0,Math.min(7,st.garage|0)); } }   // see GARAGE note
   // p.food used to drain from 1 to 0. Any leftover food means this grow was already fed, so snap it
   // to 1 and leave it there. Empty or missing food stays 0. A stray nutrient pile on the save
@@ -998,32 +1096,46 @@ window.G = (function(){
     st.idMig=1;
   }
   function load(){
-    let raw=null; raw=Store.getJSON(CFG.saveKey,null);
-    st=newState(); let migrated=false;
-    if(raw&&raw.v===2){ st=Object.assign(newState(),raw); st.stats=Object.assign(newState().stats,raw.stats||{}); if(!raw.event) st.event={id:null,t:0,next:240}; migrateStrainIds(st); S.forEach(s=>{ if(st.market.f[s.id]==null) st.market.f[s.id]=1; if(!st.market.hist[s.id]) st.market.hist[s.id]=[]; }); }
-    else if(raw&&raw.v===1){ // v1 -> v2: new progression starts in the garage; keep meta progress
-      migrated=true; st=newState({gems:raw.gems||20,level:raw.level||1,xp:raw.xp||0,lifetime:raw.lifetime||0,streak:raw.streak||st.streak,ach:raw.ach||{},themes:raw.themes||st.themes,theme:raw.theme||'classic',pass2x:!!raw.pass2x,vip:!!raw.vip,rarePacks:raw.rarePacks||0,legPacks:raw.legPacks||0,settings:raw.settings||st.settings,stats:Object.assign(newState().stats,raw.stats||{})});
-      st.cash=150+Math.min(5000,(raw.cash||0)*.1); st.hints=3; }
-    // v2 saves from before real-time: keep the same in-game day/hour, then let the wall clock drive it
-    if(raw&&(!raw.tv||raw.t0==null)){ const old=(raw&&raw.time)||0, days=old/480; st.t0=((raw&&raw.lastSave)||Date.now())-days*DAY_LEN*1000; st.tv=2; }
-    // saves that already own land: the garage has become the pheno room
-    if(st.land&&!st.phenoRoom) st.phenoRoom=true;
-    migrateGarage(st); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
-    if(st.inBuilt) st.found=true;
-    // 'stand' used to be two upgrades sharing one key: the sign (+8%/lv) now has its own key
-    if(st.upg&&st.upg.sign==null&&st.upg.stand){ st.upg.sign=st.upg.stand; st.upg.stand=Math.min(3,st.upg.stand); }
-    // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades and inventory are kept as-is)
-    if(raw&&!raw.econ){ st.econ=2; st.cash=Math.min((raw.cash||0)*2,50000+Math.pow(st.level,2)*2500); st.econMigrated=true; }
-    syncTime();
-    const fp=freshPlots(); fp.forEach(q=>{ if(!st.plots.find(p=>p.id===q.id)) st.plots.push(q); });
-    syncPlots(); migrateFeeds(st); applyEntitlements(); refreshUnlocks(); ensureQuests();
+    const rawStr=Store.get(CFG.saveKey);
+    st=newState();
+    let raw=null, corrupt=false;
+    if(rawStr){
+      try{ raw=JSON.parse(rawStr); if(!raw||typeof raw!=='object'||Array.isArray(raw)) throw new Error('shape'); }
+      catch(e){ corrupt=true; raw=null; }
+    }
+    if(corrupt){ st._holdSave=rawStr; return {fresh:false,off:null,migrated:false,corrupt:true,kept:false}; }
+    let schemaKept=false;
+    if(raw){
+      try{ const prevV=adoptSave(raw); schemaKept=prevV!==2; }
+      catch(e){ st=newState(); st._holdSave=rawStr; return {fresh:false,off:null,migrated:false,corrupt:true,kept:false}; }
+    }
+    try{
+      // v2 saves from before real-time: keep the same in-game day/hour, then let the wall clock drive it
+      if(raw&&(!raw.tv||raw.t0==null)){ const old=raw.time||0, days=old/480; st.t0=(raw.lastSave||Date.now())-days*DAY_LEN*1000; st.tv=2; }
+      if(st.land&&!st.phenoRoom) st.phenoRoom=true;
+      migrateGarage(st); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
+      if(st.inBuilt) st.found=true;
+      if(st.upg&&st.upg.sign==null&&st.upg.stand){ st.upg.sign=st.upg.stand; st.upg.stand=Math.min(3,st.upg.stand); }
+      // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)
+      if(raw&&!raw.econ){ st.econ=2; st.cash=Math.min((raw.cash||0)*2,50000+Math.pow(st.level,2)*2500); st.econMigrated=true; }
+      syncTime();
+      const fp=freshPlots(); fp.forEach(q=>{ if(!st.plots.find(p=>p.id===q.id)) st.plots.push(q); });
+      syncPlots(); migrateFeeds(st); applyEntitlements(); refreshUnlocks(); ensureQuests();
+      // crew hired before this update stay hired (including after entitlement grants)
+      if(raw&&raw.workers&&typeof raw.workers==='object'&&!Array.isArray(raw.workers)){
+        for(const k of Object.keys(raw.workers)) if(raw.workers[k]>0&&!(st.workers[k]>0)) st.workers[k]=raw.workers[k];
+      }
+    }catch(e){
+      if(rawStr){ st=newState(); st._holdSave=rawStr; return {fresh:false,off:null,migrated:false,corrupt:true,kept:false}; }
+      throw e;
+    }
     let off=null;
-    if(raw&&!migrated){ const el=(Date.now()-(raw.lastSave||Date.now()))/1000; const cap=OFFLINE_CAP(); if(el>30){ off=simulate(Math.min(el,cap),true); off.away=el; off.capped=el>cap; off.cap=cap;
+    if(raw){ try{ const el=(Date.now()-(raw.lastSave||Date.now()))/1000; const cap=OFFLINE_CAP(); if(el>30){ off=simulate(Math.min(el,cap),true); off.away=el; off.capped=el>cap; off.cap=cap;
       { const d0=Math.floor(((raw.lastSave||Date.now())-st.t0)/1000/DAY_LEN), d1=dayNum(); const sz=d=>{ const x=((d%24)+24)%24; return x<10?'wet':x<22?'dry':'makahiki'; }; const seen=[]; let mk=0;
         for(let d=d0+1; d<=d1 && d<=d0+400; d++){ if(d%7===6) mk++; if(sz(d)!==sz(d-1)) seen.push(SEASONS[sz(d)].name); }
         off.days=d1-d0; off.markets=mk; off.seasons=seen; off.season=SEASONS[season()].name; off.pests=st.plots.filter(p=>p.owned&&p.pest).length; off.thirsty=st.plots.filter(p=>p.owned&&p.strain&&p.prog<1&&p.water<=0).length;
-        off.huntDone=!!(st.hunt&&st.hunt.phenos); off.dryN=(st.dryer||[]).filter(b=>b&&b.t>=b.dur).length; } } }
-    return {fresh:!raw,off,migrated};
+        off.huntDone=!!(st.hunt&&st.hunt.phenos); off.dryN=(st.dryer||[]).filter(b=>b&&b.t>=b.dur).length; } } }catch(e){ off=null; } }
+    return {fresh:!raw,off,migrated:false,corrupt:false,kept:schemaKept};
   }
   function applyEntitlements(){
     const P=window.Payments; if(!P) return;
@@ -1101,6 +1213,6 @@ window.G = (function(){
     recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
-    tick, simulate, save, load, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
+    tick, simulate, save, load, exportBackup, parseBackup, installBackup, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
   };
 })();

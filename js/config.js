@@ -3,7 +3,7 @@ window.GAME_CONFIG = {
   title: 'Maui Wowie Farms',
   shortTitle: 'Maui Wowie Farms',
   tagline: 'Hawaiian Island Farm Tycoon',
-  saveKey: 'mwfarms_save_v1',
+  saveKey: 'mwfarms_save_v1', // stable storage key. The schema version lives in the JSON (st.v). Never rename this when the game updates.
   // Genre mechanics (owner-approved checklist, see MECHANICS.md). Each unlocks gradually by level / story.
   features: { orders:true, managers:true, mastery:true, prestigeTree:true, customers:true, sets:true, repTiers:true, storyGoals:true, events:true, gecko:true, crafting:true, leaderboards:true },
 };
