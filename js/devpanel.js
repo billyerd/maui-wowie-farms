@@ -1,11 +1,14 @@
-/* Hidden tester panel. Created only when this tab was opened with ?dev=1 (session sticks until ?dev=0).
-   Normal play never builds this UI, and the game methods it calls refuse to run unless DEV_MODE is set. */
+/* Hidden tester panel. Created only when this tab was opened with ?dev=1 (session sticks until ?dev=0)
+   AND the build allows it. Store builds set GAME_CONFIG.allowDevTools to false and this file builds
+   nothing. App Store / Play payment modes apply the same lock. Cash and gem buttons go through
+   G.devGrantCash / G.devGrantGems, which refuse to run in store mode. */
 window.DevPanel=(function(){
+  if(window.applyTesterLock) window.applyTesterLock();
   function html(){
-    if(!window.DEV_MODE) return '';
-    return `<div class="section-t">Tester tools</div><div class="note">This tab was opened with <b>?dev=1</b>. The tester panel is on the farm. It is absent in normal play, and <b>?dev=0</b> turns it off. Your save key is unchanged.</div>`;
+    if(!window.DEV_MODE||(window.storeDisablesTester&&window.storeDisablesTester())) return '';
+    return `<div class="section-t">Tester tools</div><div class="note">This tab was opened with <b>?dev=1</b>. App Store, Play, and production-store builds set <b>allowDevTools</b> to false in js/config.js and ignore that link. Your save key is unchanged.</div>`;
   }
-  if(!window.DEV_MODE) return {html};
+  if(!window.DEV_MODE||(window.storeDisablesTester&&window.storeDisablesTester())) return {html};
   const SPEEDS=[['1×',1],['10×',10],['60×',60],['360×',360],['1 day / min',1440]];
   const SKIPS=[['10 min',600],['1 hour',3600],['8 hours',28800],['1 day',86400],['3 days',259200]];
   const CASH=[['+ $1,000',1000],['+ $10,000',10000],['+ $100,000',100000],['+ $1,000,000',1000000]];
@@ -18,7 +21,7 @@ window.DevPanel=(function(){
     dock.innerHTML=`<button type="button" id="devtoggle" aria-expanded="false" aria-controls="devsheet">Tester</button>
       <div id="devsheet" class="hidden" role="dialog" aria-label="Tester tools">
         <header><b>Tester tools</b><button type="button" id="devclose" aria-label="Close tester tools">&times;</button></header>
-        <p class="devnote">Hidden unless this tab uses <b>?dev=1</b>. Off in normal play. Save key stays the same.</p>
+        <p class="devnote">Hidden unless this tab uses <b>?dev=1</b> on a build with tester tools allowed. Store builds turn that off. Save key stays the same.</p>
         <div class="devsec">Cash</div>
         <div class="devrow">${CASH.map(([l,n])=>chip(l,`data-dev="cash" data-n="${n}"`)).join('')}</div>
         <div class="devsec">Gems</div>
@@ -72,8 +75,8 @@ window.DevPanel=(function(){
     dock.addEventListener('click',e=>{
       const b=e.target.closest('[data-dev]'); if(!b) return;
       const k=b.dataset.dev, n=+b.dataset.n;
-      if(k==='cash') G.addCash(n,'dev');
-      else if(k==='gems') G.addGems(n,'Dev');
+      if(k==='cash') G.devGrantCash(n);
+      else if(k==='gems') G.devGrantGems(n);
       else if(k==='level'||k==='levelset'){ const v=k==='levelset'?+dock.querySelector('#devlevel').value:n; G.devSetLevel(v); }
       else if(k==='unlock') G.devUnlockAll();
       else if(k==='seeds'){ const id=sel.value; if(id) G.devGrantSeeds(id,+dock.querySelector('#devcount').value||1); }

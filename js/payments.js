@@ -18,6 +18,8 @@
 (function(){
   window.PAYMENTS_CONFIG = Object.assign({ mode:'test', verifyEndpoint:'' }, window.PAYMENTS_CONFIG||{});
   const PAYMENTS_CONFIG = window.PAYMENTS_CONFIG;
+  // App Store / Play mode turns the tester panel off before the panel script runs.
+  if(window.applyTesterLock) window.applyTesterLock();
   const STRIPE_PAYMENT_LINKS = { gems_s:'', gems_m:'', gems_l:'', gems_xl:'', starter:'', pass2x:'', vip:'', theme_neon:'', theme_plumeria:'', theme_mauna:'' };
   const ENT_KEY='mwfarms_entitlements_v1', PENDING_KEY='mwfarms_pending_purchase_v1';
   let grantHandler=null, confirmUI=null;

@@ -324,8 +324,12 @@ window.G = (function(){
     emit('discover',{s,quiet:quiet&&(lvlQuiet?'lvl':true),how}); checkQuest(); return true;
   }
   // ---------- economy ----------
-  function addCash(n,src){ st.cash+=n; if(n>0){ st.lifetime+=n; st.runEarn+=n; } emit('cash',{n,src}); }
-  function addGems(n,why){ st.gems+=n; emit('gems',{n,why}); }
+  function testerCurrencyBlocked(src){
+    if(src!=='dev'&&src!=='Dev') return false;
+    return !!(window.storeDisablesTester&&window.storeDisablesTester());
+  }
+  function addCash(n,src){ if(testerCurrencyBlocked(src)) return; st.cash+=n; if(n>0){ st.lifetime+=n; st.runEarn+=n; } emit('cash',{n,src}); }
+  function addGems(n,why){ if(testerCurrencyBlocked(why)) return; st.gems+=n; emit('gems',{n,why}); }
   function spend(n){ if(st.cash<n-1e-9){ emit('nocash',n); return false;} st.cash-=n; emit('cash',{n:-n}); return true; }
   function spendGems(n){ if(st.gems<n){ emit('nogems',n); return false;} st.gems-=n; emit('gems',{n:-n}); return true; }
   function addXP(n){ n*=ECON.xp; if(evFx('festival')) n*=2; if(st&&st.time!=null&&season()==='makahiki') n*=1.25; if(setDone('soty')) n*=1.15; st.xp+=n; while(st.xp>=xpNeed(st.level)){ st.xp-=xpNeed(st.level); st.level++; const gems=10, cash=Math.round(15*Math.pow(st.level,2.2)); addGems(gems); addCash(cash,'level');
@@ -464,8 +468,8 @@ window.G = (function(){
     if(p.food>0) r*=1.15; else if(isHungry(p)) r*=.8;
     if(p.pest) r*=.5;
     if(st.upkeepWarn[p.loc]>0) r*=.3;
-    // Tester growth speed (?dev=1 only). Ignored in normal play and during time-skip catch-up.
-    if(!offline && window.DEV_MODE && st.devSpeed>1) r*=Math.min(10000, st.devSpeed);
+    // Tester growth speed (?dev=1 only). Ignored in normal play, store builds, and time-skip catch-up.
+    if(!offline && devOn() && st.devSpeed>1) r*=Math.min(10000, st.devSpeed);
     return r;
   }
   function timeLeft(p){ if(!p.strain||p.prog>=1) return 0; return (1-p.prog)/Math.max(1e-9,growRate(p)); }
@@ -1204,8 +1208,21 @@ window.G = (function(){
       if(o.heirloom){ sec+=(LINE.max-LINE.stable)*(HUNT_T[t]*lab*tis+gap)+HEIR.sec*.5; } } // F4 -> F6 + certification (overlaps the next line's hunts)                                               // stabilise to F4 with grow-outs
     return {days:sec/86400, strains:n, note:'one bench, sequential crosses and grow-outs; parallel farm growing not counted'}; }
   function resetAll(){ Store.remove(CFG.saveKey); st=newState(); syncPlots(); applyEntitlements(); refreshUnlocks(); save(); emit('reset'); }
-  // ---------- hidden tester tools (?dev=1). Every call no-ops in normal play. ----------
-  function devOn(){ return !!window.DEV_MODE; }
+  // ---------- hidden tester tools (?dev=1). Every call no-ops in normal play and in store builds. ----------
+  function devOn(){
+    if(window.storeDisablesTester&&window.storeDisablesTester()){ window.DEV_MODE=false; return false; }
+    return !!window.DEV_MODE;
+  }
+  function devGrantCash(n){
+    if(!devOn()) return false;
+    n=Math.round(+n); if(!n) return false;
+    addCash(n,'dev'); save(); return true;
+  }
+  function devGrantGems(n){
+    if(!devOn()) return false;
+    n=Math.round(+n); if(!n) return false;
+    addGems(n,'Dev'); save(); return true;
+  }
   function devSetLevel(n){
     if(!devOn()) return false;
     n=Math.max(1,Math.min(60,Math.floor(+n)||1));
@@ -1277,6 +1294,6 @@ window.G = (function(){
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
     tick, simulate, save, load, exportBackup, parseBackup, installBackup, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
-    devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll,
+    devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll, devGrantCash, devGrantGems,
   };
 })();
