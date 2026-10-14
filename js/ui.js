@@ -660,7 +660,7 @@ window.UI = (function(){
   }
   function supportMailto(){
     const cfg=window.GAME_CONFIG||{};
-    const email=String(cfg.SUPPORT_EMAIL||'[SUPPORT EMAIL]');
+    const email=String(cfg.SUPPORT_EMAIL||'808games@mail.grokbot.com');
     const id=G.supportId?G.supportId():'';
     const lines=[
       'Game version: '+(cfg.version||''),
@@ -671,10 +671,11 @@ window.UI = (function(){
   }
   function helpBlock(){
     const id=G.supportId?G.supportId():'';
+    const email=String((window.GAME_CONFIG&&GAME_CONFIG.SUPPORT_EMAIL)||'808games@mail.grokbot.com');
     const head=`<div class="section-t">Help & Support</div><div class="row"><div class="grow"><h4>Help & Support</h4><p>Contact, backups, purchases, and the tutorial</p></div><button class="btn sm ${helpUi?'':'sec'}" data-a="help">${helpUi?'Close':'Open'}</button></div>`;
     if(!helpUi) return head;
     return head
-      +`<div class="row"><div class="grow"><h4>Contact Support</h4><p>Opens an email with the game version, OS / platform, and anonymous player ID ${esc(id)}.</p></div><a class="btn sm" href="${esc(supportMailto())}">Contact Support</a></div>`
+      +`<div class="row"><div class="grow"><h4>Contact Support</h4><p>Email ${esc(email)} with the game version, OS / platform, and anonymous player ID ${esc(id)}.</p></div><a class="btn sm" href="${esc(supportMailto())}">Contact Support</a></div>`
       +`<div class="note"><b>Saves and backup.</b> In Settings, Export copies a backup code or downloads a file. Import asks before it replaces the farm on this device. Store purchases stay on this device.</div>`
       +`<div class="note"><b>Purchases.</b> Test mode grants the item on this device and does not charge a card. Restore purchases reapplies perks and themes already bought here.</div>`
       +`<div class="note"><b>Tutorial.</b> Tutorial, at the top of Settings, replays Unko Kuli's walkthrough on this farm at any time. It does not erase the farm. Skip it whenever you want.</div>`;

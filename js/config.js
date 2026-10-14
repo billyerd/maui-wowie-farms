@@ -5,8 +5,8 @@ window.GAME_CONFIG = {
   tagline: 'Hawaiian Island Farm Tycoon',
   version: '1.0', // player-facing build label. The support email includes this.
   saveKey: 'mwfarms_save_v1', // stable storage key. The schema version lives in the JSON (st.v). Never rename this when the game updates.
-  // One address for Settings → Help & Support and for privacy.html. Replace the placeholder before store submission.
-  SUPPORT_EMAIL: '[SUPPORT EMAIL]',
+  // One address for Settings → Help & Support and for privacy.html.
+  SUPPORT_EMAIL: '808games@mail.grokbot.com',
   // Genre mechanics (owner-approved checklist, see MECHANICS.md). Each unlocks gradually by level / story.
   features: { orders:true, managers:true, mastery:true, prestigeTree:true, customers:true, sets:true, repTiers:true, storyGoals:true, events:true, gecko:true, crafting:true, leaderboards:true },
   // Tester panel kill switch. See docs/tester-panel.md.
