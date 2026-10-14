@@ -578,3 +578,20 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn{display:none}
 #locTabs .loctab .lt b{font-size:12px;white-space:normal;line-height:1.15;letter-spacing:-.1px}
 /* BUG-003: rail wide enough for "Greenhouse" in the highlighted (bold) state on every viewport */
 #locTabs{width:76px!important} #locTabs .loctab{width:68px!important;overflow:hidden} #locTabs .loctab .lt b{white-space:normal!important;letter-spacing:-.4px}
+/* Tester panel (?dev=1 only). The node is not created in normal play. */
+#devdock{position:fixed;left:calc(var(--sal) + 8px);top:calc(var(--sat) + 86px);z-index:36;width:min(340px,calc(100vw - 96px));font-size:13px}
+#devtoggle{min-height:36px;padding:6px 12px;border-radius:999px;background:rgba(20,16,8,.9);color:#ffcf4a;border:1px solid rgba(255,207,74,.55);font-weight:800;letter-spacing:.04em}
+#devsheet{margin-top:6px;max-height:min(70vh,640px);overflow:auto;padding:10px 10px 12px;border-radius:16px;background:rgba(12,22,18,.96);border:1px solid rgba(255,207,74,.35);box-shadow:0 10px 28px rgba(0,0,0,.45)}
+#devsheet header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#devsheet header b{letter-spacing:.04em}
+#devclose{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.08);font-size:20px;line-height:1}
+.devsec{margin:10px 0 4px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#9fb8a7}
+.devnote{margin:4px 0;color:#9fb8a7;font-size:12px;line-height:1.35}
+.devrow{display:flex;flex-wrap:wrap;gap:6px}
+.devrow .btn{flex:1 1 auto}
+.devline{display:flex;gap:6px;margin-top:6px}
+.devline input,#devfilter,#devstrain{width:100%;min-height:36px;margin-top:6px;padding:6px 8px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0f1d17;color:#fff;font:inherit}
+.devline input{margin-top:0;flex:1}
+.devwide{width:100%;white-space:normal}
+#devsheet .btn.gold{background:linear-gradient(#ffe08a,#e0a020);color:#2a1d00}
+@media (orientation:portrait){ #devdock{width:min(340px,calc(100vw - 16px))} }

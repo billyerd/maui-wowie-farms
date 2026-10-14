@@ -13,3 +13,10 @@ window.GAME_CONFIG = {
   const slot=localStorage.getItem('mwf_test_slot'); window.TEST_MODE=sessionStorage.getItem('mwf_test')==='1'||!!slot;
   if(slot) window.GAME_CONFIG.saveKey='mwfarms_test_'+slot; window.TEST_SLOT=slot||null;
 }catch(e){} })();
+/* Hidden tester panel (?dev=1). Off unless this tab opted in. Never changes the save key and never runs in normal play. */
+(function(){ try{
+  const q=new URLSearchParams(location.search);
+  if(q.get('dev')==='1') sessionStorage.setItem('mwf_dev','1');
+  if(q.get('dev')==='0') sessionStorage.removeItem('mwf_dev');
+  window.DEV_MODE=sessionStorage.getItem('mwf_dev')==='1';
+}catch(e){ window.DEV_MODE=false; } })();

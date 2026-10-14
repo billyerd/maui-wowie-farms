@@ -132,8 +132,8 @@ window.G = (function(){
     {id:'gcap',   who:'Unko Kuli', t:'Garage: add buckets to your grow table (Upgrades > Garage)', r:{cash:30}},
     {id:'feed',   who:'Unko Kuli', t:'Feed a plant once it is halfway grown', r:{cash:20}},
     {id:'hose',   who:'Unko Kuli',  t:'Buy a garden hose (Upgrades > Water + feed)', r:{cash:40}},
-    {id:'order',  who:'Unko Kuli',  t:'Fill an order on the Order Board (Market)', r:{gems:10}},
-    {id:'tent3',  who:'Unko Kuli',  t:'Fill the back table with buckets', r:{cash:80}},
+    {id:'order',  who:'Unko Kuli',  t:'Fill an order on the Order Board (it opens at level 2)', r:{gems:10}},
+    {id:'tent3',  who:'Unko Kuli',  t:'Add the second grow table in the garage (Upgrades > Garage)', r:{cash:80}},
     {id:'land',   who:'Uncle Ikaika', t:'Save up and buy the family land on the hill', r:{gems:25}},
     {id:'field',  who:'Uncle Ikaika', t:'Plant on the starter terrace', r:{cash:150}},
     {id:'ghbuild',who:'Malia',t:'Build the outdoor greenhouse', r:{gems:20}},
@@ -340,7 +340,9 @@ window.G = (function(){
     5:['Pheno Room opens: hunt mystery phenos','Walk-in customers visit the farm stand','Leilani the runner is hiring','Island leaderboard'],
     6:['Noa the merchant is hiring','Craft bubble hash from dried buds','Collection sets: finish a set for a permanent bonus'],
     7:['Hire Malia as farm manager'],8:['New Season (prestige) unlocks once you earn enough'],9:['Rare strains (1-4 hour grows) reach the seed shop','County Agricultural Permit can be bought'],
-    10:['Rosin press (craft rosin)','Golden Hour theme (free)'],12:['Indoor facility can be built (see checklist)','Hire Nick as indoor manager'],14:['Epic strains (8-24 hour grows) unlock','Licensed kitchen (craft edibles)'],20:['Legendary strains (1-3 day grows) unlock']};
+    10:['Rosin press (craft rosin)','Golden Hour theme (free)'],
+    11:['Indoor facility: with a full greenhouse, the permit, and the foundation poured, you can build it'],
+    12:['Hire Nick as indoor manager'],14:['Epic strains (8-24 hour grows) unlock','Licensed kitchen (craft edibles)'],20:['Legendary strains (1-3 day grows) unlock']};
   function gate(k){ return st.level>=GATE[k]; }
 
   // ---------- capacity / plots ----------
@@ -355,7 +357,7 @@ window.G = (function(){
   }
   function buyStep(kind){
     const n=nextStep(kind); if(!n) return false; if(!spend(n.cost)) return false;
-    if(kind==='garage'){ st.garage++; if(st.garage===1) done('gcap'); if(st.garage>=2) done('tent3'); }
+    if(kind==='garage'){ st.garage++; if(st.garage>=2) done('gcap'); if(st.garage>=3) done('tent3'); }
     if(kind==='field') st.field++;
     if(kind==='gh'){ st.gh++; if(capOf('gh')>=INDOOR.ghPlants) done('ghfull'); }
     if(kind==='bench') st.bench++;
@@ -462,6 +464,8 @@ window.G = (function(){
     if(p.food>0) r*=1.15; else if(isHungry(p)) r*=.8;
     if(p.pest) r*=.5;
     if(st.upkeepWarn[p.loc]>0) r*=.3;
+    // Tester growth speed (?dev=1 only). Ignored in normal play and during time-skip catch-up.
+    if(!offline && window.DEV_MODE && st.devSpeed>1) r*=Math.min(10000, st.devSpeed);
     return r;
   }
   function timeLeft(p){ if(!p.strain||p.prog>=1) return 0; return (1-p.prog)/Math.max(1e-9,growRate(p)); }
@@ -565,7 +569,9 @@ window.G = (function(){
   function maxTierOwned(){ let t=0; S.forEach(s=>{ if(st.harv[s.id]) t=Math.max(t,s.tier); }); return t; }
   function newOrder(){
     const pool=orderPool(); if(!pool.length) return null;
-    const s=pool[Math.floor(Math.random()*pool.length)];
+    const grown=pool.filter(s=>(st.harv[s.id]||0)>0||['dry','cured','wet'].some(stg=>Object.keys(st.inv[stg]).some(k=>unkey(k).id===s.id&&st.inv[stg][k]>0)));
+    const use=grown.length?grown:pool;
+    const s=use[Math.floor(Math.random()*use.length)];
     const n=Math.max(2,Math.round(s.game.buds*(.8+Math.random()*1.6)));
     const rt=repTier(), B=BUYERS.filter(b=>b.tier<=rt), buyer=B[Math.floor(Math.random()*B.length)];
     const mult=1.6+Math.random()*.6+buyer.bonus;
@@ -784,20 +790,21 @@ window.G = (function(){
   // players who never tap the card all stay in sync. If the player is more than one goal behind, the already-satisfied
   // goals are claimed automatically (rewards paid, one summary toast) and the card lands on the latest real goal.
   function questSat(q){ if(!q) return false; const t=st.stats||{};
-    const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:st.garage>=1, feed:t.feed>0, hose:lv('water')>=1,
-      order:t.orders>0, tent3:st.garage>=2, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:wk('mgrG')>0||wk('farmhand')>0,
+    const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:st.garage>=2, feed:t.feed>0, hose:lv('water')>=1,
+      order:t.orders>0, tent3:st.garage>=3, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:wk('mgrG')>0||wk('farmhand')>0,
       breed:t.bred>0||!!st.breed, craft:(t.crafted||0)>0, ghfull:capOf('gh')>=INDOOR.ghPlants, permit:st.permit, indoor:st.inBuilt, inharv:t.inHarv>0, pheno:t.phenos>0, earn:st.runEarn>=2e6, season:false};
     if(c[q.id]) return true;
     // a later one-time milestone already reached means the player has clearly passed this step (e.g. bought land but never watered by hand)
-    const MS=['gcap','hose','tent3','land','ghbuild','mgr','ghfull','permit','indoor']; const i=QUESTS.indexOf(q);
+    const MS=['gcap','hose','tent3','land','ghbuild','ghfull','permit','indoor']; const i=QUESTS.indexOf(q);
     return QUESTS.some((x,j)=>j>i&&MS.includes(x.id)&&c[x.id]); }
-  function payQuest(q){ if(q.r.cash) addCash(q.r.cash,'quest'); if(q.r.gems) addGems(q.r.gems,'Goal complete'); if(q.r.hints) st.hints+=q.r.hints; }
+  function payQuest(q){ if(q.r.cash) addCash(q.r.cash,'quest'); if(q.r.gems) addGems(q.r.gems,'Goal complete'); if(q.r.hints) st.hints+=q.r.hints;
+    if(q.r.mgr&&WORKERS[q.r.mgr]&&!wk(q.r.mgr)) st.workers[q.r.mgr]=1; else if(q.r.mgr&&!WORKERS[q.r.mgr]&&WORKERS.farmhand&&!wk('farmhand')) st.workers.farmhand=1; }
   function checkQuest(){ let q=curQuest(); if(!q) return;
     if(!st.questDone&&questSat(q)) done(q.id);
     let n=0; const R={cash:0,gems:0,hints:0};
     while(st.questDone&&(q=curQuest())&&questSat(QUESTS[st.quest+1])){ payQuest(q); for(const k in R) R[k]+=q.r[k]||0; st.quest++; st.questDone=true; n++; }
     if(n){ emit('questcatchup',{n,R}); emit('toast',{t:'Caught up on '+n+' story goal'+(n>1?'s':'')+': '+[R.cash?fmt(R.cash):'',R.gems?R.gems+' gems':'',R.hints?R.hints+' hints':''].filter(Boolean).join(', '),k:'good'}); } }
-  function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; payQuest(q); if(q.r.mgr&&WORKERS[q.r.mgr]&&!wk(q.r.mgr)){ st.workers[q.r.mgr]=1; emit('toast',{t:'Kai joined as your garage manager! He keeps harvesting and replanting while you are away. One-time hire, no wages.',k:'gemt'}); } else if(q.r.mgr&&!WORKERS[q.r.mgr]&&WORKERS.farmhand&&!wk('farmhand')) st.workers.farmhand=1;
+  function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; const kai=!wk('mgrG')&&q.r.mgr==='mgrG'; payQuest(q); if(kai&&wk('mgrG')) emit('toast',{t:'Kai joined as your garage manager! He keeps harvesting and replanting while you are away. One-time hire, no wages.',k:'gemt'});
     if(q.r.hints) emit('toast',{t:'+'+q.r.hints+' hint token'+(q.r.hints>1?'s':''),k:'gemt'});
     st.quest++; st.questDone=false; checkQuest(); emit('questclaim',q); return true; }
   // ---------- login streak, daily / weekly quests, achievements, events ----------
@@ -1197,6 +1204,62 @@ window.G = (function(){
       if(o.heirloom){ sec+=(LINE.max-LINE.stable)*(HUNT_T[t]*lab*tis+gap)+HEIR.sec*.5; } } // F4 -> F6 + certification (overlaps the next line's hunts)                                               // stabilise to F4 with grow-outs
     return {days:sec/86400, strains:n, note:'one bench, sequential crosses and grow-outs; parallel farm growing not counted'}; }
   function resetAll(){ Store.remove(CFG.saveKey); st=newState(); syncPlots(); applyEntitlements(); refreshUnlocks(); save(); emit('reset'); }
+  // ---------- hidden tester tools (?dev=1). Every call no-ops in normal play. ----------
+  function devOn(){ return !!window.DEV_MODE; }
+  function devSetLevel(n){
+    if(!devOn()) return false;
+    n=Math.max(1,Math.min(60,Math.floor(+n)||1));
+    st.level=n; st.xp=0;
+    lvlQuiet=true; refreshUnlocks(); lvlQuiet=false;
+    checkQuest();
+    emit('toast',{t:'Tester: level '+n,k:'good'});
+    save(); return true;
+  }
+  function devGrantSeeds(id,n){
+    if(!devOn()) return false;
+    const s=strain(id); if(!s) return false;
+    n=Math.max(1,Math.min(999,Math.floor(+n)||1));
+    if(!st.discovered[id]) st.discovered[id]=true;
+    st.seeds[id]=(st.seeds[id]||0)+n;
+    if(!(st.seeds[st.selSeed]>0)) st.selSeed=id;
+    emit('seeds',{id,n});
+    emit('toast',{t:'Tester: +'+n+' '+s.name+' seeds',k:'good'});
+    save(); return true;
+  }
+  function devSetSpeed(n){
+    if(!devOn()) return false;
+    n=Math.max(1,Math.min(10000,Math.round(+n)||1));
+    st.devSpeed=n;
+    emit('toast',{t:n<=1?'Tester: growth at normal speed':'Tester: plants grow at '+n+'× while you play',k:'good'});
+    save(); return n;
+  }
+  function devSkip(sec){
+    if(!devOn()) return null;
+    sec=Math.max(1,Math.min(14*86400,Math.round(+sec)||0));
+    const r=simulate(sec,false);
+    emit('skip',r); save(); return r;
+  }
+  function devUnlockAll(){
+    if(!devOn()) return false;
+    if(st.level<20){ st.level=20; st.xp=0; }
+    lvlQuiet=true; refreshUnlocks(); lvlQuiet=false;
+    if(st.cash<100000) addCash(100000-st.cash,'dev');
+    if(st.gems<200) addGems(200-st.gems,'Dev');
+    st.land=true; st.phenoRoom=true; st.field=FIELD.length-1;
+    st.ghBuilt=true; st.gh=GH.length-1;
+    st.permit=true; st.found=true; st.inBuilt=true; st.bench=BENCH.length-1; st.breedLab=true;
+    st.garage=GARAGE.length-1;
+    if(lv('water')<1) st.upg.water=1;
+    if(lv('cure')<1) st.upg.cure=1;
+    if(lv('dryer')<1) st.upg.dryer=1;
+    if(lv('press')<1) st.upg.press=1;
+    if(lv('kitchen')<1) st.upg.kitchen=1;
+    syncPlots(); checkQuest();
+    const d=Math.floor(Date.now()/864e5), w=Math.floor(d/7), f=FESTS[w%FESTS.length];
+    festForce=Object.assign({week:w,ends:Date.now()+2*864e5},f);
+    emit('toast',{t:'Tester: garage, land, greenhouse, indoor, lab, and crafting are open. '+f.name+' is on.',k:'good long'});
+    save(); return true;
+  }
   function setLoc(l){ if(!LOCS.includes(l)) return; st.loc=l; emit('loc',l); }
   function ripeIn(l){ return st.plots.filter(p=>p.loc===l&&p.strain&&p.prog>=1).length; }
 
@@ -1214,5 +1277,6 @@ window.G = (function(){
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
     tick, simulate, save, load, exportBackup, parseBackup, installBackup, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
+    devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll,
   };
 })();

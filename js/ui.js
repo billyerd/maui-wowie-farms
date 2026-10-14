@@ -148,10 +148,14 @@ window.UI = (function(){
   function landModal(){ const L=landReq(); const ready=L.every(c=>c.ok);
     modal(`<img src="art/island-bg.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Buy the family land</h3><p>Uncle Ikaika is selling the old terraces on the hill. The land opens the farm: outdoor terraces now, a greenhouse next. Your garage keeps producing the whole time.</p>${reqList(L)}`,
       [{label:'Later',cls:'sec',v:0},{label:ready?'Buy for '+fmt(G.LAND_COST):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buyLand()){ G.setLoc('farm'); } }); }
-  function indoorModal(){ const ck=G.indoorChecklist(); const st=G.st; const pre=ck.slice(0,4).every(c=>c.ok);
-    const acts=[{label:'Later',cls:'sec',v:0}]; if(!st.permit&&st.level>=G.INDOOR.permitLevel) acts.push({label:'Buy permit '+fmt(G.INDOOR.permitCost),cls:'',v:'permit'}); if(pre) acts.push({label:'Build '+fmt(G.INDOOR.build),cls:'gold',v:'build'});
-    modal(`<img src="art/indoor.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor facility checklist</h3><p>Sealed veg and flower rooms on rolling benches: double yield and AAA grade, but power, climate and rent cost money every hour.</p>${reqList(ck)}`,acts)
-      .then(v=>{ if(v==='permit'){ G.buyPermit(); } else if(v==='build'&&G.buildIndoor()){ G.setLoc('indoor'); } }); }
+  function indoorModal(){ const ck=G.indoorChecklist(); const st=G.st;
+    const ready=ck.slice(0,5).every(c=>c.ok);
+    const acts=[{label:'Later',cls:'sec',v:0}];
+    if(!st.permit&&st.level>=G.INDOOR.permitLevel) acts.push({label:'Buy permit '+fmt(G.INDOOR.permitCost),cls:'',v:'permit'});
+    if(st.permit&&!st.found&&st.level>=G.INDOOR.foundLevel) acts.push({label:'Pour foundation '+fmt(G.INDOOR.foundCost),cls:'',v:'found'});
+    if(ready) acts.push({label:(st.cash>=G.INDOOR.build?'Build ':'Need ')+fmt(G.INDOOR.build),cls:st.cash>=G.INDOOR.build?'gold':'sec',v:st.cash>=G.INDOOR.build?'build':0});
+    modal(`<img src="art/indoor.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor facility checklist</h3><p>Sealed veg and flower rooms on rolling benches: double yield and AAA grade, but power, climate and rent cost money every hour. Pour the foundation before the build.</p>${reqList(ck)}`,acts)
+      .then(v=>{ if(v==='permit'){ if(G.buyPermit()) indoorModal(); } else if(v==='found'){ if(G.buyFoundation()) indoorModal(); } else if(v==='build'&&G.buildIndoor()){ G.setLoc('indoor'); } }); }
   // ---------- tools ----------
   function setTool(t){ tool=t; $$('.tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===t)); Sound.play('tap'); }
   // ---------- plot interaction ----------
@@ -320,8 +324,8 @@ window.UI = (function(){
       body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the family land it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':`<div class="row"><div class="grow"><b>Indoor Breeding Pheno Room</b><p>Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the indoor facility.</p></div><button class="btn sm gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button></div>`); }
     else if(tab==='farm'){
       if(!st.land){ const L=landReq(); body+=`<div class="note">Buy the family land to open the farm.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy land · ${fmt(G.LAND_COST)}</button>`; }
-      else { body+=`<div class="section-t">Terraces · ${G.capOf('field')}/12</div>`+stepCard('field','Terraces');
-        body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')}/12 beds</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):`<div class="row"><div class="grow"><h4>Build the greenhouse</h4><p>Glass house with 3 raised beds to start (expand bay by bay to 12). Cheap to run but weather still matters.</p></div><button class="btn sm gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||!G.gate('gh')?'disabled':''}>${G.gate('gh')?fmt(G.GH_BUILD.cost):ico('lock')+'Lv '+G.GH_BUILD.level}</button></div>`);
+      else { body+=`<div class="section-t">Terraces · ${G.capOf('field')}/40 plants</div>`+stepCard('field','Terraces');
+        body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):`<div class="row"><div class="grow"><h4>Build the greenhouse</h4><p>Glass house with 3 raised beds to start (expand bay by bay to 12). Cheap to run but weather still matters.</p></div><button class="btn sm gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||!G.gate('gh')?'disabled':''}>${G.gate('gh')?fmt(G.GH_BUILD.cost):ico('lock')+'Lv '+G.GH_BUILD.level}</button></div>`);
         body+=upkeepBox('farm')+`<div class="section-t">Farm gear</div>`+['beds','shade','lightdep','cooler','catch','supp','shutters'].map(k=>upRow(k)).join(''); } }
     else if(tab==='indoor'){
       if(!st.inBuilt){ body+=`<div class="note">The indoor facility is the big late-game step. Finish the checklist:</div>`+reqList(G.indoorChecklist());
@@ -645,7 +649,7 @@ window.UI = (function(){
     const st=G.st;
     const tg=(k,l,on)=>`<div class="row"><div class="grow"><h4>${l}</h4></div><button class="btn sm ${on?'':'sec'}" data-a="set" data-k="${k}">${on?'On':'Off'}</button></div>`;
     const sl=(k,l,d)=>`<div class="row slrow"><div class="grow"><h4>${l}</h4><p>${d}</p></div><input type="range" min="0" max="100" step="5" data-vol="${k}" aria-label="${l} volume"><b class="slv" data-volv="${k}"></b></div>`;
-    const body=(window.TestMenu?TestMenu.html():'')+`<div class="section-t">Sound</div>`+sl('vMusic','Music','Island soundtrack: ukulele, slack-key, reggae')+sl('vAmb','Ambience','Waves, wind, birds and night insects')+sl('vSfx','Sound effects','Harvest plucks, coins, steel-guitar level-ups')
+    const body=(window.TestMenu?TestMenu.html():'')+(window.DevPanel?DevPanel.html():'')+`<div class="section-t">Sound</div>`+sl('vMusic','Music','Island soundtrack: ukulele, slack-key, reggae')+sl('vAmb','Ambience','Waves, wind, birds and night insects')+sl('vSfx','Sound effects','Harvest plucks, coins, steel-guitar level-ups')
       +`<div class="section-t">Comfort</div>`+tg('vib','Vibration (haptics)',st.settings.vib!==false)+tg('shake','Screen shake',st.settings.shake!==false)+tg('motion','Motion effects (confetti, plant sway)',st.settings.motion!==false)
       +`<div class="section-t">Performance</div>`+tg('hq','High quality graphics',st.settings.hq)+tg('autoQ','Auto quality (lower detail if the game runs slowly)',st.settings.autoQ!==false)
       +`<div class="row"><div class="grow"><h4>Daily gift</h4><p>Login streak: day ${st.streak.n||0}</p></div><button class="btn sm gem" data-a="daily" ${G.dailyReady()?'':'disabled'}>${G.dailyReady()?'Claim':'Claimed'}</button></div>`
