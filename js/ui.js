@@ -4,7 +4,7 @@ window.UI = (function(){
   const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
   const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const T=()=>window.GAME_CONFIG.title;
-  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null;
+  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null, saveUi=null, importDraft='', exportPack=null, helpUi=false;
   const labA={v:null}, labB={v:null}, huntSel={v:null};
   const fmt=n=>G.fmt(n), sec=s=>G.dur(s);
   const tag=s=>`<span class="tag t-${s.rarity}">${s.rarity}</span>${s.island?'<span class="tag" style="background:#0f8f8a;color:#eafffd">Island</span>':''}${s.hemp?'<span class="tag" style="background:#6a8a3a;color:#f2ffe0">CBD</span>':''}${G.EVENT_ONLY[s.id]==='premium'?'<span class="tag" style="background:#ffd35a;color:#3a2500">Exclusive</span>':G.EVENT_ONLY[s.id]?'<span class="tag" style="background:#c05ad0;color:#fff">Festival</span>':''}`;
@@ -78,7 +78,7 @@ window.UI = (function(){
     modal(`<div class="reveal"><img class="r-sil" src="${R.closeup(s,220,true)}" alt=""><img class="r-real" src="${R.closeup(s,220)}" alt=""></div><div style="font-size:12px;font-weight:900;letter-spacing:3px;color:#d9a8ff">PHENO DISCOVERED</div><h3>${esc(s.name)}</h3><div>${tag(s)}</div><p>${esc(s.parents.join(' × '))}<br>Recipe recorded in your Strain Book. Seeds unlocked (+3 in your bag).</p>`,[{label:'Details',cls:'sec',v:'d'},{label:'Thanks!',cls:'gold'}]).then(v=>{ if(v==='d') strainModal(s.id); }); }
 
   // ---------- HUD ----------
-  let shownCash=0, cash0=0, cashTo=0, cashT0=0;
+  let shownCash=0;
   const LOCI={garage:'🏠',farm:'🌿',indoor:'🏭'};
   function landReq(){ const st=G.st; return [{t:'Reach level '+G.LAND_LEVEL,ok:st.level>=G.LAND_LEVEL,p:Math.min(1,(st.level-1+st.xp/G.xpNeed(st.level))/(G.LAND_LEVEL-1))},{t:'Save '+fmt(G.LAND_COST),ok:st.cash>=G.LAND_COST,p:st.cash/G.LAND_COST}]; }
   let goalT=0; function goalPeek(ms){ const g=$('#goal'); if(!g) return; g.classList.add('open'); clearTimeout(goalT); goalT=setTimeout(()=>g.classList.remove('open'),ms); }
@@ -105,7 +105,10 @@ window.UI = (function(){
   }
   function hud(dt){
     const st=G.st;
-    if(st.cash!==cashTo){ cash0=shownCash; cashTo=st.cash; cashT0=performance.now(); } { const k=Math.min(1,(performance.now()-cashT0)/650); shownCash=cash0+(cashTo-cash0)*Ease.outCubic(k); if(k>=1&&shownCash!==cashTo){ shownCash=cashTo; } }
+    // Chase the live balance. Restarting a timed ease whenever cash changes (upkeep does, every frame) froze the label on the value from load.
+    { const target=st.cash, gap=target-shownCash;
+      if(Math.abs(gap)<0.5) shownCash=target;
+      else { const dt0=Math.max(0,Math.min(0.25,typeof dt==='number'&&dt>0?dt:0)), k=dt0?1-Math.pow(0.001,dt0/0.45):0; shownCash+=gap*k; if(Math.abs(shownCash-target)<0.5) shownCash=target; } }
     $('#cash').textContent=fmt(shownCash); $('#gems').textContent=G.num(st.gems);
     $('#lvl').textContent=st.level; $('#xpfill').style.width=Math.min(100,st.xp/G.xpNeed(st.level)*100)+'%';
     const m=G.earnMult(); $('#multBadge').textContent='x'+(m<10?m.toFixed(1):Math.round(m)); $('#multBadge').style.display=m>1.001?'':'none';
@@ -133,11 +136,12 @@ window.UI = (function(){
       const h=`${who?portraitImg(who,'gport'):'<span class="gport" style="display:grid;place-items:center;background:#24402c;border-radius:50%">🎯</span>'}<i class="gdot"></i><div class="gtx"><div class="gt">${st.questDone?'Goal complete! Tap to claim':(who?esc(who)+' · ':'')+'Goal '+(st.quest+1)+'/'+G.QUESTS.length}</div>${esc(q.t)} <span class="gr">${r}</span></div>`;
       if(g._h!==h){ const first=g._h==null; g._h=h; g.innerHTML=h; if(!first) goalPeek(4500); } g.classList.toggle('done',st.questDone); }
     else if(g._h!==''){ g._h=''; g.innerHTML=''; }
-    // tutorial: glow the button the current goal needs
-    const gq=q&&!st.questDone&&st.quest<7?{plant:'#seedBag',dry:'[data-panel=process]',sell:'[data-panel=market]',gcap:'[data-panel=upgrades]',feed:null}[q.id]:null;
+    // story glow. The tutorial card points on its own, so the two hands don't fight.
+    const tutOn=window.Tutorial&&Tutorial.active&&Tutorial.active();
+    const gq=!tutOn&&q&&!st.questDone&&st.quest<7?{plant:'#seedBag',dry:'[data-panel=process]',sell:'[data-panel=market]',gcap:'[data-panel=upgrades]',feed:null}[q.id]:null;
     $$('.guide').forEach(e=>{ if(!gq||!e.matches(gq)) e.classList.remove('guide'); }); if(gq){ const e=$(gq); if(e) e.classList.add('guide'); }
     // water/feed all gating
-    const wa=$('#waterAll'), fa=$('#feedAll'); wa.classList.toggle('locked',G.lv('water')<1); if(fa) fa.classList.toggle('locked',G.lv('nutes')<1);
+    const wa=$('#waterAll'), fa=$('#feedAll'); wa.classList.toggle('locked',G.lv('water')<1); if(fa) fa.classList.remove('locked');
     locTabs(); seedBag(); orderBoard();
   }
   // ---------- location tabs ----------
@@ -148,10 +152,14 @@ window.UI = (function(){
   function landModal(){ const L=landReq(); const ready=L.every(c=>c.ok);
     modal(`<img src="art/island-bg.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Buy the family land</h3><p>Uncle Ikaika is selling the old terraces on the hill. The land opens the farm: outdoor terraces now, a greenhouse next. Your garage keeps producing the whole time.</p>${reqList(L)}`,
       [{label:'Later',cls:'sec',v:0},{label:ready?'Buy for '+fmt(G.LAND_COST):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buyLand()){ G.setLoc('farm'); } }); }
-  function indoorModal(){ const ck=G.indoorChecklist(); const st=G.st; const pre=ck.slice(0,4).every(c=>c.ok);
-    const acts=[{label:'Later',cls:'sec',v:0}]; if(!st.permit&&st.level>=G.INDOOR.permitLevel) acts.push({label:'Buy permit '+fmt(G.INDOOR.permitCost),cls:'',v:'permit'}); if(pre) acts.push({label:'Build '+fmt(G.INDOOR.build),cls:'gold',v:'build'});
-    modal(`<img src="art/indoor.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor facility checklist</h3><p>Sealed veg and flower rooms on rolling benches: double yield and AAA grade, but power, climate and rent cost money every hour.</p>${reqList(ck)}`,acts)
-      .then(v=>{ if(v==='permit'){ G.buyPermit(); } else if(v==='build'&&G.buildIndoor()){ G.setLoc('indoor'); } }); }
+  function indoorModal(){ const ck=G.indoorChecklist(); const st=G.st;
+    const ready=ck.slice(0,5).every(c=>c.ok);
+    const acts=[{label:'Later',cls:'sec',v:0}];
+    if(!st.permit&&st.level>=G.INDOOR.permitLevel) acts.push({label:'Buy permit '+fmt(G.INDOOR.permitCost),cls:'',v:'permit'});
+    if(st.permit&&!st.found&&st.level>=G.INDOOR.foundLevel) acts.push({label:'Pour foundation '+fmt(G.INDOOR.foundCost),cls:'',v:'found'});
+    if(ready) acts.push({label:(st.cash>=G.INDOOR.build?'Build ':'Need ')+fmt(G.INDOOR.build),cls:st.cash>=G.INDOOR.build?'gold':'sec',v:st.cash>=G.INDOOR.build?'build':0});
+    modal(`<img src="art/indoor.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor facility checklist</h3><p>Sealed veg and flower rooms on rolling benches: double yield and AAA grade, but power, climate and rent cost money every hour. Pour the foundation before the build.</p>${reqList(ck)}`,acts)
+      .then(v=>{ if(v==='permit'){ if(G.buyPermit()) indoorModal(); } else if(v==='found'){ if(G.buyFoundation()) indoorModal(); } else if(v==='build'&&G.buildIndoor()){ G.setLoc('indoor'); } }); }
   // ---------- tools ----------
   function setTool(t){ tool=t; $$('.tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===t)); Sound.play('tap'); }
   // ---------- plot interaction ----------
@@ -165,7 +173,7 @@ window.UI = (function(){
   }
   let lastSel=null;
   function quick(a,p){ let ok=true;
-    if(a==='water') ok=G.water(p)!==false; else if(a==='feed'){ ok=!!G.feed(p); if(!ok) toast(p.food>.5?'Already well fed':'Need '+fmt(G.feedCost(p)),'bad'); }
+    if(a==='water') ok=G.water(p)!==false; else if(a==='feed'){ ok=!!G.feed(p); if(!ok) toast(p.food>0?'Already fed this grow':'Feed opens at halfway','bad'); }
     else if(a==='treat'){ ok=!!G.treat(p); if(!ok) toast('Need '+fmt(G.treatCost(p))+' to treat','bad'); } else if(a==='prune') G.prune(p); else if(a==='top') G.train(p,'top'); else if(a==='harvest'){ G.harvest(p); lastSel=null; }
     if(ok){ Sound.play(a==='water'?'water':'tap'); if(R.shake) R.shake(p); Haptics.light(); } renderPop(); }
   function showPop(p,sx,sy){ popPlot=p; const pop=$('#pop'); renderPop(); pop.style.left=Math.max(120,Math.min(innerWidth-120,sx))+'px'; pop.style.top=Math.max(170,sy-10)+'px'; pop.classList.remove('hidden'); }
@@ -175,12 +183,12 @@ window.UI = (function(){
     $('#pop').innerHTML=`<h5>${esc(s.name)} <small style="color:var(--mut)">${esc(G.ZONE[p.zone].name)}</small></h5>
       <div class="l"><span>Ready in</span><b>${p.prog>=1?'Ripe now!':sec(left)+' · ~'+clockAt(left)}</b></div>${bar(p.prog)}
       <div class="l"><span>Water</span><b>${Math.round(p.water*100)}%</b></div>${bar(p.water,'blue')}
-      <div class="l"><span>Nutrients</span><b>${p.food>0?'Fed (+15% speed, +20% yield)':G.isHungry(p)?'<span class="down">Hungry (-20% speed)</span>':'Not needed yet'}</b></div>
+      <div class="l"><span>Feed</span><b>${p.food>0?'Fed (+15% speed, +20% yield)':G.isHungry(p)?'<span class="down">Needs one free feed (20% slower, no yield bonus)</span>':'One free feed at halfway'}</b></div>
       <div class="l"><span>Health</span><b>${p.pest==='mold'?'<span class="down">Mold! Treat now</span>':p.pest==='pests'?'<span class="down">Pests! Treat now</span>':'Healthy'}</b></div>
       <div class="l"><span>Training</span><b>${p.pruned?'Pruned (+12%)':G.canPrune(p)?'<span class="up">Ready to prune</span>':p.prog<.15?'Too young to prune':'Not pruned'}${p.trellis?' · Trellis (+8%)':''}${p.train==='top'?' · Topped (+15%)':p.train==='lst'?' · LST (+8%)':''}</b></div>
       <div class="l"><span>Expected grade</span><b>${gradeBadge(G.gradeOf(G.plotScore(p)))}</b></div>
       <div class="l"><span>Upkeep this cycle</span><b>${fmt(cc.total)}</b></div>${G.st.upkeepWarn[p.loc]>0?'<div class="l"><span class="down">Cash too low for upkeep: growing at 30%</span></div>':''}
-      <div class="acts">${G.canTrain(p)?`<button class="btn sm green" data-pa="top">Top (+15%, 10% slower)</button><button class="btn sm green" data-pa="lst">Tie down / LST (+8%, +3% quality)</button>`:''}${G.canPrune(p)?`<button class="btn sm green" data-pa="prune">Prune (+12%)</button>`:''}${G.canTrellis(p)?`<button class="btn sm" data-pa="trellis">Trellis ${fmt(G.trellisCost(p))} (+8%)</button>`:''}${p.pest?`<button class="btn sm pink" data-pa="treat">Treat ${fmt(G.treatCost(p))}</button>`:''}<button class="btn sm" data-pa="water">${ico('drop')}Water</button><button class="btn sm gold" data-pa="feed">${ico('feed')}Feed ${fmt(G.feedCost(p))}</button></div>`;
+      <div class="acts">${G.canTrain(p)?`<button class="btn sm green" data-pa="top">Top (+15%, 10% slower)</button><button class="btn sm green" data-pa="lst">Tie down / LST (+8%, +3% quality)</button>`:''}${G.canPrune(p)?`<button class="btn sm green" data-pa="prune">Prune (+12%)</button>`:''}${G.canTrellis(p)?`<button class="btn sm" data-pa="trellis">Trellis ${fmt(G.trellisCost(p))} (+8%)</button>`:''}${p.pest?`<button class="btn sm pink" data-pa="treat">Treat ${fmt(G.treatCost(p))}</button>`:''}<button class="btn sm" data-pa="water">${ico('drop')}Water</button><button class="btn sm gold" data-pa="feed" ${p.food>0||!G.isHungry(p)?'disabled':''}>${ico('feed')}${p.food>0?'Fed':G.isHungry(p)?'Feed':'Feed at halfway'}</button></div>`;
   }
   function hidePop(keepSel){ popPlot=null; if(!keepSel) lastSel=null; $('#pop').classList.add('hidden'); }
   // ---------- panels ----------
@@ -300,12 +308,12 @@ window.UI = (function(){
   };
   // Upgrades / build
   function upRow(k,isW){
-    const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l);
+    const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l), price=c<=0?(isW&&l>0?'Train':'Free'):fmt(c);
     let lock=''; if(isW&&!G.workerOk(k)) lock=G.st.level<d.level?ico('lock')+'Lv '+d.level:'Needs location'; else if(!isW&&!G.upgNeedOk(d)) lock='Needs location'; else if(!isW&&d.lvl&&G.st.level<d.lvl) lock=ico('lock')+'Lv '+d.lvl;
     const name=d.steps?`${esc(d.name)}: <span style="color:var(--acc)">${esc(d.steps[l])}</span>`:esc(d.name);
     const desc=d.steps?(done?esc(d.descs[l]):`Next: <b>${esc(d.steps[l+1])}</b> · ${esc(d.descs[l+1])}`):esc(d.desc);
     const who=isW&&window.CHARACTERS?Object.keys(window.CHARACTERS).find(n=>n!=='Unko Kuli'&&d.name.startsWith(n)):null;
-    return `<div class="row">${who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'')}<div class="grow"><h4>${name} ${max>1?pips(l,max):''}</h4><p>${desc}</p></div>${done?'<span class="chip">'+(max>1?'MAX':'Owned')+'</span>':`<button class="btn sm ${isW?'pink':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${G.st.cash<c||lock?'disabled':''}>${lock||fmt(c)}</button>`}</div>`;
+    return `<div class="row">${who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'')}<div class="grow"><h4>${name} ${max>1?pips(l,max):''}</h4><p>${desc}</p></div>${done?'<span class="chip">'+(max>1?'MAX':'Owned')+'</span>':`<button class="btn sm ${isW?'pink':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${(c>0&&G.st.cash<c)||lock?'disabled':''}>${lock||price}</button>`}</div>`;
   }
   function stepCard(kind,label){ const n=G.nextStep(kind); if(!n) return `<div class="row"><div class="grow"><h4>${label}: all space bought</h4></div><span class="chip">MAX</span></div>`;
     return `<div class="row">${window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('step_'+kind,'step')}">`:''}<div class="grow"><h4>${esc(n.name)}</h4><p>${esc(n.desc||('+'+n.add+' plant spaces'))}</p></div><button class="btn sm gold" data-a="step" data-k="${kind}" ${G.st.cash<n.cost?'disabled':''}>${fmt(n.cost)}</button></div>`; }
@@ -320,8 +328,8 @@ window.UI = (function(){
       body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the family land it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':`<div class="row"><div class="grow"><b>Indoor Breeding Pheno Room</b><p>Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the indoor facility.</p></div><button class="btn sm gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button></div>`); }
     else if(tab==='farm'){
       if(!st.land){ const L=landReq(); body+=`<div class="note">Buy the family land to open the farm.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy land · ${fmt(G.LAND_COST)}</button>`; }
-      else { body+=`<div class="section-t">Terraces · ${G.capOf('field')}/12</div>`+stepCard('field','Terraces');
-        body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')}/12 beds</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):`<div class="row"><div class="grow"><h4>Build the greenhouse</h4><p>Glass house with 3 raised beds to start (expand bay by bay to 12). Cheap to run but weather still matters.</p></div><button class="btn sm gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||!G.gate('gh')?'disabled':''}>${G.gate('gh')?fmt(G.GH_BUILD.cost):ico('lock')+'Lv '+G.GH_BUILD.level}</button></div>`);
+      else { body+=`<div class="section-t">Terraces · ${G.capOf('field')}/40 plants</div>`+stepCard('field','Terraces');
+        body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):`<div class="row"><div class="grow"><h4>Build the greenhouse</h4><p>Glass house with 3 raised beds to start (expand bay by bay to 12). Cheap to run but weather still matters.</p></div><button class="btn sm gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||!G.gate('gh')?'disabled':''}>${G.gate('gh')?fmt(G.GH_BUILD.cost):ico('lock')+'Lv '+G.GH_BUILD.level}</button></div>`);
         body+=upkeepBox('farm')+`<div class="section-t">Farm gear</div>`+['beds','shade','lightdep','cooler','catch','supp','shutters'].map(k=>upRow(k)).join(''); } }
     else if(tab==='indoor'){
       if(!st.inBuilt){ body+=`<div class="note">The indoor facility is the big late-game step. Finish the checklist:</div>`+reqList(G.indoorChecklist());
@@ -329,8 +337,8 @@ window.UI = (function(){
         if(st.permit&&!st.found) body+=`<button class="btn wide" data-a="found" style="margin-top:8px" ${st.level<G.INDOOR.foundLevel||st.cash<G.INDOOR.foundCost?'disabled':''}>${st.level<G.INDOOR.foundLevel?ico('lock')+'Foundation at Lv '+G.INDOOR.foundLevel:'Pour the foundation · '+fmt(G.INDOOR.foundCost)}</button>`;
         body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build indoor facility · ${fmt(G.INDOOR.build)}</button>`; }
       else { body+=`<div class="section-t">Benches · ${G.capOf('in')}/32 pots</div>`+stepCard('bench','Benches')+upkeepBox('indoor')+`<div class="section-t">Facility gear</div>`+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); } }
-    else if(tab==='lines'){ body+=`<div class="note">Watering and feeding lines work in every location. The hose unlocks <b>Water all</b>; the reservoir unlocks <b>Feed all</b>.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
-    else { body+=Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
+    else if(tab==='lines'){ body+=`<div class="note">The hose unlocks <b>Water all</b>. Each plant needs one free feed at halfway. <b>Feed all</b> does that for this room and does not need a purchase.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
+    else { body+=`<div class="note">Each helper has a one-time hire price. Training after that is free, and hired helpers take no wages. Crew you already hired stay on the farm.</div>`+Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
     return {title:'Upgrades',sub:'Every upgrade is earnable in game.',tabs,body};
   };
   // Pheno Room: pheno-hunting mystery
@@ -415,7 +423,7 @@ window.UI = (function(){
     const n=WG.nodes.get(id), st=G.st; if(n.kind==='p'){ const kids=WG.edges.filter(e=>e.a===id&&edgeVisible(e,WG)).map(e=>WG.nodes.get(e.b).s.name); el.innerHTML=`<h4>${esc(n.name)} <span class="tag">Pollen</span></h4><p>A parent line you can use as pollen in the Pheno Room.</p><p><b>Known children:</b> ${kids.length?esc(kids.join(', ')):'none found yet'}</p>`; return; }
     const s=n.s, stt=webState(n), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[id], k=st.keepers&&st.keepers[id], r=st.hintRev[id]||0;
     const pars=s.parents.length?s.parents.map((p,i)=>stt==='known'||(stt==='locked'&&!s.mystery)||i<r?esc(p):'???').join(' × '):'Landrace / original line';
-    const how=[]; if(ex) how.push('Exclusive: Island Shop (money or gems)','Rare drop: Legendary Seed Packs (4%)','Rare drop: finished pheno hunts (3%)');
+    const how=[]; if(ex){ const n=G.PREMIUM.filter(i=>G.strain(i)).length||1; how.push('Exclusive: Island Shop (money or gems)','Rare drop: Legendary Seed Packs ('+pct(G.DROP.packPremium/n)+' each, as an extra seed)','Rare drop: finished pheno hunts ('+pct(G.DROP.huntPremium/n)+' each)'); }
     if(s.mystery) how.push(stt==='known'?'Bred in the Pheno Room':'Cross the right two parents in the Pheno Room'+(r?' (hint: '+r+' parent'+(r>1?'s':'')+' revealed)':'')); else if(!ex) how.push(window.G.festNow&&G.FESTS.some(f=>f.strain===id)?'Island festival reward':'Seed shop from level '+s.game.unlockLevel);
     el.innerHTML=`<div class="wc-top"><img src="${R.closeup(s,96,stt==='mystery'||stt==='hinted')}" alt=""><div><h4>${stt==='mystery'?'??? mystery pheno':esc(s.name)} ${tag(s)}</h4><p>${esc(s.type)}${stt==='known'&&s.thc?' · '+s.thc+'% THC':''} · ${esc(s.rarity)}</p></div></div>
       <p><b>Parents:</b> ${pars}</p><p><b>How to get:</b> ${esc(how.join(' · '))}</p><p><b>Line:</b> ${G.st.lines&&G.st.lines[id]?esc(G.lineName(id)):s.mystery&&stt!=='known'?'not bred yet':'commercial stable line'}${s.tier>=4?' · Legendary recipe: parents must be stable lines (F'+G.LINE.stable+'+) in the Breeding Pheno Room':''}</p><p><b>Kept mother:</b> ${k?`Pheno ${esc(k.k)} · ${esc(k.terp)} · yield ${Math.round((k.y-1)*100)}%, quality +${Math.round(k.q*100)}%`:'none'}</p>
@@ -439,7 +447,7 @@ window.UI = (function(){
     if(tab==='web') return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · family web`,tabs:[['web','Web'],['list','List']],body:`${(()=>{ const P=G.breedProgress(); return `<div class="row" style="display:block"><h4>Breeding completion · ${P.pct}%</h4>${bar(P.pct/100,'amber')}<p>${P.found}/${P.mystery} mystery phenos bred · ${P.stable}/${P.mystery} lines stabilized to F${G.LINE.stable}+ · ${P.known}/${P.all} strains in your book</p></div>`; })()}<div id="webWrap"><canvas id="strainWeb"></canvas><div class="web-legend"><span><i style="background:#ffd35a"></i>Exclusive</span><span><i style="background:#9fd76a"></i>Pollen</span><span>? mystery</span><span>M kept mother</span></div></div><div id="webCard" class="row" style="display:block"></div>`};
     const cards=G.S.slice().sort((a,b)=>a.tier-b.tier||a.name.localeCompare(b.name)).map(s=>{ const d=st.discovered[s.id], hid=!d&&s.mystery;
       return `<button class="card ${d?'':'locked'}" data-a="strain" data-id="${s.id}"><img data-cu="${s.id}" data-sz="120" data-h="${hid?1:0}" alt="" style="width:100%;aspect-ratio:1;border-radius:12px;display:block;${d||hid?'':'filter:brightness(.35) saturate(.2)'}"><div class="nm">${hid?'???':esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span>${st.recipes[s.id]?'<span class="tag" style="font-size:12px;background:#7a4ad0;color:#fff">Recipe</span>':''}</button>`; }).join('');
-    return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · data from Leafly`,tabs:[['web','Web'],['list','List']],body:`<div class="grid">${cards}</div><div class="note">Strain facts come from Leafly strain pages. Fields marked ESTIMATE were not published. Close-ups are painted game art tinted from each strain's described look; no photos are shipped.</div>`};
+    return {title:'Strain Book',sub:`${n}/${G.S.length} discovered`,tabs:[['web','Web'],['list','List']],body:`<div class="grid">${cards}</div><div class="note">Strain notes are original game text. Fields marked ESTIMATE were not given a published figure. Close-ups are painted game art tinted from each strain's described look; no photos are shipped.</div>`};
   };
   function strainModal(id){
     const s=G.strain(id), st=G.st, d=st.discovered[id];
@@ -452,7 +460,7 @@ window.UI = (function(){
       <dt>Terpenes</dt><dd>${s.terpenes.length?s.terpenes.join(', '):'Not published'}</dd><dt>Flavors</dt><dd>${s.flavors.join(', ')}</dd>
       <dt>Flowering</dt><dd>${s.floweringDays} days (${esc(s.floweringSource)})</dd><dt>Look</dt><dd>${esc(L.shape||'')} buds, frost ${Math.round((L.frost||0)*100)}% <small style="color:var(--mut)">(${esc(L.src||'ESTIMATE')})</small></dd>
       <dt>In game</dt><dd>${sec(s.game.growSec)} grow · ${s.game.buds} buds · ~${fmt(s.game.payout)}/plant · seed ${fmt(G.seedPrice(s))}</dd>${G.F.mastery?`<dt>Mastery</dt><dd>${m.n} harvests · x${m.m} price${m.next?' · next x'+m.nextM+' at '+m.next:''}</dd>`:''}</dl>
-      <p style="text-align:left;font-size:12px">"${esc(s.blurb)}" (Leafly)</p><p style="font-size:12px">Source: Leafly strain page (${esc(s.leafly)})${d?'':' · <b>Not discovered yet</b>'}</p>`;
+      <p style="text-align:left;font-size:12px">${esc(s.blurb)}</p>${d?'':'<p style="font-size:12px"><b>Not discovered yet</b></p>'}`;
     modal(html,[{label:'Close',cls:'sec'}]);
   }
 
@@ -522,11 +530,42 @@ window.UI = (function(){
         return w(`<rect x="4" y="8" width="56" height="48" rx="10" fill="${th[0]}"/><path d="M4 40Q20 18 34 30T60 26V48a8 8 0 01-8 8H12a8 8 0 01-8-8z" fill="${th[2]}"/><circle cx="46" cy="20" r="7" fill="${th[1]}"/><path d="M14 44v-14M14 30c-6-2-8 2-8 2M14 30c6-3 9 1 9 1M14 30c-3-5-1-8-1-8" stroke="#3a2a1a" stroke-width="2" fill="none"/>`); }
     }
   }
+  function pct(p){ return (Math.round(p*10000)/100).toFixed(2)+'%'; }
+  function renderOdds(o){
+    if(!o) return '';
+    let h=`<div class="odds"><h5>Drop odds</h5><p>${o.seedCount} seeds. Each chance below is for one roll, taken from the live drop table. Percents are rounded to the nearest 0.01%.</p>`;
+    o.slots.forEach(slot=>{
+      h+=`<p><b>${esc(slot.label)}${slot.count>1?' · '+slot.count+' seeds':''}</b></p>`;
+      if(slot.fallbackUsed) h+=`<p>The higher tier has no seeds right now, so this slot uses the next tier.</p>`;
+      if(slot.empty||!slot.tiers.length){ h+=`<p>No seeds in this pool.</p>`; return; }
+      h+=`<table class="odds-table"><thead><tr><th>Rarity and item</th><th>Chance</th></tr></thead><tbody>`;
+      slot.tiers.forEach(t=>{
+        h+=`<tr class="odds-tier"><td>${esc(t.rarity)}</td><td>${pct(t.chance)}</td></tr>`;
+        t.items.forEach(it=>{ h+=`<tr class="odds-item"><td>${esc(it.name)}</td><td>${pct(it.chance)}</td></tr>`; });
+      });
+      h+=`</tbody></table>`;
+    });
+    if(o.hints) h+=`<p><b>Hint tokens:</b> ${o.hints}, every pack (100%).</p>`;
+    o.bonuses.forEach(b=>{
+      h+=`<p><b>${esc(b.label)}</b></p><table class="odds-table"><thead><tr><th>Outcome</th><th>Chance</th></tr></thead><tbody>`;
+      h+=`<tr class="odds-tier"><td>No extra seed</td><td>${pct(b.none)}</td></tr>`;
+      b.items.forEach(it=>{ h+=`<tr class="odds-item"><td>${esc(it.name)} <span class="mut">(${esc(it.rarity)})</span></td><td>${pct(it.chance)}</td></tr>`; });
+      h+=`</tbody></table>`;
+    });
+    return h+`</div>`;
+  }
+  function oddsForProduct(p){
+    const g=(p&&p.grants)||{}; const parts=[];
+    if(g.rarePacks) parts.push(renderOdds(G.packOdds('rare')));
+    if(g.legPacks) parts.push(renderOdds(G.packOdds('leg')));
+    return parts.join('');
+  }
   function prodCard(p){
     const st=G.st, P=window.Payments;
     const owned=p.once&&(P.isOwned(p.id)||(p.grants.pass2x&&st.pass2x)||(p.grants.vip&&st.vip)||(p.grants.theme&&!p.grants.gems&&st.themes[p.grants.theme]));
     const btn=owned?`<button class="btn sm sec" disabled>Owned</button>`:p.kind==='usd'?`<button class="btn sm pink" data-a="usd" data-id="${p.id}">${P.formatUSD(p.priceUSD)}</button>`:`<button class="btn sm gem" data-a="gemsbuy" data-id="${p.id}" ${st.gems<p.priceGems?'disabled':''}>${ico('gem')}${G.num(p.priceGems)}</button>`;
-    return `<div class="prod ${owned?'owned':''}">${p.flag&&!owned?`<span class="flag">${p.flag}</span>`:''}${art(p.art)}<h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p>${btn}</div>`;
+    const odds=oddsForProduct(p);
+    return `<div class="prod ${owned?'owned':''}${odds?' wide':''}">${p.flag&&!owned?`<span class="flag">${p.flag}</span>`:''}${art(p.art)}<h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p>${odds}${btn}</div>`;
   }
   // ---- ads / piggy / rush / cosmetics / exclusive strains ----
   function adsCard(){ const a=G.adState(), A=G.ADS, full=a.n>=A.cap; return `<div class="section-t">Watch ads for gems</div><div class="row adcard"><span class="ico ico-gem" style="width:34px;height:34px"></span><div class="grow"><h4>Watch a short ad: +${A.gems} gems</h4>
@@ -546,7 +585,8 @@ window.UI = (function(){
           (o?`<button class="btn sm ${on?'sec':'green'}" data-a="equip" data-sl="${sl}" data-id="${on?'':id}">${on?'Unequip':'Equip'}</button>`:c.pass?`<button class="btn sm sec" data-a="gopass">Grower Pass reward</button>`:`<div class="buy2"><button class="btn sm pink" data-a="usd" data-id="${pu.id}">${pay.formatUSD(pu.priceUSD)}</button><button class="btn sm gem" data-a="gemsbuy" data-id="${pg.id}" ${st.gems<pg.priceGems?'disabled':''}>${ico('gem')}${G.num(pg.priceGems)}</button></div>`)+`</div>`; }
       h+='</div>'; }
     return h; }
-  function strainsTab(){ const st=G.st, pay=window.Payments; let h=`<div class="note">Exclusive Legendary strains. Buy seeds here with money or gems, or find them in play: <b>Legendary Seed Packs (4% each)</b> and <b>finished pheno hunts (3% each)</b>.</div><div class="prod-grid">`;
+  function strainsTab(){ const st=G.st, pay=window.Payments, n=G.PREMIUM.filter(id=>G.strain(id)).length||1;
+    let h=`<div class="note">Exclusive Legendary strains. Buy seeds here with money or gems, or find an extra seed in play: <b>Legendary Seed Packs (${pct(G.DROP.packPremium)} total, ${pct(G.DROP.packPremium/n)} each)</b> and <b>finished pheno hunts (${pct(G.DROP.huntPremium)} total, ${pct(G.DROP.huntPremium/n)} each)</b>. Those extras do not replace the pack's listed seeds.</div><div class="prod-grid">`;
     for(const id of G.PREMIUM){ const s=G.strain(id); if(!s) continue; const pu=window.PRODUCTS['strain_'+id], pg=window.PRODUCTS['strain_'+id+'_g'];
       h+=`<div class="prod excl"><span class="flag">Exclusive</span><img data-cu="${id}" data-sz="160" data-h="0" alt="" style="width:100%;aspect-ratio:1;border-radius:14px"><h4>${esc(s.name)}</h4><p>${tag(s)} ${esc(s.type)} · ${s.thc?s.thc+'% THC':''}<br>${esc((s.blurb||'').slice(0,90))}…</p><p>${st.discovered[id]?'In your book · '+(st.seeds[id]||0)+' seeds':'Not discovered yet'}</p>
         <div class="buy2"><button class="btn sm pink" data-a="usd" data-id="${pu.id}">${pay.formatUSD(pu.priceUSD)}</button><button class="btn sm gem" data-a="gemsbuy" data-id="${pg.id}" ${st.gems<pg.priceGems?'disabled':''}>${ico('gem')}${G.num(pg.priceGems)}</button></div></div>`; }
@@ -556,7 +596,8 @@ window.UI = (function(){
   function passTab(){ const st=G.st, Z=window.PASS, S=Z.seasonNow(), P=G.passState(), T=Z.track(S), tier=G.passTier(), pay=window.Payments, left=S.end-Date.now(), into=P.xp-tier*Z.XP_PER_TIER;
     const tt=Z.totals(S); let h=`<div class="pass-hero" style="background:linear-gradient(135deg,${S.c1},${S.c2})"><div class="ph-t"><small>GROWER PASS · ${esc(S.tag.toUpperCase())}</small><h3>${esc(S.name)}</h3><p>Ends in <b>${sec(Math.max(0,left/1000))}</b> · ${new Date(S.start).toLocaleDateString([], {month:'short'})} - ${new Date(S.end-864e5).toLocaleDateString([], {month:'short',day:'numeric'})}</p></div><img class="ph-seed" data-cu="${S.strain}" data-sz="160" data-h="0" alt=""></div>`;
     h+=`<div class="row" style="display:block"><h4>Tier ${tier}/${Z.TIERS} ${P.premium?'<span class="tag" style="background:#ffd35a;color:#3a2500">Premium'+(P.plus?'+':'')+'</span>':''}</h4>${bar(tier>=Z.TIERS?1:into/Z.XP_PER_TIER,'amber')}<p>${tier>=Z.TIERS?'Pass complete!':G.num(into)+' / '+Z.XP_PER_TIER+' pass XP to tier '+(tier+1)} · Earn pass XP from harvests, sales, goals and quests, breeding, kept mothers and ads.</p></div>`;
-    if(!P.premium) h+=`<div class="pass-buy"><div><b>Premium track</b><p>~${G.num(tt.prem.gems)} gems, ${tt.prem.cosmetics} ${esc(S.name)} cosmetics, ${tt.prem.seeds} exclusive ${esc(G.strain(S.strain).name)} seeds, ${tt.prem.legPacks} Legendary + ${tt.prem.rarePacks} Rare packs, ${tt.prem.boosts} boosts, ${tt.prem.skipsH}h of skips</p></div>
+    if(!P.premium) h+=`<div class="pass-buy"><div><b>Premium track</b><p>~${G.num(tt.prem.gems)} gems, ${tt.prem.cosmetics} ${esc(S.name)} cosmetics, ${tt.prem.seeds} exclusive ${esc(G.strain(S.strain).name)} seeds, ${tt.prem.legPacks} Legendary + ${tt.prem.rarePacks} Rare packs, ${tt.prem.boosts} boosts, ${tt.prem.skipsH}h of skips. Drop odds for those packs are above the price.</p></div>
+      ${renderOdds(G.packOdds('rare'))}${renderOdds(G.packOdds('leg'))}
       <div class="buy2"><button class="btn sm pink" data-a="usd" data-id="pass_premium">Premium ${pay.formatUSD(Z.PRICE.premium)}</button><button class="btn sm gold" data-a="usd" data-id="pass_plus">Premium+ ${pay.formatUSD(Z.PRICE.plus)} (skip 10 tiers)</button><button class="btn sm gem" data-a="gemsbuy" data-id="pass_premium_g" ${st.gems<Z.PRICE.gems?'disabled':''}>${ico('gem')}${G.num(Z.PRICE.gems)}</button></div></div>`;
     const ready=T.filter(r=>r.tier<=tier&&((r.f&&!P.cf[r.tier])||(P.premium&&!P.cp[r.tier]))).length;
     h+=`<div class="section-t">Reward track ${ready?`<button class="btn sm gold" data-a="passall" style="float:right">Claim all (${ready})</button>`:''}</div><div class="pass-track" id="passTrack">`;
@@ -564,7 +605,7 @@ window.UI = (function(){
       h+=`<div class="pt-col ${un?'un':''} ${r.tier===tier+1?'next':''}"><div class="pt-n">${r.tier}</div>
         <div class="pt-cell free ${fc?'got':''}">${r.f?rwIcon(r.f)+`<span>${esc(rwText(r.f))}</span>`+(un&&!fc?`<button class="btn sm green" data-a="passclaim" data-t="${r.tier}" data-k="f">Claim</button>`:fc?'<i>✓</i>':''):'<span class="mut">-</span>'}</div>
         <div class="pt-cell prem ${pc?'got':''} ${P.premium?'':'locked'}">${rwIcon(r.p)}<span>${esc(rwText(r.p))}</span>${un&&P.premium&&!pc?`<button class="btn sm gold" data-a="passclaim" data-t="${r.tier}" data-k="p">Claim</button>`:pc?'<i>✓</i>':P.premium?'':'<i>🔒</i>'}</div></div>`; }
-    h+=`</div><div class="note">Free track for everyone. Pass cosmetics are cosmetic only. ${esc(G.strain(S.strain).name)} also drops rarely in play this season (2% from finished pheno hunts and Legendary Seed Packs).</div>`;
+    h+=`</div><div class="note">Free track for everyone. Pass cosmetics are cosmetic only. ${esc(G.strain(S.strain).name)} also drops rarely in play this season (${pct(G.DROP.huntSeason)} from finished pheno hunts and ${pct(G.DROP.packSeason)} from Legendary Seed Packs, as an extra seed).</div>`;
     h+=sqHTML(); return h; }
   function drawCosPrev(root){ root.querySelectorAll('canvas.cosprev').forEach(c=>{ try{ R.cosPreview(c.getContext('2d'),c.dataset.sl,c.dataset.id); }catch(e){} }); }
   PANELS.shop=()=>{
@@ -573,7 +614,7 @@ window.UI = (function(){
     const list=ids=>`<div class="prod-grid">${ids.map(i=>prodCard(P[i])).join('')}</div>`;
     if(tab==='featured'){
       const sOwned=pay.isOwned('starter');
-      if(!sOwned) body+=`<div class="shop-hero"><span class="ribbon">BEST DEAL</span><h3>Island Starter Bundle</h3><p>500 gems · 2 Rare Seed Packs · ${fmt(2500)} cash · Neon Luau theme</p><button class="btn" data-a="usd" data-id="starter" style="background:#fff;color:#d63d93;box-shadow:0 3px 0 #b02a78">Get it · ${pay.formatUSD(P.starter.priceUSD)}</button></div>`;
+      if(!sOwned) body+=`<div class="shop-hero"><span class="ribbon">BEST DEAL</span><h3>Island Starter Bundle</h3><p>500 gems · 2 Rare Seed Packs · ${fmt(2500)} cash · Neon Luau theme. Each Rare Seed Pack uses the odds below.</p>${renderOdds(G.packOdds('rare'))}<button class="btn" data-a="usd" data-id="starter" style="background:#fff;color:#d63d93;box-shadow:0 3px 0 #b02a78">Get it · ${pay.formatUSD(P.starter.priceUSD)}</button></div>`;
       body+=`<div class="section-t">Perks</div>`+list(['pass2x','vip']);
       if(st.rarePacks||st.legPacks) body+=`<div class="section-t">Your seed packs</div><div class="row"><div class="grow"><h4>Rare packs: ${st.rarePacks} · Legendary packs: ${st.legPacks}</h4></div>${st.rarePacks?'<button class="btn sm" data-a="openpack" data-k="rare">Open rare</button>':''}${st.legPacks?'<button class="btn sm gold" data-a="openpack" data-k="leg">Open legendary</button>':''}</div>`;
       body+=`<div class="section-t">Gems</div>`+list(['gems_s','gems_m','gems_l','gems_xl']);
@@ -588,16 +629,74 @@ window.UI = (function(){
     body+=`<div class="note">Free to play: every non-cosmetic item here can also be earned in game. Purchases are saved on this device.</div>`;
     return {title:'Island Shop',sub:`${ico('gem')} ${G.num(st.gems)} gems`,tabs:[['featured','Featured'],['pass','Grower Pass'],['gemstore','Gems & Boosts'],['style','Style'],['strains','Exclusive'],['themes','Themes']],body};
   };
+  function saveBlock(){
+    const pack=exportPack;
+    let extra='';
+    if(saveUi==='export'&&pack){
+      extra=`<textarea class="savebox" readonly aria-label="Backup code">${esc(pack.code)}</textarea>`
+        +`<div class="buy2"><button class="btn sm" data-a="savecopy">Copy code</button><button class="btn sm sec" data-a="savedown">Download file</button><button class="btn sm sec" data-a="saveclose">Close</button></div>`
+        +(pack.corrupt?'<p class="note">This save could not be read. Copy or download it before you import a different farm.</p>':'<p class="note">Keep this code or file somewhere safe. Store purchases stay on this device and are not inside the backup.</p>');
+    } else if(saveUi==='import'){
+      extra=`<textarea class="savebox" data-savecode="in" aria-label="Backup code to restore" placeholder="Paste a backup code or JSON">${esc(importDraft)}</textarea>`
+        +`<input class="savefile" type="file" accept="application/json,.json,.txt,text/plain" data-savefile="1" aria-label="Backup file">`
+        +`<div class="buy2"><button class="btn sm pink" data-a="saveimportgo">Restore</button><button class="btn sm sec" data-a="saveclose">Close</button></div>`
+        +`<p class="note">Restore asks before it replaces the farm on this device. Store purchases on this device stay.</p>`;
+    }
+    return `<div class="section-t">Save</div>`
+      +`<div class="note">The farm is stored in this browser and kept when the game updates. Export a backup before you clear site data or switch devices.</div>`
+      +(G.st._holdSave?'<div class="note"><b>The save on this device could not be read.</b> It has not been overwritten. Export it, or import a backup.</div>':'')
+      +`<div class="row"><div class="grow"><h4>Export save</h4><p>Copy a backup code or download a file</p></div><button class="btn sm sec" data-a="export">Export</button></div>`
+      +`<div class="row"><div class="grow"><h4>Import save</h4><p>Paste a code or choose a file</p></div><button class="btn sm sec" data-a="import">Import</button></div>`
+      +extra;
+  }
+  function supportPlatform(){
+    try{
+      const nav=navigator||{};
+      const p=nav.userAgentData&&nav.userAgentData.platform;
+      if(p) return String(p);
+      if(nav.platform) return String(nav.platform);
+    }catch(e){}
+    return 'unknown';
+  }
+  function supportMailto(){
+    const cfg=window.GAME_CONFIG||{};
+    const email=String(cfg.SUPPORT_EMAIL||'808games@mail.grokbot.com');
+    const id=G.supportId?G.supportId():'';
+    const lines=[
+      'Game version: '+(cfg.version||''),
+      'OS / platform: '+supportPlatform(),
+      'Anonymous player ID: '+id
+    ];
+    return 'mailto:'+encodeURI(email)+'?subject='+encodeURIComponent((cfg.title||'Maui Wowie Farms')+' support')+'&body='+encodeURIComponent(lines.join('\n'));
+  }
+  function helpBlock(){
+    const id=G.supportId?G.supportId():'';
+    const email=String((window.GAME_CONFIG&&GAME_CONFIG.SUPPORT_EMAIL)||'808games@mail.grokbot.com');
+    const head=`<div class="section-t">Help & Support</div><div class="row"><div class="grow"><h4>Help & Support</h4><p>Contact, backups, purchases, and the tutorial</p></div><button class="btn sm ${helpUi?'':'sec'}" data-a="help">${helpUi?'Close':'Open'}</button></div>`;
+    if(!helpUi) return head;
+    return head
+      +`<div class="row"><div class="grow"><h4>Contact Support</h4><p>Email ${esc(email)} with the game version, OS / platform, and anonymous player ID ${esc(id)}.</p></div><a class="btn sm" href="${esc(supportMailto())}">Contact Support</a></div>`
+      +`<div class="section-t">FAQ</div>`
+      +`<div class="note"><b>Saves and backup.</b> In Settings, Export copies a backup code or downloads a file. Import asks before it replaces the farm on this device. Store purchases stay on this device.</div>`
+      +`<div class="note"><b>Purchases.</b> Test mode grants the item on this device and does not charge a card. Restore purchases reapplies perks and themes already bought here.</div>`
+      +`<div class="note"><b>Tutorial.</b> Tutorial, at the top of Settings, replays Unko Kuli's walkthrough on this farm at any time. It does not erase the farm. Skip it whenever you want.</div>`;
+  }
   PANELS.settings=()=>{
     const st=G.st;
     const tg=(k,l,on)=>`<div class="row"><div class="grow"><h4>${l}</h4></div><button class="btn sm ${on?'':'sec'}" data-a="set" data-k="${k}">${on?'On':'Off'}</button></div>`;
     const sl=(k,l,d)=>`<div class="row slrow"><div class="grow"><h4>${l}</h4><p>${d}</p></div><input type="range" min="0" max="100" step="5" data-vol="${k}" aria-label="${l} volume"><b class="slv" data-volv="${k}"></b></div>`;
-    const body=(window.TestMenu?TestMenu.html():'')+`<div class="section-t">Sound</div>`+sl('vMusic','Music','Island soundtrack: ukulele, slack-key, reggae')+sl('vAmb','Ambience','Waves, wind, birds and night insects')+sl('vSfx','Sound effects','Harvest plucks, coins, steel-guitar level-ups')
+    const body=(window.TestMenu?TestMenu.html():'')+(window.DevPanel?DevPanel.html():'')
+      +`<div class="section-t">Tutorial</div><div class="row"><div class="grow"><h4>Tutorial</h4><p>Replay Unko Kuli's walkthrough on this farm, any time. Skip it whenever you want.</p></div><button class="btn sm" data-a="tutorial">Tutorial</button></div>`
+      +`<div class="section-t">Sound</div>`+sl('vMusic','Music','Island soundtrack: ukulele, slack-key, reggae')+sl('vAmb','Ambience','Waves, wind, birds and night insects')+sl('vSfx','Sound effects','Harvest plucks, coins, steel-guitar level-ups')
       +`<div class="section-t">Comfort</div>`+tg('vib','Vibration (haptics)',st.settings.vib!==false)+tg('shake','Screen shake',st.settings.shake!==false)+tg('motion','Motion effects (confetti, plant sway)',st.settings.motion!==false)
       +`<div class="section-t">Performance</div>`+tg('hq','High quality graphics',st.settings.hq)+tg('autoQ','Auto quality (lower detail if the game runs slowly)',st.settings.autoQ!==false)
       +`<div class="row"><div class="grow"><h4>Daily gift</h4><p>Login streak: day ${st.streak.n||0}</p></div><button class="btn sm gem" data-a="daily" ${G.dailyReady()?'':'disabled'}>${G.dailyReady()?'Claim':'Claimed'}</button></div>`
       +`<div class="row"><div class="grow"><h4>Restore purchases</h4><p>Re-apply perks and themes bought on this account</p></div><button class="btn sm sec" data-a="restore">Restore</button></div>`
-      +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 17+. It depicts legal, licensed cultivation as a business; it has no real-world sales, no age-restricted products for minors, and nothing in it can be bought or delivered in real life. Progress saves on this device and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain data: Leafly strain pages and award lists (see SOURCES.md). Art: see CREDITS.md.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
+      +`<div class="section-t">Privacy and ads</div><div class="row"><div class="grow"><h4>Privacy policy</h4><p>Saves, ads, payments, and analytics</p></div><a class="btn sm sec" href="privacy.html" target="_blank" rel="noopener">Open</a></div>`
+      +`<div class="row"><div class="grow"><h4>Ad preference</h4><p>${window.Ads.consent()==='personalized'?'Personalized ads are allowed.':window.Ads.consent()==='contextual'?'Only non-personalized ads.':'Choose one before ads can play.'}</p></div><div class="buy2"><button class="btn sm ${window.Ads.consent()==='personalized'?'':'sec'}" data-a="adconsent" data-v="personalized">Personalized</button><button class="btn sm ${window.Ads.consent()==='contextual'?'':'sec'}" data-a="adconsent" data-v="contextual">Non-personalized</button></div></div>`
+      +helpBlock()
+      +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 18+. It depicts legal, licensed cultivation as a business. Nothing in it can be bought or delivered in real life. Progress saves on this device, stays when the game updates, and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain notes are original game text. Art is painted for the game.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
+      +saveBlock()
       +`<div class="row"><div class="grow"><h4>Reset farm</h4><p>Erase this device's save (store purchases stay)</p></div><button class="btn sm sec" data-a="reset">Reset</button></div>`;
     return {title:'Settings',sub:'',body};
   };
@@ -616,7 +715,7 @@ window.UI = (function(){
       case 'order': G.fillOrder(d.id); break;
       case 'serve': G.serveCust(d.id); break;
       case 'upg': if(G.buyUpg(d.k)){ Sound.play('buy'); toast(G.UPG[d.k].name+' upgraded!','good'); } break;
-      case 'hire': if(G.hire(d.k)){ Sound.play('buy'); toast(G.WORKERS[d.k].name.split(',')[0]+' joined the farm. Welcome aboard!','good'); } break;
+      case 'hire': if(G.hire(d.k)){ Sound.play('buy'); const who=G.WORKERS[d.k].name.split(',')[0]; toast(G.wk(d.k)===1?who+' joined the farm. One-time hire, no wages.':who+' trained. Still no wages.','good'); } break;
       case 'step': if(G.buyStep(d.k)){ Sound.play('buy'); } break;
       case 'land': if(G.buyLand()){ G.setLoc('farm'); close(); } break;
       case 'ghbuild': if(G.buildGH()){ close(); G.setLoc('farm'); } break;
@@ -653,11 +752,29 @@ window.UI = (function(){
       case 'openpack': { const k=d.k; if(k==='rare'&&st.rarePacks>0){ st.rarePacks--; showPack(G.openPack('rare')); } else if(k==='leg'&&st.legPacks>0){ st.legPacks--; showPack(G.openPack('leg')); } break; }
       case 'theme': st.theme=d.k; toast(window.THEMES[d.k].name+' theme on','good'); break;
       case 'set': st.settings[d.k]=!(st.settings[d.k]!==false); if(window.applySettings) applySettings(); break;
+      case 'adconsent': window.Ads.setConsent(d.v); toast(d.v==='personalized'?'Personalized ads allowed':'Non-personalized ads only','good'); break;
       case 'daily': if(G.claimDaily()){ Sound.play('gem'); } break;
       case 'qclaim': if(G.claimQ(d.w,+d.i)){ Sound.play('coin'); } break;
       case 'achclaim': if(G.claimAch(d.id)) Sound.play('gem'); break;
       case 'achall': { let n=0; G.ACH.forEach(x=>{ if(G.claimAch(x.id)) n++; }); if(n){ Sound.play('gem'); toast(n+' achievements claimed!','gemt'); } break; }
-      case 'reset': { const ok=await modal('<h3>Reset your farm?</h3><p>This erases your farm on this device. Store purchases are kept.</p>',[{label:'Cancel',cls:'sec',v:false},{label:'Reset',cls:'pink',v:true}]); if(ok){ G.resetAll(); R.rebuild(); close(); } break; }
+      case 'tutorial': close(); if(window.Tutorial) Tutorial.replay(); break;
+      case 'help': helpUi=!helpUi; break;
+      case 'reset': { const ok=await modal('<h3>Reset your farm?</h3><p>This erases your farm on this device. Store purchases are kept.</p>',[{label:'Cancel',cls:'sec',v:false},{label:'Reset',cls:'pink',v:true}]); if(ok){ G.resetAll(); R.rebuild(); close(); if(window.Tutorial) Tutorial.onPlay(true); } break; }
+      case 'export': exportPack=G.exportBackup(); saveUi='export'; break;
+      case 'import': saveUi='import'; break;
+      case 'saveclose': saveUi=null; break;
+      case 'savecopy': { const pack=exportPack||G.exportBackup(); let copied=false;
+        try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(pack.code); copied=true; } }catch(e){}
+        if(!copied){ const ta=document.querySelector('textarea.savebox'); if(ta){ ta.focus(); ta.select(); try{ copied=document.execCommand('copy'); }catch(e){} } }
+        toast(copied?'Backup code copied':'Select the code and copy it', copied?'good':''); break; }
+      case 'savedown': { const pack=exportPack||G.exportBackup(); const blob=new Blob([pack.json],{type:pack.corrupt?'text/plain':'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=pack.file; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500); toast('Backup file downloaded','good'); break; }
+      case 'saveimportgo': { const ta=document.querySelector('textarea[data-savecode="in"]'); const text=ta?ta.value:importDraft; let save;
+        try{ save=G.parseBackup(text); }catch(err){ toast(err.message||'That backup is not valid','bad'); break; }
+        const crew=save.workers&&typeof save.workers==='object'?Object.keys(save.workers).filter(k=>save.workers[k]>0).length:0;
+        const ok=await modal(`<h3>Replace this farm?</h3><p>The backup becomes the farm on this device: level ${Math.floor(save.level||1)}, ${esc(G.fmt(typeof save.cash==='number'?save.cash:0))}${crew?', '+crew+' hired helper'+(crew===1?'':'s'):''}. Store purchases on this device stay.</p>`,[{label:'Cancel',cls:'sec',v:false},{label:'Replace farm',cls:'pink',v:true}]);
+        if(!ok) break;
+        const r=G.installBackup(save); if(!r.ok){ toast(r.error||'Could not store that backup','bad long'); break; }
+        saveUi=null; importDraft=''; exportPack=null; R.rebuild(); close(); toast('Farm restored','good'); break; }
     }
     G.save(); render();
   }
@@ -665,7 +782,7 @@ window.UI = (function(){
     modal(`<h3>Seed pack opened!</h3><div class="grid" style="margin-top:10px">${list.map(s=>`<div class="card"><img src="${R.closeup(s,96)}" style="width:100%;border-radius:12px"><div class="nm">${esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span></div>`).join('')}</div>`,[{label:'Thanks!',cls:'gold'}]); }
   // story dialogue (Unko Kuli teaches the trade) - shown when a new goal starts
   const QUICK={plant:'Tap the seed bag, then a bucket',water:'Tap your plant to water it',harvest:'Ripe! Tap to harvest',dry:'Open Dry & Cure to dry your buds',sell:'Open Market to sell'};
-  function storyLine(q){ if(!q||!G.F.storyGoals) return; if(QUICK[q.id]&&G.st.quest<=4){ toast('👆 '+QUICK[q.id],'good'); return; } const who=q.who||'Unko Kuli'; const c=window.CHARACTERS[who];
+  function storyLine(q){ if(!q||!G.F.storyGoals) return; if(window.Tutorial&&Tutorial.active&&Tutorial.active()) return; if(QUICK[q.id]&&G.st.quest<=4){ toast('👆 '+QUICK[q.id],'good'); return; } const who=q.who||'Unko Kuli'; const c=window.CHARACTERS[who];
     modal(`<div class="dlg">${portraitImg(who,'dport')}<div><b>${esc(who)}</b><p>${esc((window.STORY_SAY&&window.STORY_SAY[q.id])||q.t)}</p></div></div>`,[{label:'Got it!',cls:'gold'}]); }
   // ---------- wiring ----------
   function init(){
@@ -682,18 +799,18 @@ window.UI = (function(){
     $('#sheetClose').onclick=close; $('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') close(); });
     $('#sheetTabs').addEventListener('click',e=>{ const b=e.target.closest('button[data-tab]'); if(b){ tab=b.dataset.tab; render(true); Sound.play('tap'); } });
     const del=e=>{ const b=e.target.closest('[data-a]'); if(!b||b.disabled) return; act(b.dataset.a,b.dataset); };
-    $('#sheetBody').addEventListener('input',e=>{ const i=e.target.closest('input[data-vol]'); if(!i) return; G.st.settings[i.dataset.vol]=+i.value; if(window.applySettings) applySettings(); syncVol($('#sheetBody')); if(i.dataset.vol==='vSfx') Sound.play('coin'); });
+    $('#sheetBody').addEventListener('input',e=>{ const ta=e.target.closest('textarea[data-savecode="in"]'); if(ta){ importDraft=ta.value; return; } const i=e.target.closest('input[data-vol]'); if(!i) return; G.st.settings[i.dataset.vol]=+i.value; if(window.applySettings) applySettings(); syncVol($('#sheetBody')); if(i.dataset.vol==='vSfx') Sound.play('coin'); });
     $('#sheetBody').addEventListener('click',del); $('#sheetFoot').addEventListener('click',del);
-    $('#sheetBody').addEventListener('change',e=>{ const s=e.target.closest('select[data-sel]'); if(!s) return; (s.dataset.sel==='A'?labA:s.dataset.sel==='H'?huntSel:labB).v=s.value; render(); });
+    $('#sheetBody').addEventListener('change',e=>{ const s=e.target.closest('select[data-sel]'); if(s){ (s.dataset.sel==='A'?labA:s.dataset.sel==='H'?huntSel:labB).v=s.value; render(); return; } const f=e.target.closest('input[data-savefile]'); if(!f||!f.files||!f.files[0]) return; f.files[0].text().then(t=>{ importDraft=t; saveUi='import'; render(); toast('Backup file loaded. Review it, then tap Restore.','good'); }).catch(()=>toast('Could not read that file','bad')); });
     $('#sheet').addEventListener('pointerdown',()=>lastPointer=performance.now(),true);
-    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>.5?'Already well fed':'Not enough cash','bad'); renderPop(); });
+    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
     $('#goal').onclick=()=>{ const g=$('#goal'); if(!g.classList.contains('open')){ goalPeek(5000); return; } if(G.st.questDone){ if(G.claimQuest()) Sound.play('level'); } else open('quests','story'); };
     document.addEventListener('click',e=>{ const b=e.target.closest('[data-buylab]'); if(!b) return; if(!G.buyLab()) toast(G.st.inBuilt?'Not enough cash':'Build the indoor facility first','bad'); else render(true); });
     $('#scoutBtn').onclick=()=>{ const on=!R.lens.on; R.setLens(on,innerWidth/2,innerHeight*.45); $('#scoutBtn').classList.toggle('on',on); hidePop(); toast(on?'Inspect: drag the lens over plants. Tap to remove any eggs or spores you find.':'Scouting off'); };
     $('#harvestAll').onclick=()=>{ let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog>=1&&G.harvest(p)) n++; }); if(!n) toast('Nothing ripe here yet'); };
     $('#waterAll').onclick=()=>{ if(G.lv('water')<1){ toast('Water all needs a garden hose','bad'); open('upgrades','lines'); return; } let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog<1&&p.water<.95){ G.water(p); n++; } }); if(!n) toast('Everything here is watered'); };
-    $('#feedAll').onclick=()=>{ if(G.lv('nutes')<1){ toast('Feed all needs a nutrient reservoir','bad'); open('upgrades','lines'); return; } let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&G.isHungry(p)&&G.feed(p,true)) n++; }); toast(n?'Fed '+n+' plants':'Nobody here is hungry'); };
-    window.Payments.setConfirmUI(p=>modal(`${art(p.art)}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="big-n">${window.Payments.formatUSD(p.priceUSD)}</div><div class="testbanner">TEST MODE: you will not be charged. This grants the item locally.</div>`,[{label:'Cancel',cls:'sec',v:false},{label:'Buy (test)',cls:'pink',v:true}]));
+    $('#feedAll').onclick=()=>{ let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&G.isHungry(p)&&G.feed(p,true)) n++; }); toast(n?'Fed '+n+' plants':'Nobody needs a feed yet'); };
+    window.Payments.setConfirmUI(p=>modal(`${art(p.art)}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p>${oddsForProduct(p)}<div class="big-n">${window.Payments.formatUSD(p.priceUSD)}</div><div class="testbanner">TEST MODE: you will not be charged. This grants the item locally.</div>`,[{label:'Cancel',cls:'sec',v:false},{label:'Buy (test)',cls:'pink',v:true}]));
   }
   let acc=0;
   function update(dt){ hud(dt); acc+=dt; if(acc>.5){ acc=0; if(panel&&performance.now()-lastPointer>700&&!document.activeElement?.matches('select')) render(); if(popPlot) renderPop(); } }

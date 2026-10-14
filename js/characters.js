@@ -21,7 +21,7 @@ window.STORY_SAY={
   dry:"Fresh buds sell cheap. Hang them on the drying racks first. Patience pays.",
   sell:"Take your dried buds to the farm stand. Your first money out of Grandpa's garage. Shoots, nice job!",
   gcap:"Two plants won't buy the land. Let's get you more buckets. Look under Upgrades, Garage tab.",
-  feed:"Nutrients make plants grow faster and bigger. Feed the hungry ones.",
+  feed:"Halfway through, each plant wants one feeding. It is free. Skip it and they grow slower and yield less.",
   hose:"A watering can is fine for two plants, not for twenty. Get a hose so you can water everything at once.",
   order:"The neighbors are asking for your buds now. Fill their orders on the board. They pay extra and they tell their friends.",
   tent3:"Time to fill the back table. More buckets, more plants.",

@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Maui Wowie Farms">
 <meta name="theme-color" content="#10251a">
-<meta name="description" content="A free-to-play Hawaiian farming tycoon for players 17+. Grow real award-winning strains from a garage tent to a greenhouse and a licensed indoor facility.">
+<meta name="description" content="A free-to-play Hawaiian farming tycoon for players 18+. Grow award-winning strains from a garage tent to a greenhouse and a licensed indoor facility.">
 <title>Maui Wowie Farms</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
@@ -77,9 +77,10 @@
 <div id="splash">
   <div class="splash-inner">
     <div class="logo"><span class="logo-leaf"></span><h1 id="gTitle">Maui Wowie Farms</h1><p id="gTag">Hawaiian Island Farm Tycoon</p></div>
-    <div id="ageGate" class="agegate hidden"><p>This game is a farming simulation for players <b>17+</b>. It shows legal, licensed cultivation. Nothing in the game can be bought, sold or delivered in real life.</p><button class="big" id="ageYes">I'm 17 or older</button><button class="btn sec" id="ageNo">I'm under 17</button></div>
-    <button class="big" id="playBtn">Tap to Play</button>
-    <small class="free">Free to play · progress saves on this device</small>
+    <div id="ageGate" class="agegate hidden"><p>This game is a farming simulation for players <b>18+</b>. It shows legal, licensed cultivation. Nothing in the game can be bought, sold or delivered in real life.</p><button class="big" id="ageYes">I'm 18 or older</button><button class="btn sec" id="ageNo">I'm under 18</button></div>
+    <div id="consentGate" class="agegate hidden"><p>Ads help keep the game free. Personalized ads can use a device advertising identifier. Non-personalized ads do not. You can change this later in Settings.</p><button class="big" id="consentYes">Allow personalized ads</button><button class="btn sec" id="consentNo">Use non-personalized ads only</button><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></div>
+    <button class="big hidden" id="playBtn">Tap to Play</button>
+    <small class="free">Free to play · progress saves on this device · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a></small>
   </div>
 </div>
 
@@ -100,7 +101,9 @@
 <script src="js/scene.js"></script>
 <script src="js/upgicons.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/tutorial.js"></script>
 <script src="js/testmenu.js"></script>
+<script src="js/devpanel.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

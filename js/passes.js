@@ -2,49 +2,49 @@
  * FREE track for everyone; PREMIUM ($14.99, test-mode payment, or 3,000 gems) and PREMIUM+ ($19.99: premium + skips the first 10 tiers).
  * Pass XP: harvests, sales, goals/quests/achievements, breeding, kept mothers, rewarded ads (see PASS_XP). Tuned so an active
  * player (~400 pass XP a day) finishes all 50 tiers in about 6-7 weeks of a ~8.5-week season.
- * Fairness: pass cosmetics are cosmetic only; the season's exclusive seed is also a rare in-play drop (2% from finished pheno hunts and
- * Legendary Seed Packs) during its season; gems/boosts/skips/packs are all things you can also earn or buy with gems.
+ * Fairness: pass cosmetics are cosmetic only; the season's exclusive seed is also a rare in-play drop during its season
+ * (chances are game.js DROP.huntSeason and DROP.packSeason). Gems, boosts, skips, and packs can also be earned or bought with gems.
  */
 (function(){
-// ---- exclusive season strains (real names + facts from Leafly strain pages, Oct 2026; game numbers derived like every other strain) ----
-const base={aka:null,thcEstimate:null,cbd:0,cbg:1,floweringSource:'Leafly description',yieldClass:'Medium',yieldSource:'ESTIMATE',colorSource:'ESTIMATE: derived from Leafly flavor tags',
+// ---- exclusive season strains (original names; game numbers follow the same tier rules as the rest of the book) ----
+const base={aka:null,thcEstimate:null,cbd:0,cbg:1,floweringSource:'Island grow notes',yieldClass:'Medium',yieldSource:'ESTIMATE',colorSource:'ESTIMATE: derived from flavor tags',
   rarity:'Legendary',tier:4,hemp:false,island:false,mystery:false,passExclusive:true};
-const mk=(o,g,l)=>Object.assign({},base,o,{game:Object.assign({growSec:129600,buds:4,budValue:30,seedCost:20,xp:43,payout:120,unlockLevel:20},g),look:Object.assign({frost:.75,density:.8,shape:'chunky',leafShape:'mid',src:'game art tinted from Leafly flavor tags (no photo shipped)'},l)});
+const mk=(o,g,l)=>Object.assign({},base,o,{game:Object.assign({growSec:129600,buds:4,budValue:30,seedCost:20,xp:43,payout:120,unlockLevel:20},g),look:Object.assign({frost:.75,density:.8,shape:'chunky',leafShape:'mid',src:'Painted game art from flavor notes (no photo shipped)'},l)});
 const PASS_STRAINS=[
- mk({id:'blue-hawaiian',name:'Blue Hawaiian',type:'Hybrid',thc:21,cbg:0,parents:['Blueberry','Hawaiian Sativa'],parentIds:[null,null],terpenes:['Caryophyllene','Myrcene','Pinene'],flavors:['Tropical','Sweet','Blueberry'],topEffect:'Happy',floweringDays:70,colorTags:['blue','orange'],recognition:'Grower Pass exclusive: Makana Winter',leafly:'https://www.leafly.com/strains/blue-hawaiian',island:true,
-   blurb:'Bred from Blueberry and Hawaiian Sativa, Blue Hawaiian is fruity and smooth, with light green to orange buds and rich orange hairs. Flowers at about ten weeks (per Leafly).'},
+ mk({id:'makai-blue',name:'Makai Blue',type:'Hybrid',thc:21,cbg:0,parents:['Blueberry','Hawaiian Sativa'],parentIds:[null,null],terpenes:['Caryophyllene','Myrcene','Pinene'],flavors:['Tropical','Sweet','Blueberry'],topEffect:'Happy',floweringDays:70,colorTags:['blue','orange'],recognition:'Grower Pass exclusive: Makana Winter',island:true,
+   blurb:'Makai Blue is the Makana Winter pass flower: a blueberry and Hawaiian sativa cross with blue-green buds, orange hairs, and a sweet tropical nose. It flowers in about ten weeks.'},
    {growSec:108000,budColor:'#4a7ad0',budLight:'#9cc4ff',accent:'#ffffff',pistil:'#ff8a3a'},{bud:'#5a7aa8',bud2:'#9ab4d8',leaf:'#3a5a3a',pistil:'#f08a3a',base:'blue'}),
- mk({id:'hawaiian-punch',name:'Hawaiian Punch',type:'Sativa',thc:21,cbg:0,parents:[],parentIds:[],terpenes:['Terpinolene','Myrcene','Pinene'],flavors:['Tropical','Pear','Citrus'],topEffect:'Uplifted',floweringDays:58,colorTags:['green','pink'],recognition:'Grower Pass exclusive: Merrie Monarch',leafly:'https://www.leafly.com/strains/hawaiian-punch',island:true,
-   blurb:'Originating in Hawaii, Hawaiian Punch is a potent sativa with tropical, pear and citrus flavors that gradually sneaks up on you. Flowering time 55-60 days (per Leafly).'},
+ mk({id:'lehua-fizz',name:'Lehua Fizz',type:'Sativa',thc:21,cbg:0,parents:[],parentIds:[],terpenes:['Terpinolene','Myrcene','Pinene'],flavors:['Tropical','Pear','Citrus'],topEffect:'Uplifted',floweringDays:58,colorTags:['green','pink'],recognition:'Grower Pass exclusive: Merrie Monarch',island:true,
+   blurb:'Lehua Fizz is the Merrie Monarch pass sativa: pear, citrus, and tropical fruit on green-pink flowers, with an uplift that arrives slowly. It finishes in about eight weeks.'},
    {growSec:93600,budColor:'#5aa04a',budLight:'#ffb0d0',accent:'#ff6fa6',pistil:'#ff7aa8'},{bud:'#6aa850',bud2:'#e8a0c0',leaf:'#3a6a32',pistil:'#ff7aa8',base:'pink'}),
- mk({id:'golden-pineapple',name:'Golden Pineapple',type:'Hybrid',thc:19,parents:['Golden Goat','Pineapple Kush'],parentIds:[null,null],terpenes:['Terpinolene','Myrcene','Pinene'],flavors:['Pineapple','Tropical','Sour'],topEffect:'Creative',floweringDays:60,colorTags:['golden','green'],recognition:'Grower Pass exclusive: Lei Day & Kamehameha',leafly:'https://www.leafly.com/strains/golden-pineapple',
-   blurb:'A hybrid cross of Golden Goat and Pineapple Kush with creative, uplifting effects and an aroma like sour pineapple (per Leafly).'},
+ mk({id:'hala-gold',name:'Hala Gold',type:'Hybrid',thc:19,parents:['Golden Goat','Pineapple Kush'],parentIds:[null,null],terpenes:['Terpinolene','Myrcene','Pinene'],flavors:['Pineapple','Tropical','Sour'],topEffect:'Creative',floweringDays:60,colorTags:['golden','green'],recognition:'Grower Pass exclusive: Lei Day & Kamehameha',
+   blurb:'Hala Gold is the Lei Day pass hybrid: a golden goat line crossed with pineapple kush, sour and pineapple-sweet, creative in the notes, and done in about sixty days.'},
    {growSec:122400,budColor:'#c8a030',budLight:'#ffe27a',accent:'#ffd34a',pistil:'#ff9a2a'},{bud:'#b8a040',bud2:'#f0d878',leaf:'#4a6a2a',pistil:'#ff9a2a',base:'golden'}),
- mk({id:'sunset-sherbert',name:'Sunset Sherbert',aka:'Sherbert, Sunset Sherbet',type:'Hybrid',thc:18,parents:['GSC','Pink Panties'],parentIds:['gsc',null],terpenes:['Caryophyllene','Limonene','Myrcene'],flavors:['Sweet','Berry','Citrus'],topEffect:'Relaxed',floweringDays:60,colorTags:['purple','orange'],recognition:'Grower Pass exclusive: Summer Swell',leafly:'https://www.leafly.com/strains/sunset-sherbert',
-   blurb:'An indica-dominant hybrid of Girl Scout Cookies and Pink Panties bred by Mr. Sherbinski, with a sweet dessert-like flavor of citrus, berry and candy (per Leafly).'},
+ mk({id:'kona-sunset',name:'Kona Sunset',type:'Hybrid',thc:18,parents:['GSC','Pink Panties'],parentIds:['gsc',null],terpenes:['Caryophyllene','Limonene','Myrcene'],flavors:['Sweet','Berry','Citrus'],topEffect:'Relaxed',floweringDays:60,colorTags:['purple','orange'],recognition:'Grower Pass exclusive: Summer Swell',
+   blurb:'Kona Sunset is the Summer Swell pass hybrid: a GSC and pink-parent cross with berry-citrus sweetness, purple-orange flowers, and a relaxed finish in about sixty days.'},
    {growSec:136800,budColor:'#9a5ab0',budLight:'#ffb07a',accent:'#ff8a5a',pistil:'#ff8a3a'},{bud:'#8a5a9a',bud2:'#e8a070',leaf:'#3a5232',pistil:'#e8873a',base:'purple'}),
- mk({id:'aloha-grape-stomper',name:'Aloha Grape Stomper',type:'Hybrid',thc:19,cbg:0,parents:['Grape Stomper',"'98 Aloha White Widow"],parentIds:[null,null],terpenes:['Myrcene','Linalool','Caryophyllene'],flavors:['Blueberry','Grape','Tropical'],topEffect:'Uplifted',floweringDays:60,colorTags:['purple','white'],recognition:'Grower Pass exclusive: Aloha Festivals',leafly:'https://www.leafly.com/strains/aloha-grape-stomper',island:true,
-   blurb:"A cross of Gage Green's Grape Stomper and '98 Aloha White Widow, bred for heavy trichomes and a grape-fuel aroma; clear-headed with an airy body feel (per Leafly)."},
+ mk({id:'maile-grape',name:'Maile Grape',type:'Hybrid',thc:19,cbg:0,parents:['Grape Stomper',"'98 Aloha White Widow"],parentIds:[null,null],terpenes:['Myrcene','Linalool','Caryophyllene'],flavors:['Blueberry','Grape','Tropical'],topEffect:'Uplifted',floweringDays:60,colorTags:['purple','white'],recognition:'Grower Pass exclusive: Aloha Festivals',island:true,
+   blurb:'Maile Grape is the Aloha Festivals pass hybrid: a grape line crossed with an aloha white widow, heavy frost, a grape-fuel nose, and a clear, airy finish.'},
    {growSec:151200,budColor:'#6a3fa0',budLight:'#c8a0f0',accent:'#ffffff',pistil:'#ffb07a'},{bud:'#6a4a8e',bud2:'#b09ad0',leaf:'#34522e',pistil:'#e8a07a',base:'purple'}),
- mk({id:'fire-og',name:'Fire OG',aka:'Fire OG Kush',type:'Hybrid',thc:20,parents:['OG Kush','SFV OG Kush'],parentIds:['og-kush',null],terpenes:['Myrcene','Limonene','Caryophyllene'],flavors:['Lemon','Pine','Earthy'],topEffect:'Euphoric',floweringDays:67,colorTags:['green','orange'],recognition:'Grower Pass exclusive: Makahiki Harvest',leafly:'https://www.leafly.com/strains/fire-og',
-   blurb:'An indica-dominant cross of OG Kush and SFV OG Kush named for frosty red hairs that make it look like it is on fire; flowers in 9-10 weeks (per Leafly).'},
+ mk({id:'makahiki-flame',name:'Makahiki Flame',type:'Hybrid',thc:20,parents:['OG Kush','SFV OG Kush'],parentIds:['og-kush',null],terpenes:['Myrcene','Limonene','Caryophyllene'],flavors:['Lemon','Pine','Earthy'],topEffect:'Euphoric',floweringDays:67,colorTags:['green','orange'],recognition:'Grower Pass exclusive: Makahiki Harvest',
+   blurb:'Makahiki Flame is the harvest-season pass hybrid: OG Kush crossed with an SFV OG line, lemon and pine, with red-orange hairs that read like embers. It flowers in about nine to ten weeks.'},
    {growSec:172800,budColor:'#5a8a3a',budLight:'#ffb04a',accent:'#ff5a2a',pistil:'#ff4a1a'},{bud:'#6a8a40',bud2:'#d8a050',leaf:'#3a5a2a',pistil:'#ff5a2a',base:'green'}),
 ];
 PASS_STRAINS.forEach(s=>{ if(!window.STRAINS.some(x=>x.id===s.id)) window.STRAINS.push(s); });
 
 // ---- seasons (calendar months, local time) ----
 const SEASONS=[
- {id:'s1',months:[0,1],name:'Makana Winter',tag:'Whale season',c1:'#0e4a7a',c2:'#3ab0e0',accent:'#bfeaff',strain:'blue-hawaiian',
+ {id:'s1',months:[0,1],name:'Makana Winter',tag:'Whale season',c1:'#0e4a7a',c2:'#3ab0e0',accent:'#bfeaff',strain:'makai-blue',
   cos:{stand:['s1_lei','Whale-watch lei','lei',{f:['#ffffff','#bfeaff','#3ab0e0','#e8f8ff','#7ad0ff']}],truck:['s1_truck','Humpback blue','wrap',{c:[30,80,150],flower:'#e8f8ff',mark:'whale'}],outfit:['s1_shirt','Ocean aloha shirt','aloha',{col:[30,90,170],fl:[220,245,255]}],pet:['s1_pet','Sea-spray poi dog','dog',{body:'#9aa6b0',dark:'#5a6670'}],room:['s1_room','Deep ocean indoor room','neon',{t1:'80,180,255',t2:'200,240,255'}]}},
- {id:'s2',months:[2,3],name:'Merrie Monarch',tag:'Hula, lei and flowers',c1:'#7a1a4a',c2:'#ff6fa6',accent:'#ffe0ef',strain:'hawaiian-punch',
+ {id:'s2',months:[2,3],name:'Merrie Monarch',tag:'Hula, lei and flowers',c1:'#7a1a4a',c2:'#ff6fa6',accent:'#ffe0ef',strain:'lehua-fizz',
   cos:{stand:['s2_lei','Hula lei garland','lei',{f:['#ff5c9a','#ffd2e6','#fff07a','#ff2a5a','#ffffff']}],truck:['s2_truck','Lehua bloom wrap','wrap',{c:[200,40,80],flower:'#ffe0ef'}],outfit:['s2_shirt','Hula festival shirt','aloha',{col:[40,140,70],fl:[255,210,230]}],pet:['s2_pet','Golden moa','moa',{body:'#e0a030',dark:'#7a4a10'}],room:['s2_room','Hula hall garage','surfshack',{lights:['255,120,170','255,220,120','255,255,255','255,90,140']}]}},
- {id:'s3',months:[4,5],name:'Lei Day & Kamehameha',tag:'Gold and royal feather capes',c1:'#6a3a00',c2:'#ffc23a',accent:'#fff3c0',strain:'golden-pineapple',
+ {id:'s3',months:[4,5],name:'Lei Day & Kamehameha',tag:'Gold and royal feather capes',c1:'#6a3a00',c2:'#ffc23a',accent:'#fff3c0',strain:'hala-gold',
   cos:{stand:['s3_tiki','Royal gold torches','tiki',{flame:['#ffd34a','#fff1a8','#ffffff'],pole:'#c8a040'}],truck:['s3_truck','Royal gold','paint',{c:[220,170,40]}],outfit:['s3_cape','Feather cape poncho','poncho',{col:[200,30,30]}],pet:['s3_pet','Black velvet cat','cat',{body:'#2a2a30',dark:'#141418'}],room:['s3_room','Royal gold indoor room','neon',{t1:'255,200,60',t2:'255,80,60'}]}},
- {id:'s4',months:[6,7],name:'Summer Swell',tag:'Surf and shave ice',c1:'#0a6a7a',c2:'#ff9a5a',accent:'#fff0e0',strain:'sunset-sherbert',
+ {id:'s4',months:[6,7],name:'Summer Swell',tag:'Surf and shave ice',c1:'#0a6a7a',c2:'#ff9a5a',accent:'#fff0e0',strain:'kona-sunset',
   cos:{stand:['s4_surf','Shave ice longboard','surf',{s1:'#ff6fa6',s2:'#5ad0ff',s3:'#fff07a'}],truck:['s4_truck','Seafoam green','paint',{c:[60,200,170]}],outfit:['s4_trunks','Surf trunks overalls','overalls',{col:[255,120,60]}],pet:['s4_pet','Sandy poi dog','dog',{body:'#e0c08a',dark:'#a07a4a'}],room:['s4_room','Beach shack garage','surfshack',{lights:['90,200,255','255,160,90','255,255,200','120,255,200']}]}},
- {id:'s5',months:[8,9],name:'Aloha Festivals',tag:'Floats and ukulele',c1:'#4a1a7a',c2:'#ffd34a',accent:'#f4e6ff',strain:'aloha-grape-stomper',
+ {id:'s5',months:[8,9],name:'Aloha Festivals',tag:'Floats and ukulele',c1:'#4a1a7a',c2:'#ffd34a',accent:'#f4e6ff',strain:'maile-grape',
   cos:{stand:['s5_lei','Parade float lei','lei',{f:['#ffd34a','#c97bff','#ff5c9a','#5ad06a','#ffffff']}],truck:['s5_truck','Parade float wrap','wrap',{c:[250,200,50],flower:'#c97bff'}],outfit:['s5_shirt','Ukulele aloha shirt','aloha',{col:[110,50,170],fl:[255,220,90]}],pet:['s5_pet','Snow-white moa','moa',{body:'#f4f0e8',dark:'#a8a090'}],room:['s5_room','Festival neon indoor room','neon',{t1:'255,90,220',t2:'120,255,140'}]}},
- {id:'s6',months:[10,11],name:'Makahiki Harvest',tag:'Torches and harvest',c1:'#5a1a0a',c2:'#ff7a2a',accent:'#ffe6c8',strain:'fire-og',
+ {id:'s6',months:[10,11],name:'Makahiki Harvest',tag:'Torches and harvest',c1:'#5a1a0a',c2:'#ff7a2a',accent:'#ffe6c8',strain:'makahiki-flame',
   cos:{stand:['s6_tiki','Makahiki ember torches','tiki',{flame:['#ff3a1a','#ff8a2a','#ffe08a'],pole:'#5a3a1c'}],truck:['s6_truck','Ember red','paint',{c:[180,40,20]}],outfit:['s6_overalls','Harvest overalls','overalls',{col:[120,80,40]}],pet:['s6_pet','Ember tabby cat','cat',{body:'#c86a2a',dark:'#7a3a10'}],room:['s6_room','Torch-lit garage','surfshack',{lights:['255,140,40','255,90,30','255,200,90','255,120,60']}]}},
 ];
 const SLOT={stand:'stand',truck:'truck',outfit:'outfit',pet:'pet',room:null};

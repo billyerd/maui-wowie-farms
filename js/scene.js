@@ -8,9 +8,9 @@ window.R=(function(){
   const cams={}; let cam={x:0,y:0,z:1};
   const IM={}; let imgOK=true, loaded=0;
   const NAMES=['p_vegtent','p_clonecart','p_fertig','p_swamp','p_pedfan','p_clipfan','p_drynet','p_press','garage','greenhouse','indoor','island-bg','home-lot','stage0','stage1','stage2','stage3','stage4','mature_green','mature_purple','mature_white','mature_golden','mature_pink','mature_blue','b_stand','b_hale','b_house','b_shed','b_tank','b_cart','b_cart_buds','skin_garage_surfshack','skin_greenhouse_bamboo','skin_indoor_neon'];
-  // Dedicated mature sprites for signature strains (art-src/signature-strains.jpg). acdc shares Charlotte's Web, white-truffle shares Animal Face.
-  const SIG={'maui-wowie':'maui-wowie','granddaddy-purple':'granddaddy-purple','charlottes-web':'charlottes-web',acdc:'charlottes-web','durban-poison':'durban-poison','animal-face':'animal-face','white-truffle':'animal-face','kauai-electric':'kauai-electric','glitter-bomb':'glitter-bomb','super-boof':'super-boof'};
-  // Adult people (art-src/npcs.jpg). The teen figure in the source sheet is never exported or used (17+ game).
+  // Dedicated mature sprites for signature strains. ACDC shares the Naupaka art; White Truffle shares Menehune Mint.
+  const SIG={'maui-wowie':'maui-wowie','granddaddy-purple':'granddaddy-purple','naupaka':'naupaka',acdc:'naupaka','durban-poison':'durban-poison','menehune-mint':'menehune-mint','white-truffle':'menehune-mint','kauai-electric':'kauai-electric','glitter-bomb':'glitter-bomb','super-boof':'super-boof'};
+  // Adult people (art-src/npcs.jpg). The teen figure in the source sheet is never exported or used (18+ game).
   const PEOPLE={customer:['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist'],farmhand:['npc_overalls','npc_crate'],walker:['npc_tourist','npc_aloha','npc_sundress','npc_elder','npc_tank']};
   [...new Set(Object.values(SIG))].forEach(n=>NAMES.push('sig_'+n,'sig_'+n+'_pot')); ['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist','npc_overalls','npc_crate'].forEach(n=>NAMES.push(n));
   function loadImages(){ NAMES.forEach(n=>{ const im=new Image(); im.onload=()=>{ loaded++; }; im.onerror=()=>{ im._bad=true; if(/^stage|^mature/.test(n)) imgOK=false; }; im.src='art/'+n+'.webp'; IM[n]=im; }); }
@@ -155,13 +155,74 @@ window.R=(function(){
       const g=r('goal'), hud=r('hud'), t=r('locTabs'), tb=r('toolbar'); if(hud) top=hud.bottom+4; if(g&&port) top=Math.max(top,Math.min(g.bottom,g.top+50)+4);
       if(t) right=W-t.left+4; if(tb) bot=H-tb.top+4; const ob=r('orderBoard'); if(ob&&!port&&loc==='indoor') top=Math.max(top,ob.bottom+4); }catch(e){}
     return {top, bot, left:0, right}; }
-  function fit(){ const sc=SC[loc], f=H>W?sc.focusP:sc.focusL, I=insets();
+  function fit(){ if(loc==='garage'){ fitGarage(); return; } const sc=SC[loc], f=H>W?sc.focusP:sc.focusL, I=insets();
     // portrait: the slim location rail floats over the room's top-right wall, so the room may use ~92% of the full width
     if(H>W){ const lc=document.getElementById('upgBtn'), lr=lc&&lc.offsetHeight?lc.getBoundingClientRect().right+2:0; I.left=Math.max(W*.04,lr); I.right=W*.04; }
     else { const lc=document.getElementById('upgBtn'); if(lc&&lc.offsetHeight) I.left=Math.max(I.left,lc.getBoundingClientRect().right+6); }
     const aw=W-I.left-I.right, ah=H-I.top-I.bot;
     const z=Math.min(aw/(f[2]-f[0]), ah/(f[3]-f[1])); cam.z=z; cam.fitZ=z; cam.x=(f[0]+f[2])/2-(I.left+aw/2)/z; cam.y=(f[1]+f[3])/2-(I.top+ah/2)/z; clamp(); }
-  function clamp(){ const sc=SC[loc]; const zmin=Math.min(Math.min(W/sc.w,H/sc.h)*.9,cam.fitZ||1e9); cam.z=Math.max(zmin,Math.min(4,cam.z));
+  // Everything the player owns in the garage, plus the painted truck, in one world box.
+  // Empty future tables stay outside the frame so the room can scale up to the screen.
+  function garageMust(){
+    const slots=SC.garage.slots||[], cap=G.capOf?G.capOf('garage'):slots.length, use=slots.slice(0,Math.max(1,Math.min(slots.length,cap)));
+    let x0=820, y0=175, x1=1210, y1=470; // Kahuna K4, baked into the garage art
+    for(const s of use){ const ppm=s.ppm||100, soil=s.y-.32*ppm;
+      x0=Math.min(x0,s.x-.5*ppm); x1=Math.max(x1,s.x+.5*ppm);
+      y0=Math.min(y0,soil-1.32*ppm); y1=Math.max(y1,s.y+.16*ppm); }
+    if(use.length){ const s=use[use.length-1]; const toe=GP(s.u,s.v+.55); y1=Math.max(y1,toe.y); x0=Math.min(x0,toe.x-40); }
+    return {x0:Math.max(0,x0-14), y0:Math.max(0,y0-8), x1:Math.min(1280,x1+16), y1:Math.min(720,y1+10)};
+  }
+  function uiBox(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); return r.width>=12&&r.height>=12?r:null; }
+  function hudObstacles(){ const out=[]; for(const id of ['hud','toolbar','seedBag','scoutBtn','upgBtn','locTabs','clock','goal','orderBoard','eventChip']){ const r=uiBox(id); if(r) out.push({l:r.left-3,t:r.top-3,r:r.right+3,b:r.bottom+3}); } return out; }
+  function rectHits(a,obs){ return obs.some(o=>a.l<o.r&&a.r>o.l&&a.t<o.b&&a.b>o.t); }
+    // Largest uniform scale that keeps the must-see box on screen and clear of the HUD.
+    // Wide screens then stop at the scale that shows the whole 1280×720 painting, letterboxed on the existing backdrop.
+  function fitGarage(){
+    const M=garageMust(), mw=Math.max(1,M.x1-M.x0), mh=Math.max(1,M.y1-M.y0), obs=hudObstacles();
+    const zHi=Math.min(W/mw,H/mh), zLo=Math.min(zHi,.2);
+    const anchors=()=>{ const tb=uiBox('toolbar'), hud=uiBox('hud'), rail=uiBox('locTabs');
+      const sides=['seedBag','scoutBtn','upgBtn'].map(uiBox).filter(Boolean);
+      const top=(hud?hud.bottom:0)+8, bot=tb?tb.top-8:H-8;
+      const sideR=sides.length?Math.max(...sides.map(r=>r.right))+8:8, sideB=sides.length?Math.max(...sides.map(r=>r.bottom))+8:top;
+      const railL=rail?rail.left-8:W-8, railB=rail?rail.bottom+8:top;
+      const below=Math.max(sideB,railB);
+      return [
+        {l:8,t:top,r:W-8,b:bot},
+        {l:8,t:below,r:W-8,b:bot},
+        {l:sideR,t:top,r:railL,b:bot},
+        {l:sideR,t:below,r:railL,b:bot},
+      ].filter(a=>a.r-a.l>40&&a.b-a.t>40); };
+    function coverOf(sx,sy,z){ const vx=M.x0-sx/z, vy=M.y0-sy/z, vw=W/z, vh=H/z;
+      const iw=Math.max(0,Math.min(1280,vx+vw)-Math.max(0,vx)), ih=Math.max(0,Math.min(720,vy+vh)-Math.max(0,vy)); return iw*ih*z*z; }
+    function settle(z){ const cw=mw*z, ch=mh*z; let best=null;
+      const consider=(sx,sy)=>{ const rect={l:sx,t:sy,r:sx+cw,b:sy+ch};
+        if(sx<-1||sy<-1||sx+cw>W+1||sy+ch>H+1||rectHits(rect,obs)) return;
+        const cover=coverOf(sx,sy,z), mid=(0-(M.y0-sy/z))*z+360*z, bias=Math.abs(mid-H/2);
+        if(!best||cover>best.cover+1||(Math.abs(cover-best.cover)<=1&&bias<best.bias)) best={sx,sy,cover,bias}; };
+      for(const a of anchors()){ if(cw>a.r-a.l+1||ch>a.b-a.t+1) continue;
+        const xs=[a.l, a.l+(a.r-a.l-cw)/2, a.r-cw], ys=[a.t, a.t+(a.b-a.t-ch)/2, a.b-ch];
+        for(const sx0 of xs) for(const sy0 of ys){ let sx=sx0, sy=sy0;
+          for(let n=0;n<8;n++){ const rect={l:sx,t:sy,r:sx+cw,b:sy+ch}; let hit=null; for(const o of obs) if(rect.l<o.r&&rect.r>o.l&&rect.t<o.b&&rect.b>o.t){ hit=o; break; } if(!hit) break;
+            const pushes=[{d:rect.r-hit.l,x:-1,y:0},{d:hit.r-rect.l,x:1,y:0},{d:rect.b-hit.t,x:0,y:-1},{d:hit.b-rect.t,x:0,y:1}].sort((p,q)=>p.d-q.d);
+            let moved=false; for(const p of pushes){ const nx=sx+p.x*(p.d+1), ny=sy+p.y*(p.d+1); if(nx<a.l-1||ny<a.t-1||nx+cw>a.r+1||ny+ch>a.b+1) continue; sx=nx; sy=ny; moved=true; break; }
+            if(!moved) break; }
+          consider(sx,sy); } }
+      return best; }
+    let lo=zLo, hi=zHi, win=settle(zLo);
+    for(let i=0;i<14;i++){ const mid=(lo+hi)/2, got=settle(mid); if(got){ win=got; lo=mid; } else hi=mid; }
+    let z=lo;
+    // A phone still fills the safe area (pots stay big). A wide screen can show the whole painting
+    // when that scale still clears the HUD and the owned pots stay a large part of the view.
+    const zArt=Math.min(W/1280, H/720);
+    if(zArt+0.004<z && Math.min(W,H)>=700){ const art=settle(zArt); if(art && mh*zArt>=Math.min(W,H)*0.42){ win=art; z=zArt; } }
+    cam.z=z; cam.fitZ=z; cam.x=M.x0-(win?win.sx:8)/z; cam.y=M.y0-(win?win.sy:8)/z; cam.fitX=cam.x; cam.fitY=cam.y; clamp(); }
+  function clamp(){ const sc=SC[loc];
+    if(loc==='garage'&&cam.fitZ){ cam.z=Math.max(cam.fitZ,Math.min(4,cam.z));
+      if(cam.z<=cam.fitZ*1.02){ cam.z=cam.fitZ; cam.x=cam.fitX; cam.y=cam.fitY; return; }
+      const vw=W/cam.z, vh=H/cam.z, m=36;
+      cam.x=vw>=sc.w?cam.fitX:Math.max(-m,Math.min(sc.w+m-vw,cam.x));
+      cam.y=vh>=sc.h?cam.fitY:Math.max(-m,Math.min(sc.h+m-vh,cam.y)); return; }
+    const zmin=Math.min(Math.min(W/sc.w,H/sc.h)*.9,cam.fitZ||1e9); cam.z=Math.max(zmin,Math.min(4,cam.z));
     const vw=W/cam.z, vh=H/cam.z, m=120; cam.x=vw>sc.w+2*m?(sc.w-vw)/2:Math.max(-m,Math.min(sc.w+m-vw,cam.x)); cam.y=vh>sc.h+2*m?(sc.h-vh)/2:Math.max(-m-60,Math.min(sc.h+m-vh,cam.y)); }
   function pan(dx,dy){ cam.x-=dx/cam.z; cam.y-=dy/cam.z; clamp(); }
   function zoomAt(sx,sy,f){ const wx=sx/cam.z+cam.x, wy=sy/cam.z+cam.y; cam.z*=f; clamp(); cam.x=wx-sx/cam.z; cam.y=wy-sy/cam.z; clamp(); }
@@ -653,6 +714,17 @@ window.R=(function(){
       if(st().land) ctx.drawImage(groundDecor(),100,600);
     }
   }
+  // Garage buckets and rack pots are drawn above the slot (the slot is the bucket bottom / table).
+  // The plant, its selection ring and its timer all use the soil line, or they slide down the pot as you zoom.
+  function potLift(sl){ return (sl.kind==='pot'?.32:sl.kind==='pot2'||sl.kind==='rackpot'?.24:0)*(sl.ppm||0); }
+  // A few growth sprites have one or two clear rows under the stem. Shift those so the opaque feet sit on the soil.
+  const footC=new WeakMap();
+  function footFrac(img){ const src=img&&img.c; if(!src) return 0; const hit=footC.get(src); if(hit!=null) return hit;
+    const w=src.naturalWidth||src.width, h=src.naturalHeight||src.height; if(!w||!h){ footC.set(src,0); return 0; }
+    let x; try{ if(typeof src.getContext==='function') x=src.getContext('2d',{willReadFrequently:true});
+      else { const c=document.createElement('canvas'); c.width=w; c.height=h; x=c.getContext('2d',{willReadFrequently:true}); x.drawImage(src,0,0); }
+      let pad=0; for(let row=h-1;row>=0&&pad<6;row--){ const d=x.getImageData(0,row,w,1).data; let mx=0; for(let i=3;i<d.length;i+=4) if(d[i]>mx) mx=d[i]; if(mx>=48) break; pad++; }
+      const f=pad/h; footC.set(src,f); return f; }catch(e){ footC.set(src,0); return 0; } }
   // ---------------- plant drawing ----------------
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -674,12 +746,13 @@ window.R=(function(){
       ctx.strokeStyle='#7fae4a'; ctx.lineWidth=1.4; for(const f of [.35,.6,.82]){ ctx.beginPath(); ctx.moveTo(-1,-sh2*f); ctx.lineTo(7,-sh2*f+2); ctx.stroke(); } }
     if(p._shake>0&&G.st.settings.motion!==false) ctx.rotate(Math.sin(p._shake*40)*p._shake*.14);
     ctx.rotate(sway); ctx.scale(flip,droop);
-    if(pi&&pi.a){ const img=pi.a, w=fitW(img);
-      ctx.drawImage(sick(img,hk,seed),-w/2,-hpx,w,hpx);
-      if(pi.b&&pi.mix>0){ const w2=fitW(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx,w2,hpx); ctx.globalAlpha=1; } }
+    let foot=0;
+    if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
+      ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
+      if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
     else if(window.Art){ const stg=G.stage(p); const sp=Art.plantSprite(st,Math.min(stg,4),1); const k=hpx/(sp.h*.9); ctx.drawImage(sp.c,-sp.ox*k,-sp.oy*k,sp.c.width*k,sp.c.height*k); }
     ctx.restore();
-    return hpx;
+    return hpx*(1-foot);
   }
   // per-sprite health variants, cached (effects are clipped to the plant's own pixels, never the ground behind it)
   const sickC=new WeakMap();
@@ -705,7 +778,7 @@ window.R=(function(){
     for(let i=0;i<70;i++){ x.strokeStyle=['#c9a75a','#b08a44','#dcc07a','#8f6e34'][i%4]; x.lineWidth=1; const px=r()*48, py=r()*48, a=r()*Math.PI; x.beginPath(); x.moveTo(px,py); x.lineTo(px+Math.cos(a)*6,py+Math.sin(a)*3); x.stroke(); } return mulchC=c; }
   let glowC=null; function glowS(){ if(glowC) return glowC; const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'), g=x.createRadialGradient(32,32,2,32,32,32); g.addColorStop(0,'rgba(255,226,110,1)'); g.addColorStop(1,'rgba(255,226,110,0)'); x.fillStyle=g; x.fillRect(0,0,64,64); return glowC=c; }
   function overlays(list,now){
-    const vis=list.filter(o=>{ if(!o.p.strain) return false; const q=toS(o.sl.x,o.sl.y); return q.x>-20&&q.x<W+20&&q.y>-20&&q.y<H+40; }).length, crowd=vis>(cam.z>=2.6?40:cam.z>=1.6?18:12), big=cam.z>=.55&&!crowd;
+    const vis=list.filter(o=>{ if(!o.p.strain) return false; const q=toS(o.sl.x,o.sl.y); return q.x>-20&&q.x<W+20&&q.y>-20&&q.y<H+40; }).length, crowd=vis>(cam.z>=2.6?40:cam.z>=1.6?18:12);
     // crowded tents/beds/benches: one count badge per group instead of a pile of per-plant markers
     const CL=new Map(), inCl=new Set();
     for(const o of list){ if(!o.p.strain) continue; const sl=o.sl, k=(sl.row!=null?'rows':sl.tent)||(sl.rack?'rack':sl.bay!=null?'bay'+sl.bay:sl.bench!=null?'bn'+sl.bench:null); if(!k) continue; if(!CL.has(k)) CL.set(k,[]); CL.get(k).push(o); }
@@ -714,17 +787,25 @@ window.R=(function(){
       x/=a.length; const items=[]; if(rd) items.push(['#7bc043','✂️',rd]); if(pe) items.push(['#e74c3c','🐛',pe]); if(wa) items.push([ICON.water[0],ICON.water[1],wa]); if(fo) items.push([ICON.food[0],ICON.food[1],fo]);
       if(!items.length) continue; const y=ty-9, iw=26, tw=items.length*iw+6; ctx.fillStyle='rgba(12,22,16,.82)'; ctx.beginPath(); ctx.roundRect(x-tw/2,y-9,tw,18,9); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=1; ctx.stroke();
       ctx.textBaseline='middle'; items.forEach(([c,ic,n],i)=>{ const ix=x-tw/2+3+i*iw; ctx.font='10px sans-serif'; ctx.textAlign='left'; ctx.fillText(ic,ix+1,y+.5); ctx.font='800 10px system-ui,sans-serif'; ctx.fillStyle=c; ctx.fillText(String(n),ix+14,y+.5); ctx.fillStyle='#fff'; }); }
-    for(const o of list){ const p=o.p, s=toS(o.sl.x,o.sl.y), top=toS(o.sl.x,o.sl.y-o.h).y; if(o.sel&&p.strain){ const pu=.75+.25*Math.sin(now*5); ctx.strokeStyle='rgba(255,217,106,'+pu+')'; ctx.lineWidth=3; ctx.shadowColor='#ffd96a'; ctx.shadowBlur=10; ctx.beginPath(); ctx.ellipse(s.x,s.y-2,Math.max(16,(s.y-top)*.38),Math.max(6,(s.y-top)*.13),0,0,TAU); ctx.stroke(); ctx.shadowBlur=0; } if(s.x<-40||s.x>W+40||s.y<-40||s.y>H+60) continue;
+    // Ring stays on this plant's soil and inside its own spacing, so a tall plant does not circle the pots beside it.
+    function selRing(o,s){ const stn=G.strain(o.p.strain); if(!stn) return; const ps=plantSize(stn.type,o.p.prog,o.sl), ppm=o.sl.ppm||40, sp=(o.sl.sp||.6)*ppm*cam.z, canopy=ps.w*ppm*cam.z;
+      const rx=Math.max(8,Math.min(canopy*.55, sp*.42)), ry=Math.max(4,rx*.3), pu=.75+.25*Math.sin(now*5);
+      ctx.strokeStyle='rgba(255,217,106,'+pu+')'; ctx.lineWidth=3; ctx.shadowColor='#ffd96a'; ctx.shadowBlur=10; ctx.beginPath(); ctx.ellipse(s.x,s.y-2,rx,ry,0,0,TAU); ctx.stroke(); ctx.shadowBlur=0; }
+    for(const o of list){ const p=o.p, s=toS(o.sl.x,o.feet!=null?o.feet:o.sl.y), top=toS(o.sl.x,o.sl.y-o.h).y; if(o.sel&&p.strain) selRing(o,s); if(s.x<-40||s.x>W+40||s.y<-40||s.y>H+60) continue;
       if(p.strain&&p.prog>=1){ const pulse=.6+.4*Math.sin(now*4+o.sl.x), gr2=Math.max(16,(s.y-top)*(crowd?.42:.55)); ctx.globalAlpha=.42*pulse; ctx.drawImage(glowS(),s.x-gr2,(s.y+top)/2-gr2,gr2*2,gr2*2);
         /* QC: harvest-ready breathe: warm painted halo on the soil + two slow golden motes rising through the canopy */ { const br=.5+.5*Math.sin(now*2.2+o.sl.x*.7), rw=Math.max(14,(s.y-top)*.42); ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=(.16+.14*br)*ripeK(now); ctx.translate(s.x,s.y-2); ctx.scale(1,.3); ctx.drawImage(glowS(),-rw,-rw,rw*2,rw*2); ctx.restore(); ctx.save(); ctx.globalCompositeOperation='lighter'; for(let i=0;i<2;i++){ const f=((now*.35+i*.5+o.sl.x*.013)%1), mx=s.x+Math.sin(now*1.3+i*2.1+o.sl.x)*rw*.5, my=s.y-(s.y-top)*(.15+.8*f), ms=Math.max(2.5,(s.y-top)*.05); ctx.globalAlpha=.55*Math.sin(f*Math.PI); ctx.drawImage(glowS(),mx-ms,my-ms,ms*2,ms*2); } ctx.restore(); }
         ctx.globalAlpha=1; if(inCl.has(o)) continue;
         const cp=crowd||(s.y-top)<46, by=top-(cp?7:12)-(cp?1:3)*Math.sin(now*3+o.sl.x); const hx=bubX(s.x,cp?10:22); qbub.push({x:hx,y:by,act:{type:'qa',a:'harvest',p}}); const gr=G.gradeOf(G.plotScore(p)); const col=gr==='A'?'#f1c40f':gr==='C'?'#c87f4a':'#7bc043';
           if(cp){ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(hx,by,6,0,TAU); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.font='800 8px system-ui,sans-serif'; ctx.fillStyle='#1c2a12'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(gr,hx,by+.5); }
           else { badge(hx,by,[col,'✂️'],10); ctx.beginPath(); ctx.arc(hx+9,by-8,6,0,TAU); ctx.fillStyle=col; ctx.fill(); ctx.font='800 9px system-ui,sans-serif'; ctx.fillStyle='#1c2a12'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(gr,hx+11,by-8.5); } }
-      else if(p.strain){ if(inCl.has(o)&&!o.sel) continue; const icons=[]; if(p.pest) icons.push([ICON[p.pest],'treat']); if(G.isThirsty(p)) icons.push([ICON.water,'water']); if(G.isHungry(p)) icons.push([ICON.food,'feed']); if(G.canPrune(p)) icons.push([ICON.prune,'prune']);
-        if(o.sel){ const have=new Set(icons.map(x=>x[1])); if(!have.has('water')) icons.push([ICON.water,'water']); if(!have.has('feed')) icons.push([ICON.food,'feed']); if(G.canTrain(p)) icons.push([ICON.top,'top']); }
+      else if(p.strain){ if(inCl.has(o)&&!o.sel) continue; const icons=[];
+        // Only the care the plant needs right now. A full, healthy plant stays unmarked.
+        if(p.pest) icons.push([ICON[p.pest],'treat']); if(G.isThirsty(p)) icons.push([ICON.water,'water']); if(G.isHungry(p)) icons.push([ICON.food,'feed']);
+        // Optional training stays on the plant the player tapped, and on the plant card, so a room of plants in veg does not grow a scissors on every pot.
+        if(o.sel){ if(G.canPrune(p)) icons.push([ICON.prune,'prune']); if(G.canTrain(p)) icons.push([ICON.top,'top']); }
         const cp=(crowd||(s.y-top)<46)&&!o.sel, gap=cp?24:30, r=cp?9:12; if(!lens.on) icons.forEach(([ic,a],i)=>{ const bx=bubX(s.x,((icons.length-1)/2)*gap+r+5)+(i-(icons.length-1)/2)*gap, byy=top-(cp?10:14)-(o.sel?0:2*Math.sin(now*3+i)); if(o.sel){ ctx.fillStyle='rgba(10,20,14,.55)'; ctx.beginPath(); ctx.arc(bx,byy,r+4,0,TAU); ctx.fill(); } badge(bx,byy,ic,r); qbub.push({x:bx,y:byy,act:{type:'qa',a,p}}); });
-        if(big||o.sel){ const tl=G.timeLeft(p); pill(s.x,s.y+12,G.dur(tl),'rgba(10,20,14,.72)','#e9ffd6',10); } }
+        // One timer: the plant the player tapped, at every zoom, just under its soil. Drawn in this overlay pass so it stays readable on top of the leaves in front of it.
+        if(o.sel&&p.prog<1){ const r=pill(s.x,s.y+12,G.dur(G.timeLeft(p)),'rgba(10,20,14,.9)','#e9ffd6',9); ctx.strokeStyle='rgba(233,255,214,.9)'; ctx.lineWidth=1.25; rr(r.x,r.y,r.w,r.h,r.h/2); ctx.stroke(); } }
       else if(p.owned&&o.hasSeed){ // clean "plant here" badge: solid green disc, white rim, rounded plus, soft drop shadow, gentle bob
         const a=.5+.5*Math.sin(now*3+s.x*.05), r=9, cx=s.x, cy=s.y-8-a*1.5; ctx.save(); ctx.shadowColor='rgba(0,0,0,.45)'; ctx.shadowBlur=4; ctx.shadowOffsetY=1.5; const g=ctx.createLinearGradient(0,cy-r,0,cy+r); g.addColorStop(0,'#6fdc7c'); g.addColorStop(1,'#2a8f43'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.fill(); ctx.restore();
         ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.stroke(); ctx.lineCap='round'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(cx-4,cy); ctx.lineTo(cx+4,cy); ctx.moveTo(cx,cy-4); ctx.lineTo(cx,cy+4); ctx.stroke(); ctx.lineCap='butt'; }
@@ -784,7 +865,7 @@ window.R=(function(){
         ctx.strokeStyle='#3d4247'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(d.x,d.y-.38*k); ctx.lineTo(d.x,d.y-top); ctx.lineTo(m0.x,m0.y-top); ctx.moveTo(c.x,c.y-.38*k); ctx.lineTo(c.x,c.y-top); ctx.lineTo(m1.x,m1.y-top); ctx.stroke();
         ctx.lineCap='round'; ctx.lineWidth=5; ctx.strokeStyle='#26292d'; ctx.beginPath(); ctx.moveTo(m0.x,m0.y-top); ctx.lineTo(m1.x,m1.y-top); ctx.stroke();
         ctx.lineWidth=1.8; ctx.strokeStyle='#fff3d6'; ctx.shadowColor='#ffe9b0'; ctx.shadowBlur=6; ctx.beginPath(); ctx.moveTo(m0.x+3,m0.y-top+2.4); ctx.lineTo(m1.x-3,m1.y-top+2.4); ctx.stroke(); ctx.shadowBlur=0; ctx.lineCap='butt'; }});
-      { const role=G.garageRole(); if(role!=='grow'){ list.push({y:1e4,draw:()=>phenoDecor(role,now)}); if(role==='pheno') list.push({y:GP(1.25,.32).y,draw:()=>phenoDecor(role,now,'bench')}); } signFn=(()=>{ const q=loc==='garage'?toS(420,4):toS(300,112); const sb=(t,bg,fg)=>signBoard(Math.max(125,Math.min(W-125,q.x)),Math.max(insets().top+2,q.y-34),t,bg,fg); if(role==='grow') sb("GRANDPA'S GARAGE",'#f4e2b8','#5a3a1a'); else sb(role==='pheno'?(G.st.hunt?'PHENO ROOM · HUNT ON':'PHENO ROOM'):'GARAGE STORAGE',role==='pheno'?'#2a1838':'#e8dcc4',role==='pheno'?'#ff9be9':'#4a3a2a'); }); }
+      { const role=G.garageRole(); if(role!=='grow'){ list.push({y:1e4,draw:()=>phenoDecor(role,now)}); if(role==='pheno') list.push({y:GP(1.25,.32).y,draw:()=>phenoDecor(role,now,'bench')}); signFn=()=>{ const label=role==='pheno'?(G.st.hunt?'PHENO ROOM · HUNT ON':'PHENO ROOM'):'GARAGE STORAGE'; const q=toS(420,4); const p=fitSign(label,q.x,Math.max(insets().top+2,q.y-34)); signBoard(p.x,p.y,label,role==='pheno'?'#2a1838':'#e8dcc4',role==='pheno'?'#ff9be9':'#4a3a2a'); }; } }
       if(G.lv('dehu')){ const p=GP(3.55,5.9); ctx.fillStyle='#e9ecef'; ctx.fillRect(p.x-12,p.y-34,24,34); ctx.fillStyle='#9aa'; ctx.fillRect(p.x-9,p.y-30,18,6); }
     }
     if(loc==='farm'){
@@ -826,13 +907,14 @@ window.R=(function(){
     // changes visibly), and drawn as a single item. Overlays (icons, ripe glow) still come from the per-plot entries.
     const useCache=loc==='farm'&&cam.z<.8&&!SCALE_DEBUG, cachedT={};
     for(const p of plots){ const sl=slotOf.get(p.id); if(!sl) continue;
-      if(useCache&&p.owned&&p.zone==='field'&&p.strain&&!(p._pop>0)&&!(p._shake>0)){ const o={p,sl,h:plantSize(G.strain(p.strain).type,p.prog,sl).h*sl.ppm,sel:selId===p.id,hasSeed}; (cachedT[sl.ter]=cachedT[sl.ter]||[]).push(p); list.push({y:sl.y,draw:()=>{},o}); fronts.push(null); continue; }
+      if(useCache&&p.owned&&p.zone==='field'&&p.strain&&!(p._pop>0)&&!(p._shake>0)){ const o={p,sl,h:plantSize(G.strain(p.strain).type,p.prog,sl).h*sl.ppm,feet:sl.y,sel:selId===p.id,hasSeed}; (cachedT[sl.ter]=cachedT[sl.ter]||[]).push(p); list.push({y:sl.y,draw:()=>{},o}); fronts.push(null); continue; }
       if(!p.owned){ if(loc==='indoor'&&st.inBuilt&&sl.kind==='art'){ list.push({y:sl.sortY!=null?sl.sortY:sl.y,draw:()=>{ ctx.fillStyle='rgba(10,14,20,.55)'; ctx.beginPath(); ctx.ellipse(sl.x,sl.y,sl.pw*.55,sl.pw*.25,0,0,TAU); ctx.fill(); }}); } continue; }
-      const o={p,sl,h:20,sel:selId===p.id,hasSeed}; list.push({y:sl.sortY!=null?sl.sortY:sl.y,draw:()=>{
-        if(sl.kind==='pot'){ const h=.32*sl.ppm; ctx.save(); ctx.translate(0,-h); bucketPot(sl.x,sl.y,sl.ppm); ctx.restore(); }
-        else if(sl.kind==='pot2'||sl.kind==='rackpot'){ const small=sl.kind!=='pot'; const h=(small?.24:.32)*sl.ppm; ctx.save(); ctx.translate(0,-h); fabricPot(sl.x,sl.y,sl.ppm,small,G.lv('trays')&&p.zone==='garage'); ctx.restore(); }
+      const o={p,sl,h:20,feet:sl.y,sel:selId===p.id,hasSeed}; list.push({y:sl.sortY!=null?sl.sortY:sl.y,draw:()=>{
+        const yoff=potLift(sl); o.feet=sl.y-yoff;
+        if(sl.kind==='pot'){ ctx.save(); ctx.translate(0,-yoff); bucketPot(sl.x,sl.y,sl.ppm); ctx.restore(); }
+        else if(sl.kind==='pot2'||sl.kind==='rackpot'){ const small=sl.kind!=='pot'; ctx.save(); ctx.translate(0,-yoff); fabricPot(sl.x,sl.y,sl.ppm,small,G.lv('trays')&&p.zone==='garage'); ctx.restore(); }
         else if(sl.kind==='soil'||sl.kind==='bed') soilMound(sl.x,sl.y,sl.ppm);
-        if(p.strain){ const yoff=(sl.kind==='pot'?.32:sl.kind==='pot2'||sl.kind==='rackpot'?.24:0)*sl.ppm; ctx.save(); ctx.translate(0,-yoff); const sl2=sl; o.h=drawPlantAt(p,null,sl2,now)+yoff; ctx.restore(); }
+        if(p.strain){ ctx.save(); ctx.translate(0,-yoff); o.h=drawPlantAt(p,null,sl,now)+yoff; ctx.restore(); }
         else o.h=12; }}); fronts.push(null); list[list.length-1].o=o; }
     for(const k in cachedT){ const P=cachedT[k]; const ys=P.map(p=>slotOf.get(p.id).y); list.push({y:Math.max(...ys)+.5,draw:()=>drawPatch(k,P)}); }
     list.sort((a,b)=>a.y-b.y); const ovl=[];
@@ -878,9 +960,12 @@ window.R=(function(){
     if(loc==='indoor'){ refFig(255,520,inppm(520),'bench ~0.8 m'); refFig(870,420,inppm(420),'back'); }
   }
   // first-minutes guide: a bouncing finger on the exact plant the current tutorial goal needs
-  function guide(now){ const q=G.curQuest&&G.curQuest(), st=G.st; if(!q||st.questDone||st.quest>4||loc!=='garage') return; let p=null;
-    const mine=st.plots.filter(x=>x.loc===loc&&x.owned);
-    if(q.id==='plant') p=mine.find(x=>!x.strain); else if(q.id==='water') p=mine.find(x=>x.strain&&G.isThirsty(x))||mine.find(x=>x.strain&&x.prog<1); else if(q.id==='harvest') p=mine.find(x=>x.strain&&x.prog>=1);
+  function guide(now){ const st=G.st; if(!st) return; let p=null;
+    const tut=window.Tutorial&&Tutorial.active&&Tutorial.active();
+    if(tut&&Tutorial.plot){ const id=Tutorial.plot(); if(id) p=st.plots.find(x=>x.id===id&&x.loc===loc); }
+    else { const q=G.curQuest&&G.curQuest(); if(!q||st.questDone||st.quest>4||loc!=='garage') return;
+      const mine=st.plots.filter(x=>x.loc===loc&&x.owned);
+      if(q.id==='plant') p=mine.find(x=>!x.strain); else if(q.id==='water') p=mine.find(x=>x.strain&&G.isThirsty(x))||mine.find(x=>x.strain&&x.prog<1); else if(q.id==='harvest') p=mine.find(x=>x.strain&&x.prog>=1); }
     if(!p) return; const sl=slotOf.get(p.id); if(!sl) return; const s=toS(sl.x,sl.y); const mv=st.settings.motion!==false, b=mv?Math.abs(Math.sin(now*4))*10:4;
     ctx.save(); ctx.strokeStyle='rgba(255,226,110,'+(mv?.5+.4*Math.sin(now*4):.8)+')'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(s.x,s.y-4,26+(mv?Math.sin(now*4)*4:0),11,0,0,TAU); ctx.stroke();
     ctx.font='34px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=6; ctx.fillText('👆',s.x+6,s.y+8+b); ctx.restore(); }
@@ -1030,8 +1115,8 @@ window.R=(function(){
       cam.z=z1; cam.x=wx-lens.x/z1; cam.y=wy-lens.y/z1; ctx.imageSmoothingQuality='high';
       ctx.setTransform(D*z1,0,0,D*z1,-cam.x*z1*D,-cam.y*z1*D);
       const vis=lastOvl.filter(o=>o.p&&o.p.strain&&o.sl).sort((a,b)=>a.sl.y-b.sl.y);
-      for(const o of vis){ const sl=o.sl, q=toS(sl.x,sl.y); if(Math.abs(q.x-lens.x)>r*1.6||q.y<lens.y-r*.4||q.y>lens.y+r*2.6) continue;
-        const yoff=(sl.kind==='pot'?.32:sl.kind==='pot2'||sl.kind==='rackpot'?.24:0)*sl.ppm; ctx.save(); ctx.translate(0,-yoff); try{ drawPlantAt(o.p,null,sl,now); }catch(e){} ctx.restore(); }
+      for(const o of vis){ const sl=o.sl, yoff=potLift(sl), q=toS(sl.x,sl.y-yoff); if(Math.abs(q.x-lens.x)>r*1.6||q.y<lens.y-r*.4||q.y>lens.y+r*2.6) continue;
+        ctx.save(); ctx.translate(0,-yoff); try{ drawPlantAt(o.p,null,sl,now); }catch(e){} ctx.restore(); }
       cam.z=z0; cam.x=x0; cam.y=y0; G.st.settings.hq=hq0; ctx.setTransform(D,0,0,D,0,0); }
     for(const o of lastOvl){ const p=o.p, sl=o.sl; if(!p||!(p.eggs>0)||!p.strain) continue; const h=o.h||20;
       const q=toS(sl.x,sl.y-h*.45), mx=lens.x+(q.x-lens.x)*Z, my=lens.y+(q.y-lens.y)*Z; if(Math.hypot(mx-lens.x,my-lens.y)>r+20) continue; const sd=hash(p.id);
@@ -1041,8 +1126,23 @@ window.R=(function(){
     ctx.restore(); ctx.beginPath(); ctx.arc(lens.x,lens.y,r,0,TAU); ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=10; ctx.strokeStyle='#2a1c0e'; ctx.lineWidth=9; ctx.stroke(); ctx.shadowBlur=0; ctx.strokeStyle='#f0c45a'; ctx.lineWidth=4; ctx.stroke(); ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(lens.x,lens.y,r-4,3.6,5.2); ctx.stroke();
     if(G.lv('loupe')){ const t=performance.now()/1000; for(const o of lastOvl){ if(!(o.p&&o.p.eggs>0)) continue; const q=toS(o.sl.x,o.sl.y-(o.h||20)*.5); if(Math.hypot(q.x-lens.x,q.y-lens.y)<r) continue; ctx.globalAlpha=.6+.4*Math.sin(t*5); ctx.fillStyle='#ff9f2e'; ctx.beginPath(); ctx.arc(q.x,q.y,5,0,TAU); ctx.fill(); ctx.globalAlpha=1; } }
     ctx.strokeStyle='#3a2a18'; ctx.lineWidth=9; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(lens.x+r*.72,lens.y+r*.72); ctx.lineTo(lens.x+r*1.05,lens.y+r*1.05); ctx.stroke(); ctx.lineCap='butt'; ctx.restore(); }
-  // painted-wood sign on the garage wall
+  // painted-wood sign on the garage wall. x is the center, y is the top.
   function signBoard(x,y,t,bg,fg){ ctx.save(); ctx.font='900 18px system-ui,sans-serif'; const w=ctx.measureText(t).width+28; ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(x-w/2+3,y+3,w,30); ctx.fillStyle=bg; ctx.fillRect(x-w/2,y,w,30); ctx.strokeStyle=fg; ctx.lineWidth=2; ctx.strokeRect(x-w/2+3,y+3,w-6,24); ctx.fillStyle=fg; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(t,x,y+16); ctx.restore(); }
+  // Keep the whole board on screen and off the HUD. Prefer the wall anchor; slide to the nearest clear spot.
+  function fitSign(text,ax,ay){ ctx.save(); ctx.font='900 18px system-ui,sans-serif'; const w=ctx.measureText(text).width+28, h=30, m=12; ctx.restore();
+    const obs=hudObstacles();
+    // The left seed / scout / upgrades stack is one column. Keep the sign out of that lane, including the space directly under the lowest button.
+    const sides=['seedBag','scoutBtn','upgBtn'].map(uiBox).filter(Boolean);
+    if(sides.length){ const rgt=Math.max(...sides.map(r=>r.right))+14; obs.push({l:-40,t:-40,r:rgt,b:H+40}); }
+    const clamp=(x,y)=>({x:Math.max(m+w/2,Math.min(W-m-w/2,x)), y:Math.max(m,Math.min(H-h-m,y))});
+    const clear=(x,y)=>{ const rect={l:x-w/2,t:y,r:x+w/2,b:y+h}; return !rectHits(rect,obs); };
+    const a0=clamp(ax,ay); if(clear(a0.x,a0.y)) return a0;
+    let best=null;
+    for(const dy of [0,40,-40,80,-80,120,160,200,-120]) for(const dx of [0,60,-60,120,-120,180,240,300,380,460,560,-180,-240]){
+      const p=clamp(ax+dx,ay+dy); if(!clear(p.x,p.y)) continue; const d=(p.x-ax)*(p.x-ax)+(p.y-ay)*(p.y-ay); if(!best||d<best.d) best={x:p.x,y:p.y,d}; }
+    if(best) return best;
+    const sideR=sides.length?Math.max(...sides.map(r=>r.right))+10:m;
+    return clamp(Math.max(sideR+w/2,ax), ay); }
   // pheno room makeover: pink full-spectrum glow, pheno tags on each pot, a breeding bench with labelled clone domes
   const cutCache=new Map();
   // pheno room glow: smooth radial gradient baked once at low res and scaled up (a full-room gradient fill each frame was a big fill-rate cost)
@@ -1116,6 +1216,19 @@ window.R=(function(){
   }
   const st=()=>G.st;
   function screenOf(p){ const sl=slotOf.get(p.id); if(!sl||p.loc!==loc) return null; return toS(sl.x,sl.y); }
+  // Screen box of an owned pot, including the plant, the bucket, and the pointing finger under it.
+  function plotRect(p){
+    if(!p||p.loc!==loc||!p.owned) return null;
+    const sl=slotOf.get(p.id); if(!sl) return null;
+    const ppm=sl.ppm||40, z=cam.z||1, lift=potLift(sl);
+    let hh=.55*ppm;
+    if(p.strain){ try{ const s=G.strain(p.strain); if(s) hh=Math.max(.45,plantSize(s.type,p.prog,sl).h)*ppm; }catch(e){} }
+    const hw=Math.max(Math.min(.45,(sl.sp||.6)*.55)*ppm, 32/z);
+    const top=sl.y-lift-hh-24/z, bot=sl.y+Math.max(.28*ppm, 22/z)+42/z;
+    const a=toS(sl.x-hw, top), b=toS(sl.x+hw, bot);
+    const cv=document.getElementById('game'), cr=cv?cv.getBoundingClientRect():{left:0,top:0};
+    return {left:Math.min(a.x,b.x)+cr.left, top:Math.min(a.y,b.y)+cr.top, right:Math.max(a.x,b.x)+cr.left, bottom:Math.max(a.y,b.y)+cr.top};
+  }
 
   // ---------------- strain close-up (strain book) ----------------
   const cups={};
@@ -1132,5 +1245,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();
