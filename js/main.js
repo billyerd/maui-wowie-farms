@@ -19,9 +19,9 @@
   G.on('plant',fx(p=>{ Sound.play('plant'); p._pop=.35; buzz(6); R.burst(p,'leaf',8,30); }));
   G.on('water',fx(p=>{ Sound.play('water'); R.burst(p,'water',14,50); R.shake(p); }));
   G.on('sprinkle',fx(p=>{ if(Math.random()<.4) R.burst(p,'water',5,40); }));
-  // feed costs: bursts of auto-feeds within 0.5 s merge into one "-$X · N fed" label over the group (no stacked label pile)
-  let feedQ=null; const flushFeed=()=>{ const q=feedQ; feedQ=null; if(!q) return; const p=q.ps[Math.floor(q.ps.length/2)]; R.floater(p,'-'+G.fmt(q.sum)+(q.ps.length>1?' · '+q.ps.length+' fed':''),'#ffb59a',40); };
-  G.on('feed',fx(p=>{ R.burst(p,'feed',10,30); if(!feedQ){ Sound.play('feed'); feedQ={sum:0,ps:[]}; setTimeout(flushFeed,500); } feedQ.sum+=G.feedCost(p); feedQ.ps.push(p); }));
+  // one free feed: bursts of auto-feeds within 0.5 s merge into one "Fed" label (no cash, no stacked pile)
+  let feedQ=null; const flushFeed=()=>{ const q=feedQ; feedQ=null; if(!q) return; const p=q.ps[Math.floor(q.ps.length/2)]; R.floater(p,q.ps.length>1?q.ps.length+' fed':'Fed','#c8ffb0',40); };
+  G.on('feed',fx(p=>{ R.burst(p,'feed',10,30); if(!feedQ){ Sound.play('feed'); feedQ={ps:[]}; setTimeout(flushFeed,500); } feedQ.ps.push(p); }));
   G.on('harvest',fx(({p,n,s,golden,mutant,lucky,grade})=>{ Sound.play('harvest'); buzz(12); p._pop=.5; R.pluck(p,n,golden); R.burst(p,'leaf',18,50); R.burst(p,'gold',10,60);
     R.floater(p,'+'+n+' '+s.name.split(' ')[0]+' · Grade '+grade,grade==='A'?'#ffe27a':grade==='C'?'#e8b48a':'#c8ff7a',80);
     if(mutant){ Sound.play('discover'); buzz([20,40,20]); Shake.add(.45); R.burst(p,'purple',26,90); R.floater(p,'MUTANT PHENO! x2.5','#e3a8ff',120); UI.toast('Mutation! A rare '+s.name+' phenotype (sells x2.5)','gemt'); }

@@ -29,12 +29,14 @@ window.G = (function(){
     // scale by dens so a full patch earns the same as before (economy + timings unchanged)
     field: {loc:'farm',   name:'Terrace plots',    yield:1.15*.3, dens:.3, up:{water:.02}, outdoor:1},
     gh:    {loc:'farm',   name:'Greenhouse beds',  yield:1.35/3, dens:1/3, up:{water:.03, upkeep:.03}, outdoor:.5},
-    in:    {loc:'indoor', name:'Indoor facility',  yield:2.00, up:{power:.30, climate:.10, nutrients:.08}, aaa:true},
+    in:    {loc:'indoor', name:'Indoor facility',  yield:2.00, up:{power:.30, climate:.10}, aaa:true},
   };
   // garage: 100 W LED per plant, 4 wk veg at 18 h + 9 wk flower at 12 h = 126 kWh -> $43; fan 25 W shared -> $5
   // field: ~3 gal/day x 120 days = 360 gal -> $2. greenhouse: water $3 + vents/fans/film $10
-  // indoor: 120 W/plant lighting (150 kWh) $51, HVAC + dehumidifier ~40% of lighting $21, salts $8
-  const UPK_REAL={garage:{power:43,fan:5}, field:{water:2}, gh:{water:3,upkeep:10}, in:{power:51,climate:21,nutrients:8}};
+  // indoor: 120 W/plant lighting (150 kWh) $51, HVAC + dehumidifier ~40% of lighting $21.
+  // Nutrient salts used to be $8 per indoor grow. Feeding is now one free action per plant, so that line is not billed.
+  // The nutrients key stays at 0 so an old save or a stray lookup still resolves.
+  const UPK_REAL={garage:{power:43,fan:5}, field:{water:2}, gh:{water:3,upkeep:10}, in:{power:51,climate:21,nutrients:0}};
   const UPK_NAME={power:'Electricity',fan:'Fan + filter',water:'Water',upkeep:'Glass + vents upkeep',climate:'AC + dehumidifier',nutrients:'Nutrients',fixed:'Rent + insurance'};
   const LOCS=['garage','farm','indoor'];
   const LOC_NAME={get garage(){ return locName('garage'); },farm:'Greenhouse',indoor:'Indoor'};
@@ -65,8 +67,8 @@ window.G = (function(){
   const UPG = {
     water:   {loc:'all', name:'Watering', steps:['Watering can','Garden hose','Drip lines','Irrigation timer','Smart irrigation'], costs:[0,40,400,3000,15000],
               descs:['Water plants one by one','Unlocks Water all for the current location','Water lasts 60% longer','Auto-waters thirsty plants every 20s, everywhere','Fully automatic: plants never go thirsty, +3% quality']},
-    nutes:   {loc:'all', name:'Feeding', steps:['Hand feeding','Nutrient reservoir','Auto-doser','Premium nutrient lines'], costs:[0,120,900,4000],
-              descs:['Feed plants one by one','Unlocks Feed all for the current location','Auto-feeds hungry plants (nutrients still cost cash)','+15% yield and +5% quality on every plant']},
+    nutes:   {loc:'all', name:'Feeding', steps:['Hand feeding','Feed tank','Auto-doser','Premium lines'], costs:[0,0,900,4000],
+              descs:['Each plant needs one free feed, at the halfway mark','Puts a feed tank in the garage. Feed all is free and needs no purchase','Feeds each plant once, automatically, when it reaches halfway','+15% yield and +5% quality on every plant']},
     // --- garage gear ---
     light:   {loc:'garage', name:'Garage lights', steps:['CFL bulbs','Blurple LED panel','Quantum board LED','Bar-style LED'], costs:[0,90,350,750],
               descs:['Cheap, hot, weak','+12% growth, +5% yield','+25% growth, +10% yield, runs cooler','+38% growth, +15% yield, most efficient per watt']},
@@ -91,7 +93,7 @@ window.G = (function(){
     led:     {loc:'indoor', name:'LED light bars', desc:'+15% indoor growth per level (+5% power)', base:12000, mul:2.5, max:4, need:'in'},
     hvac:    {loc:'indoor', name:'HVAC (ducted mini-splits)', desc:'-22% indoor mold per level, +6% quality, -10% climate cost', base:9000, mul:2.5, max:3, need:'in'},
     co2:     {loc:'indoor', name:'CO2 enrichment', desc:'+20% indoor growth (sealed room), +6% climate upkeep', base:6000, mul:1, max:1, need:'in'},
-    fert:    {loc:'indoor', name:'Fertigation system', desc:'Auto-feeds indoor plants (free nutrients) and +10% indoor yield', base:15000, mul:1, max:1, need:'in'},
+    fert:    {loc:'indoor', name:'Fertigation system', desc:'Auto-feeds each indoor plant once, at the halfway mark, and +10% indoor yield', base:15000, mul:1, max:1, need:'in'},
     veg:     {loc:'indoor', name:'Veg room', desc:'Plants move in pre-vegged: indoor plants start 15% grown', base:35000, mul:1, max:1, need:'in'},
     clone:   {loc:'indoor', name:'Clone + mother room', desc:'Cut clones instead of buying seeds: -40% seed prices, +10% head start indoors', base:20000, mul:1, max:1, need:'in'},
     labPollen:{loc:'garage', name:'Pollen chamber', desc:'Clean pollen storage: crosses finish 15% faster per level', base:80000, mul:3, max:3, need:'lab'},
@@ -128,7 +130,7 @@ window.G = (function(){
     {id:'dry',    who:'Unko Kuli', t:'Load fresh buds onto the drying racks (Dry & Cure)', r:{cash:10}},
     {id:'sell',   who:'Unko Kuli', t:'Sell buds at the farm stand (Market)', r:{gems:10,mgr:'mgrG'}},
     {id:'gcap',   who:'Unko Kuli', t:'Garage: add buckets to your grow table (Upgrades > Garage)', r:{cash:30}},
-    {id:'feed',   who:'Unko Kuli', t:'Feed a plant with nutrients', r:{cash:20}},
+    {id:'feed',   who:'Unko Kuli', t:'Feed a plant once it is halfway grown', r:{cash:20}},
     {id:'hose',   who:'Unko Kuli',  t:'Buy a garden hose (Upgrades > Water + feed)', r:{cash:40}},
     {id:'order',  who:'Unko Kuli',  t:'Fill an order on the Order Board (Market)', r:{gems:10}},
     {id:'tent3',  who:'Unko Kuli',  t:'Fill the back table with buckets', r:{cash:80}},
@@ -331,7 +333,7 @@ window.G = (function(){
       emit('level',{L:st.level,gems,cash,strains:fresh,miles:MILES[st.level]||[]}); checkQuest(); } }
   let lvlQuiet=false;
   const GATE={land:LAND_LEVEL, gh:GH_BUILD.level, breed:5, permit:INDOOR.permitLevel, indoor:INDOOR.level, orders:2, gecko:3, events:4, customers:5, leaderboard:5, sets:6, hash:6, rosin:10, edibles:14, season:8};
-  const MILES={2:['Fertilizer: feed plants for +15% speed and +20% yield','Order Board: neighbors post contracts for bonus cash and reputation'],
+  const MILES={2:['Halfway feed: one free feeding per plant (+15% speed, +20% yield). Skip it and that plant grows 20% slower','Order Board: neighbors post contracts for bonus cash and reputation'],
     3:['Family land on the hill is for sale','Watch for the golden gecko: tap it for a short boost'],
     4:['Uncommon strains (10-30 min grows) reach the seed shop','Outdoor greenhouse can be built','Hire Kai as garage manager','Island festivals: limited-time events with exclusive strains'],
     5:['Pheno Room opens: hunt mystery phenos','Walk-in customers visit the farm stand','Leilani the runner is hiring','Island leaderboard'],
@@ -388,8 +390,13 @@ window.G = (function(){
     bump('plant'); done('plant'); if(p.zone==='field'||p.zone==='gh') done('field'); emit('plant',p); return true;
   }
   function water(p){ if(!p.strain||p.prog>=1) return false; p.water=1; bump('water'); done('water'); emit('water',p); return true; }
-  function feedCost(p){ const s=strain(p.strain); return Math.max(.25,Math.round(s.game.payout*.04*ZONE[p.zone].yield*100)/100); }
-  function feed(p,auto){ if(!p.strain||p.prog>=1||p.food>.5) return false; if(!spend(feedCost(p))) return false; p.food=1; bump('feed'); if(!auto) done('feed'); emit('feed',p); return true; }
+  // One free feed per plant, from 50% grown until harvest. feedCost stays exported and is always 0.
+  // Ignoring the feed does not pause growth. An empty water tank is the harsh stall (15% speed).
+  // Hunger keeps the older, milder penalty for the rest of the grow: 80% speed, no +15% fed speed,
+  // no +20% harvest yield, and a slow quality drop. A successful feed sets food to 1 for the rest
+  // of that grow (it does not drain) and restores the fed bonuses. Before halfway there is no penalty.
+  function feedCost(){ return 0; }
+  function feed(p,auto){ if(!p||!p.strain||p.prog>=1||p.prog<.5||p.food>0) return false; p.food=1; bump('feed'); if(!auto) done('feed'); emit('feed',p); return true; }
   function quality(p){ let q=p.q; { const K=st.keepers&&st.keepers[p.strain]; if(K) q+=K.q; q*=lineGen(p.strain)>=LINE.stable?1:lineMult(p.strain); } if(p.zone==='in') q+=.1+.06*lv('hvac'); if(p.zone==='garage') q+=.03*lv('fan')+.02*lv('oscfan')+.05*lv('phkit'); if(p.zone==='gh') q+=.04*lv('shade')+.03*lv('cooler'); if(lv('water')>=4) q+=.03; if(lv('nutes')>=3) q+=.05; return Math.max(.5,q); }
   function yieldMult(p){ const z=ZONE[p.zone]; let y=z.yield; { const K=st.keepers&&st.keepers[p.strain]; if(K) y*=K.y; y*=lineMult(p.strain); } if(p.zone==='garage') y*=1+.05*lv('light'); if(p.zone==='in'&&lv('fert')) y*=1.1; if(p.zone==='gh'||p.zone==='field') y*=1+.2*lv('beds');  if(lv('nutes')>=3) y*=1.15; if(setDone('dessert')) y*=1.1; return y; }
   function mgrCovers(l){ return wk('farmhand')>0||(l==='garage'&&wk('mgrG')>0)||(l==='farm'&&wk('mgrF')>0)||(l==='indoor'&&wk('mgrI')>0); }
@@ -423,12 +430,12 @@ window.G = (function(){
     if(p.zone==='gh'&&k==='upkeep'&&lv('supp')) f+=.03;
     if(p.zone==='in'&&k==='power') f*=(1+.05*lv('led'))*(1-.15*lv('solar'));
     if(p.zone==='in'&&k==='climate') f*=(1-.1*lv('hvac'))*(1+.6*lv('co2'));
-    if(p.zone==='in'&&k==='nutrients'&&lv('fert')) f*=1.2;
+    if(k==='nutrients') return 0;
     if(setDone('cbd')) f*=.85; return f; }
   function cycleCost(p){ // cost of growing this plant from 0 to 1, by component
     // real $ per plant per full grow (Kauai power $0.342/kWh, county water ~$6/1000 gal), scaled by ECON.yield like the harvest itself
     const o={total:0}, Z=ZONE[p.zone];
-    for(const k of Object.keys(Z.up)){ o[k]=(UPK_REAL[p.zone][k]||0)*ECON.yield*upkeepFrac(p,k)/Z.up[k]; o.total+=o[k]; } return o;
+    for(const k of Object.keys(Z.up)){ const base=Z.up[k]; if(!base) continue; const part=(UPK_REAL[p.zone][k]||0)*ECON.yield*upkeepFrac(p,k)/base; if(!(part>0)) continue; o[k]=part; o.total+=part; } return o;
   }
   const FIXED={farm:()=>st.ghBuilt?4+.1*capOf('gh'):0, indoor:()=>st.inBuilt?130+4*capOf('in'):0}; // $/hour = $/game day (real time): greenhouse insurance ~$120/mo; indoor lease + insurance + security ~$4k/mo
   function upkeepRates(){ // $/hour per location with breakdown (current growing plants at current rates)
@@ -458,7 +465,7 @@ window.G = (function(){
   }
   function timeLeft(p){ if(!p.strain||p.prog>=1) return 0; return (1-p.prog)/Math.max(1e-9,growRate(p)); }
   function isThirsty(p){ return !!p.strain&&p.prog<1&&p.water<=.15; }
-  function isHungry(p){ return !!p.strain&&p.prog<1&&p.prog>=.3&&p.food<=0; }
+  function isHungry(p){ return !!p&&!!p.strain&&p.prog<1&&p.prog>=.5&&!(p.food>0); }
   // Pest / mold chance per grow cycle (scaled by progress so a 3-day plant is not doomed).
   function pestRisk(p){
     if(!p.strain||p.prog<.1) return {pests:0,mold:0};
@@ -499,7 +506,7 @@ window.G = (function(){
     if(cc>0){ if(st.cash>=cc){ st.cash-=cc; st.upkeepPaid+=cc; } else warnNow[p.loc]=1; }
     p.prog=Math.min(1,p.prog+dp);
     const wdrain=dt/(gs*.5)*(st.stats.harvests?1:.3)*(lv('water')>=2?.625:1)*(p.zone==='garage'&&lv('trays')?.8:1)*(((p.zone==='field')||(p.zone==='gh'&&!lv('shade')))&&!offline&&st.weather.type==='sunny'?1.3:1)*((p.zone==='field'||p.zone==='gh')&&season()==='dry'?1.3:1);
-    p.water=Math.max(0,p.water-wdrain); p.food=Math.max(0,p.food-dt/(gs*.8));
+    p.water=Math.max(0,p.water-wdrain); if(!(p.food>0)) p.food=0;
     const hurt=(p.water<=0?.006:0)+(isHungry(p)?.0015:0)+(p.pest?.012:0);
     p.q=Math.max(.55,Math.min(1.15,p.q+(p.food>0?.16:0)*dp-hurt*dt*(26/gs)));
     if(!p.pest){ const rk=pestRisk(p), m=(offline?.35:1)*Math.min(1,60/gs); const r=Math.random();
@@ -637,12 +644,12 @@ window.G = (function(){
     if(e){ const s=strain(e.last); if(!(st.seeds[e.last]>0)&&st.cash>seedPrice(s)*3){ st.cash-=seedPrice(s); st.seeds[e.last]=(st.seeds[e.last]||0)+1; } if(plant(e,e.last)){ emit('worker',{w:k,p:e}); return e; } }
     const d=P.find(p=>p.strain&&p.prog<1&&p.water<.3); if(d){ water(d); emit('worker',{w:k,p:d}); return d; }
     if(k!=='farmhand'){ const tn=P.find(canTrain); if(tn){ train(tn,'lst',true); emit('worker',{w:k,p:tn}); return tn; } const pr=P.find(canPrune); if(pr){ prune(pr,true); emit('worker',{w:k,p:pr}); return pr; } const tr=P.find(p=>canTrellis(p)&&st.cash>trellisCost(p)*5); if(tr&&trellis(tr,true)){ emit('worker',{w:k,p:tr}); return tr; } }
-    const h=P.find(p=>isHungry(p)&&st.cash>feedCost(p)*4); if(h){ feed(h,true); emit('worker',{w:k,p:h}); return h; }
+    const h=P.find(isHungry); if(h){ feed(h,true); emit('worker',{w:k,p:h}); return h; }
   }
   function tickAuto(dt,offline){
     if(lv('water')>=3){ auto.w+=dt; if(auto.w>=20){ auto.w=0; st.plots.forEach(p=>{ if(p.strain&&p.prog<1&&p.water<.4){ p.water=1; if(!offline&&p.loc===st.loc) emit('sprinkle',p);} }); } }
-    if(lv('fert')) st.plots.forEach(p=>{ if(p.zone==='in'&&p.strain&&p.prog<1&&p.food<=0) p.food=1; });
-    if(lv('nutes')>=2){ auto.f+=dt; if(auto.f>=8){ auto.f=0; st.plots.forEach(p=>{ if(isHungry(p)&&st.cash>feedCost(p)*3) feed(p,true); }); } }
+    if(lv('fert')) st.plots.forEach(p=>{ if(p.zone==='in'&&isHungry(p)) feed(p,true); });
+    if(lv('nutes')>=2){ auto.f+=dt; if(auto.f>=8){ auto.f=0; st.plots.forEach(p=>{ if(isHungry(p)) feed(p,true); }); } }
     const cs=crewSpeed();
     if(st.mgrSlot) st.workers.mgrX=2; for(const k of ['farmhand','mgrG','mgrF','mgrI','mgrX']) if(wk(k)){ auto[k]+=dt; const per=6/(wk(k)*cs); let guard=0; while(auto[k]>=per&&guard++<40){ auto[k]-=per; manage(k,offline); } }
     if(wk('runner')||st.vip){ auto.r+=dt; if(auto.r>=(wk('runner')?5/(wk('runner')*cs):6)){ auto.r=0; if(invCount('wet')&&loadDryer()) emit('worker',{w:'runner'}); } }
@@ -950,6 +957,10 @@ window.G = (function(){
   // ---------- save ----------
   function save(){ st.lastSave=Date.now(); Store.set(CFG.saveKey,JSON.stringify(st)); }
   function migrateGarage(st){ if(st&&!st.garageV){ st.garageV=2; st.garage=Math.max(0,Math.min(7,st.garage|0)); } }   // see GARAGE note
+  // p.food used to drain from 1 to 0. Any leftover food means this grow was already fed, so snap it
+  // to 1 and leave it there. Empty or missing food stays 0. A stray nutrient pile on the save
+  // (there is no nutrient item in this build) is left untouched so old saves still load.
+  function migrateFeeds(st){ if(!st||!st.plots) return; st.plots.forEach(p=>{ if(p) p.food=Number(p.food)>0?1:0; }); }
   // Retired strain ids (renamed paid exclusives and Naupaka) keep the player's seeds, plants, and breeding log.
   function migrateStrainIds(st){
     const MAP=window.STRAIN_MIGRATIONS||{};
@@ -1005,7 +1016,7 @@ window.G = (function(){
     if(raw&&!raw.econ){ st.econ=2; st.cash=Math.min((raw.cash||0)*2,50000+Math.pow(st.level,2)*2500); st.econMigrated=true; }
     syncTime();
     const fp=freshPlots(); fp.forEach(q=>{ if(!st.plots.find(p=>p.id===q.id)) st.plots.push(q); });
-    syncPlots(); applyEntitlements(); refreshUnlocks(); ensureQuests();
+    syncPlots(); migrateFeeds(st); applyEntitlements(); refreshUnlocks(); ensureQuests();
     let off=null;
     if(raw&&!migrated){ const el=(Date.now()-(raw.lastSave||Date.now()))/1000; const cap=OFFLINE_CAP(); if(el>30){ off=simulate(Math.min(el,cap),true); off.away=el; off.capped=el>cap; off.cap=cap;
       { const d0=Math.floor(((raw.lastSave||Date.now())-st.t0)/1000/DAY_LEN), d1=dayNum(); const sz=d=>{ const x=((d%24)+24)%24; return x<10?'wet':x<22?'dry':'makahiki'; }; const seen=[]; let mk=0;

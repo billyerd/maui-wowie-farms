@@ -137,7 +137,7 @@ window.UI = (function(){
     const gq=q&&!st.questDone&&st.quest<7?{plant:'#seedBag',dry:'[data-panel=process]',sell:'[data-panel=market]',gcap:'[data-panel=upgrades]',feed:null}[q.id]:null;
     $$('.guide').forEach(e=>{ if(!gq||!e.matches(gq)) e.classList.remove('guide'); }); if(gq){ const e=$(gq); if(e) e.classList.add('guide'); }
     // water/feed all gating
-    const wa=$('#waterAll'), fa=$('#feedAll'); wa.classList.toggle('locked',G.lv('water')<1); if(fa) fa.classList.toggle('locked',G.lv('nutes')<1);
+    const wa=$('#waterAll'), fa=$('#feedAll'); wa.classList.toggle('locked',G.lv('water')<1); if(fa) fa.classList.remove('locked');
     locTabs(); seedBag(); orderBoard();
   }
   // ---------- location tabs ----------
@@ -165,7 +165,7 @@ window.UI = (function(){
   }
   let lastSel=null;
   function quick(a,p){ let ok=true;
-    if(a==='water') ok=G.water(p)!==false; else if(a==='feed'){ ok=!!G.feed(p); if(!ok) toast(p.food>.5?'Already well fed':'Need '+fmt(G.feedCost(p)),'bad'); }
+    if(a==='water') ok=G.water(p)!==false; else if(a==='feed'){ ok=!!G.feed(p); if(!ok) toast(p.food>0?'Already fed this grow':'Feed opens at halfway','bad'); }
     else if(a==='treat'){ ok=!!G.treat(p); if(!ok) toast('Need '+fmt(G.treatCost(p))+' to treat','bad'); } else if(a==='prune') G.prune(p); else if(a==='top') G.train(p,'top'); else if(a==='harvest'){ G.harvest(p); lastSel=null; }
     if(ok){ Sound.play(a==='water'?'water':'tap'); if(R.shake) R.shake(p); Haptics.light(); } renderPop(); }
   function showPop(p,sx,sy){ popPlot=p; const pop=$('#pop'); renderPop(); pop.style.left=Math.max(120,Math.min(innerWidth-120,sx))+'px'; pop.style.top=Math.max(170,sy-10)+'px'; pop.classList.remove('hidden'); }
@@ -175,12 +175,12 @@ window.UI = (function(){
     $('#pop').innerHTML=`<h5>${esc(s.name)} <small style="color:var(--mut)">${esc(G.ZONE[p.zone].name)}</small></h5>
       <div class="l"><span>Ready in</span><b>${p.prog>=1?'Ripe now!':sec(left)+' · ~'+clockAt(left)}</b></div>${bar(p.prog)}
       <div class="l"><span>Water</span><b>${Math.round(p.water*100)}%</b></div>${bar(p.water,'blue')}
-      <div class="l"><span>Nutrients</span><b>${p.food>0?'Fed (+15% speed, +20% yield)':G.isHungry(p)?'<span class="down">Hungry (-20% speed)</span>':'Not needed yet'}</b></div>
+      <div class="l"><span>Feed</span><b>${p.food>0?'Fed (+15% speed, +20% yield)':G.isHungry(p)?'<span class="down">Needs one free feed (20% slower, no yield bonus)</span>':'One free feed at halfway'}</b></div>
       <div class="l"><span>Health</span><b>${p.pest==='mold'?'<span class="down">Mold! Treat now</span>':p.pest==='pests'?'<span class="down">Pests! Treat now</span>':'Healthy'}</b></div>
       <div class="l"><span>Training</span><b>${p.pruned?'Pruned (+12%)':G.canPrune(p)?'<span class="up">Ready to prune</span>':p.prog<.15?'Too young to prune':'Not pruned'}${p.trellis?' · Trellis (+8%)':''}${p.train==='top'?' · Topped (+15%)':p.train==='lst'?' · LST (+8%)':''}</b></div>
       <div class="l"><span>Expected grade</span><b>${gradeBadge(G.gradeOf(G.plotScore(p)))}</b></div>
       <div class="l"><span>Upkeep this cycle</span><b>${fmt(cc.total)}</b></div>${G.st.upkeepWarn[p.loc]>0?'<div class="l"><span class="down">Cash too low for upkeep: growing at 30%</span></div>':''}
-      <div class="acts">${G.canTrain(p)?`<button class="btn sm green" data-pa="top">Top (+15%, 10% slower)</button><button class="btn sm green" data-pa="lst">Tie down / LST (+8%, +3% quality)</button>`:''}${G.canPrune(p)?`<button class="btn sm green" data-pa="prune">Prune (+12%)</button>`:''}${G.canTrellis(p)?`<button class="btn sm" data-pa="trellis">Trellis ${fmt(G.trellisCost(p))} (+8%)</button>`:''}${p.pest?`<button class="btn sm pink" data-pa="treat">Treat ${fmt(G.treatCost(p))}</button>`:''}<button class="btn sm" data-pa="water">${ico('drop')}Water</button><button class="btn sm gold" data-pa="feed">${ico('feed')}Feed ${fmt(G.feedCost(p))}</button></div>`;
+      <div class="acts">${G.canTrain(p)?`<button class="btn sm green" data-pa="top">Top (+15%, 10% slower)</button><button class="btn sm green" data-pa="lst">Tie down / LST (+8%, +3% quality)</button>`:''}${G.canPrune(p)?`<button class="btn sm green" data-pa="prune">Prune (+12%)</button>`:''}${G.canTrellis(p)?`<button class="btn sm" data-pa="trellis">Trellis ${fmt(G.trellisCost(p))} (+8%)</button>`:''}${p.pest?`<button class="btn sm pink" data-pa="treat">Treat ${fmt(G.treatCost(p))}</button>`:''}<button class="btn sm" data-pa="water">${ico('drop')}Water</button><button class="btn sm gold" data-pa="feed" ${p.food>0||!G.isHungry(p)?'disabled':''}>${ico('feed')}${p.food>0?'Fed':G.isHungry(p)?'Feed':'Feed at halfway'}</button></div>`;
   }
   function hidePop(keepSel){ popPlot=null; if(!keepSel) lastSel=null; $('#pop').classList.add('hidden'); }
   // ---------- panels ----------
@@ -300,12 +300,12 @@ window.UI = (function(){
   };
   // Upgrades / build
   function upRow(k,isW){
-    const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l);
+    const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l), price=c<=0?'Free':fmt(c);
     let lock=''; if(isW&&!G.workerOk(k)) lock=G.st.level<d.level?ico('lock')+'Lv '+d.level:'Needs location'; else if(!isW&&!G.upgNeedOk(d)) lock='Needs location'; else if(!isW&&d.lvl&&G.st.level<d.lvl) lock=ico('lock')+'Lv '+d.lvl;
     const name=d.steps?`${esc(d.name)}: <span style="color:var(--acc)">${esc(d.steps[l])}</span>`:esc(d.name);
     const desc=d.steps?(done?esc(d.descs[l]):`Next: <b>${esc(d.steps[l+1])}</b> · ${esc(d.descs[l+1])}`):esc(d.desc);
     const who=isW&&window.CHARACTERS?Object.keys(window.CHARACTERS).find(n=>n!=='Unko Kuli'&&d.name.startsWith(n)):null;
-    return `<div class="row">${who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'')}<div class="grow"><h4>${name} ${max>1?pips(l,max):''}</h4><p>${desc}</p></div>${done?'<span class="chip">'+(max>1?'MAX':'Owned')+'</span>':`<button class="btn sm ${isW?'pink':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${G.st.cash<c||lock?'disabled':''}>${lock||fmt(c)}</button>`}</div>`;
+    return `<div class="row">${who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'')}<div class="grow"><h4>${name} ${max>1?pips(l,max):''}</h4><p>${desc}</p></div>${done?'<span class="chip">'+(max>1?'MAX':'Owned')+'</span>':`<button class="btn sm ${isW?'pink':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${G.st.cash<c||lock?'disabled':''}>${lock||price}</button>`}</div>`;
   }
   function stepCard(kind,label){ const n=G.nextStep(kind); if(!n) return `<div class="row"><div class="grow"><h4>${label}: all space bought</h4></div><span class="chip">MAX</span></div>`;
     return `<div class="row">${window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('step_'+kind,'step')}">`:''}<div class="grow"><h4>${esc(n.name)}</h4><p>${esc(n.desc||('+'+n.add+' plant spaces'))}</p></div><button class="btn sm gold" data-a="step" data-k="${kind}" ${G.st.cash<n.cost?'disabled':''}>${fmt(n.cost)}</button></div>`; }
@@ -329,7 +329,7 @@ window.UI = (function(){
         if(st.permit&&!st.found) body+=`<button class="btn wide" data-a="found" style="margin-top:8px" ${st.level<G.INDOOR.foundLevel||st.cash<G.INDOOR.foundCost?'disabled':''}>${st.level<G.INDOOR.foundLevel?ico('lock')+'Foundation at Lv '+G.INDOOR.foundLevel:'Pour the foundation · '+fmt(G.INDOOR.foundCost)}</button>`;
         body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build indoor facility · ${fmt(G.INDOOR.build)}</button>`; }
       else { body+=`<div class="section-t">Benches · ${G.capOf('in')}/32 pots</div>`+stepCard('bench','Benches')+upkeepBox('indoor')+`<div class="section-t">Facility gear</div>`+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); } }
-    else if(tab==='lines'){ body+=`<div class="note">Watering and feeding lines work in every location. The hose unlocks <b>Water all</b>; the reservoir unlocks <b>Feed all</b>.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
+    else if(tab==='lines'){ body+=`<div class="note">The hose unlocks <b>Water all</b>. Each plant needs one free feed at halfway. <b>Feed all</b> does that for this room and does not need a purchase.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
     else { body+=Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
     return {title:'Upgrades',sub:'Every upgrade is earnable in game.',tabs,body};
   };
@@ -722,13 +722,13 @@ window.UI = (function(){
     $('#sheetBody').addEventListener('click',del); $('#sheetFoot').addEventListener('click',del);
     $('#sheetBody').addEventListener('change',e=>{ const s=e.target.closest('select[data-sel]'); if(!s) return; (s.dataset.sel==='A'?labA:s.dataset.sel==='H'?huntSel:labB).v=s.value; render(); });
     $('#sheet').addEventListener('pointerdown',()=>lastPointer=performance.now(),true);
-    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>.5?'Already well fed':'Not enough cash','bad'); renderPop(); });
+    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
     $('#goal').onclick=()=>{ const g=$('#goal'); if(!g.classList.contains('open')){ goalPeek(5000); return; } if(G.st.questDone){ if(G.claimQuest()) Sound.play('level'); } else open('quests','story'); };
     document.addEventListener('click',e=>{ const b=e.target.closest('[data-buylab]'); if(!b) return; if(!G.buyLab()) toast(G.st.inBuilt?'Not enough cash':'Build the indoor facility first','bad'); else render(true); });
     $('#scoutBtn').onclick=()=>{ const on=!R.lens.on; R.setLens(on,innerWidth/2,innerHeight*.45); $('#scoutBtn').classList.toggle('on',on); hidePop(); toast(on?'Inspect: drag the lens over plants. Tap to remove any eggs or spores you find.':'Scouting off'); };
     $('#harvestAll').onclick=()=>{ let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog>=1&&G.harvest(p)) n++; }); if(!n) toast('Nothing ripe here yet'); };
     $('#waterAll').onclick=()=>{ if(G.lv('water')<1){ toast('Water all needs a garden hose','bad'); open('upgrades','lines'); return; } let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog<1&&p.water<.95){ G.water(p); n++; } }); if(!n) toast('Everything here is watered'); };
-    $('#feedAll').onclick=()=>{ if(G.lv('nutes')<1){ toast('Feed all needs a nutrient reservoir','bad'); open('upgrades','lines'); return; } let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&G.isHungry(p)&&G.feed(p,true)) n++; }); toast(n?'Fed '+n+' plants':'Nobody here is hungry'); };
+    $('#feedAll').onclick=()=>{ let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&G.isHungry(p)&&G.feed(p,true)) n++; }); toast(n?'Fed '+n+' plants':'Nobody needs a feed yet'); };
     window.Payments.setConfirmUI(p=>modal(`${art(p.art)}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p>${oddsForProduct(p)}<div class="big-n">${window.Payments.formatUSD(p.priceUSD)}</div><div class="testbanner">TEST MODE: you will not be charged. This grants the item locally.</div>`,[{label:'Cancel',cls:'sec',v:false},{label:'Buy (test)',cls:'pink',v:true}]));
   }
   let acc=0;
