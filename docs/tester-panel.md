@@ -38,3 +38,7 @@ The lock turns on when `PAYMENTS_CONFIG.mode` is:
 - `'auto'` while the page is running in an iOS or Android app (Capacitor).
 
 Test mode (`mode: 'test'`, the shipped default) does not trip this lock. A production-store build still sets `allowDevTools` to `false` so the panel stays off even if payments are left in test mode by mistake.
+
+## Tester jump menu (`?test=1`)
+
+The same lock covers the Beginning / Middle / End jump menu. `applyTesterLock()` forces `TEST_MODE` false, deletes the `mwf_test` session flag, and deletes `mwf_test_slot` and `mwf_test_init` from localStorage. If the page had already switched the save key to a `mwfarms_test_` slot, the key is put back to `mwfarms_save_v1` before the farm loads. Settings renders no Test entry while `storeDisablesTester()` is true, and the menu's preset buttons do not run. Website and local test builds (`allowDevTools: true` and payments mode `test`) still open the menu with `?test=1`.

@@ -676,6 +676,7 @@ window.UI = (function(){
     if(!helpUi) return head;
     return head
       +`<div class="row"><div class="grow"><h4>Contact Support</h4><p>Email ${esc(email)} with the game version, OS / platform, and anonymous player ID ${esc(id)}.</p></div><a class="btn sm" href="${esc(supportMailto())}">Contact Support</a></div>`
+      +`<div class="section-t">FAQ</div>`
       +`<div class="note"><b>Saves and backup.</b> In Settings, Export copies a backup code or downloads a file. Import asks before it replaces the farm on this device. Store purchases stay on this device.</div>`
       +`<div class="note"><b>Purchases.</b> Test mode grants the item on this device and does not charge a card. Restore purchases reapplies perks and themes already bought here.</div>`
       +`<div class="note"><b>Tutorial.</b> Tutorial, at the top of Settings, replays Unko Kuli's walkthrough on this farm at any time. It does not erase the farm. Skip it whenever you want.</div>`;

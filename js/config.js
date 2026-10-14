@@ -22,11 +22,12 @@ window.GAME_CONFIG = {
   const slot=localStorage.getItem('mwf_test_slot'); window.TEST_MODE=sessionStorage.getItem('mwf_test')==='1'||!!slot;
   if(slot) window.GAME_CONFIG.saveKey='mwfarms_test_'+slot; window.TEST_SLOT=slot||null;
 }catch(e){} })();
-/* Hidden tester panel (?dev=1). Off unless this tab opted in on a build that allows it.
-   Store builds set GAME_CONFIG.allowDevTools to false (see docs/tester-panel.md).
-   That ignores ?dev=1, clears mwf_dev, and leaves DEV_MODE false. App Store / Play
-   payment modes ('appstore', 'play', or 'auto' inside an iOS/Android app) do the same
-   even if the flag was left true. Cash and gem grants from tester actions no-op there. */
+/* Hidden tester panel (?dev=1) and the ?test=1 jump menu. Off unless this tab opted in
+   on a build that allows them. Store builds set GAME_CONFIG.allowDevTools to false
+   (see docs/tester-panel.md). That ignores ?dev=1 and ?test=1, clears mwf_dev and the
+   mwf_test flags, and leaves DEV_MODE and TEST_MODE false. App Store / Play payment
+   modes ('appstore', 'play', or 'auto' inside an iOS/Android app) do the same even if
+   the flag was left true. Cash and gem grants from tester actions no-op there. */
 (function(){
   let latched=false;
   function nativeStore(){
@@ -55,6 +56,17 @@ window.GAME_CONFIG = {
     try{ sessionStorage.removeItem('mwf_dev'); }catch(e){}
     window.DEV_MODE=false;
     try{ const dock=document.getElementById('devdock'); if(dock) dock.remove(); }catch(e){}
+    // ?test=1 is decided above, before payments mode exists. A store lock wipes it
+    // so the jump menu cannot load a test slot or grant the endgame preset.
+    window.TEST_MODE=false;
+    window.TEST_SLOT=null;
+    try{ sessionStorage.removeItem('mwf_test'); }catch(e){}
+    try{
+      localStorage.removeItem('mwf_test_slot');
+      localStorage.removeItem('mwf_test_init');
+    }catch(e){}
+    if(window.GAME_CONFIG&&typeof window.GAME_CONFIG.saveKey==='string'&&window.GAME_CONFIG.saveKey.indexOf('mwfarms_test_')===0)
+      window.GAME_CONFIG.saveKey='mwfarms_save_v1';
     return true;
   };
 })();
