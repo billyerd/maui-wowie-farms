@@ -705,7 +705,7 @@ window.R=(function(){
     for(let i=0;i<70;i++){ x.strokeStyle=['#c9a75a','#b08a44','#dcc07a','#8f6e34'][i%4]; x.lineWidth=1; const px=r()*48, py=r()*48, a=r()*Math.PI; x.beginPath(); x.moveTo(px,py); x.lineTo(px+Math.cos(a)*6,py+Math.sin(a)*3); x.stroke(); } return mulchC=c; }
   let glowC=null; function glowS(){ if(glowC) return glowC; const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'), g=x.createRadialGradient(32,32,2,32,32,32); g.addColorStop(0,'rgba(255,226,110,1)'); g.addColorStop(1,'rgba(255,226,110,0)'); x.fillStyle=g; x.fillRect(0,0,64,64); return glowC=c; }
   function overlays(list,now){
-    const vis=list.filter(o=>{ if(!o.p.strain) return false; const q=toS(o.sl.x,o.sl.y); return q.x>-20&&q.x<W+20&&q.y>-20&&q.y<H+40; }).length, crowd=vis>(cam.z>=2.6?40:cam.z>=1.6?18:12), big=cam.z>=.55&&!crowd;
+    const vis=list.filter(o=>{ if(!o.p.strain) return false; const q=toS(o.sl.x,o.sl.y); return q.x>-20&&q.x<W+20&&q.y>-20&&q.y<H+40; }).length, crowd=vis>(cam.z>=2.6?40:cam.z>=1.6?18:12);
     // crowded tents/beds/benches: one count badge per group instead of a pile of per-plant markers
     const CL=new Map(), inCl=new Set();
     for(const o of list){ if(!o.p.strain) continue; const sl=o.sl, k=(sl.row!=null?'rows':sl.tent)||(sl.rack?'rack':sl.bay!=null?'bay'+sl.bay:sl.bench!=null?'bn'+sl.bench:null); if(!k) continue; if(!CL.has(k)) CL.set(k,[]); CL.get(k).push(o); }
@@ -721,10 +721,13 @@ window.R=(function(){
         const cp=crowd||(s.y-top)<46, by=top-(cp?7:12)-(cp?1:3)*Math.sin(now*3+o.sl.x); const hx=bubX(s.x,cp?10:22); qbub.push({x:hx,y:by,act:{type:'qa',a:'harvest',p}}); const gr=G.gradeOf(G.plotScore(p)); const col=gr==='A'?'#f1c40f':gr==='C'?'#c87f4a':'#7bc043';
           if(cp){ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(hx,by,6,0,TAU); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); ctx.font='800 8px system-ui,sans-serif'; ctx.fillStyle='#1c2a12'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(gr,hx,by+.5); }
           else { badge(hx,by,[col,'✂️'],10); ctx.beginPath(); ctx.arc(hx+9,by-8,6,0,TAU); ctx.fillStyle=col; ctx.fill(); ctx.font='800 9px system-ui,sans-serif'; ctx.fillStyle='#1c2a12'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(gr,hx+11,by-8.5); } }
-      else if(p.strain){ if(inCl.has(o)&&!o.sel) continue; const icons=[]; if(p.pest) icons.push([ICON[p.pest],'treat']); if(G.isThirsty(p)) icons.push([ICON.water,'water']); if(G.isHungry(p)) icons.push([ICON.food,'feed']); if(G.canPrune(p)) icons.push([ICON.prune,'prune']);
-        if(o.sel){ const have=new Set(icons.map(x=>x[1])); if(!have.has('water')) icons.push([ICON.water,'water']); if(!have.has('feed')) icons.push([ICON.food,'feed']); if(G.canTrain(p)) icons.push([ICON.top,'top']); }
+      else if(p.strain){ if(inCl.has(o)&&!o.sel) continue; const icons=[];
+        // Only the care the plant needs right now. A full, healthy plant stays unmarked.
+        if(p.pest) icons.push([ICON[p.pest],'treat']); if(G.isThirsty(p)) icons.push([ICON.water,'water']); if(G.isHungry(p)) icons.push([ICON.food,'feed']);
+        // Optional training stays on the plant the player tapped, and on the plant card, so a room of plants in veg does not grow a scissors on every pot.
+        if(o.sel){ if(G.canPrune(p)) icons.push([ICON.prune,'prune']); if(G.canTrain(p)) icons.push([ICON.top,'top']); }
         const cp=(crowd||(s.y-top)<46)&&!o.sel, gap=cp?24:30, r=cp?9:12; if(!lens.on) icons.forEach(([ic,a],i)=>{ const bx=bubX(s.x,((icons.length-1)/2)*gap+r+5)+(i-(icons.length-1)/2)*gap, byy=top-(cp?10:14)-(o.sel?0:2*Math.sin(now*3+i)); if(o.sel){ ctx.fillStyle='rgba(10,20,14,.55)'; ctx.beginPath(); ctx.arc(bx,byy,r+4,0,TAU); ctx.fill(); } badge(bx,byy,ic,r); qbub.push({x:bx,y:byy,act:{type:'qa',a,p}}); });
-        if(big||o.sel){ const tl=G.timeLeft(p); pill(s.x,s.y+12,G.dur(tl),'rgba(10,20,14,.72)','#e9ffd6',10); } }
+        if(o.sel){ const tl=G.timeLeft(p); pill(s.x,s.y+12,G.dur(tl),'rgba(10,20,14,.72)','#e9ffd6',10); } }
       else if(p.owned&&o.hasSeed){ // clean "plant here" badge: solid green disc, white rim, rounded plus, soft drop shadow, gentle bob
         const a=.5+.5*Math.sin(now*3+s.x*.05), r=9, cx=s.x, cy=s.y-8-a*1.5; ctx.save(); ctx.shadowColor='rgba(0,0,0,.45)'; ctx.shadowBlur=4; ctx.shadowOffsetY=1.5; const g=ctx.createLinearGradient(0,cy-r,0,cy+r); g.addColorStop(0,'#6fdc7c'); g.addColorStop(1,'#2a8f43'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.fill(); ctx.restore();
         ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.stroke(); ctx.lineCap='round'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(cx-4,cy); ctx.lineTo(cx+4,cy); ctx.moveTo(cx,cy-4); ctx.lineTo(cx,cy+4); ctx.stroke(); ctx.lineCap='butt'; }
