@@ -24,8 +24,8 @@ window.PRODUCTS = {
   skip15:   {id:'skip15', kind:'gems', priceGems:15,  name:'Time Skip 15m', desc:'Fast-forward your farm 15 minutes', grants:{skip:900}, art:'skip'},
   skip60:   {id:'skip60', kind:'gems', priceGems:50,  name:'Time Skip 1h',  desc:'Fast-forward your farm 1 hour',     grants:{skip:3600}, art:'skip'},
   skip240:  {id:'skip240',kind:'gems', priceGems:170, name:'Time Skip 4h',  desc:'Fast-forward your farm 4 hours',    grants:{skip:14400}, art:'skip'},
-  pack_rare:{id:'pack_rare',kind:'gems',priceGems:80, name:'Rare Seed Pack', desc:'5 seeds: Rare or better. May discover new strains.', grants:{rarePacks:1}, art:'pack_rare'},
-  pack_leg: {id:'pack_leg', kind:'gems',priceGems:260,name:'Legendary Seed Pack', desc:'4 seeds incl. 1 guaranteed Epic+ (Legendary chance).', grants:{legPacks:1}, art:'pack_leg'},
+  pack_rare:{id:'pack_rare',kind:'gems',priceGems:80, name:'Rare Seed Pack', desc:'5 seeds. Each seed rolls Uncommon or Rare. Odds are on this card, from the live drop table.', grants:{rarePacks:1}, art:'pack_rare'},
+  pack_leg: {id:'pack_leg', kind:'gems',priceGems:260,name:'Legendary Seed Pack', desc:'4 seeds: 1 Epic slot and 3 Rare slots, plus a chance at an extra exclusive seed. Full odds below.', grants:{legPacks:1}, art:'pack_leg'},
   pass2x_g: {id:'pass2x_g', kind:'gems',priceGems:2500,name:'2x Earnings Pass', once:true, desc:'Same pass as the store, earned with gems', grants:{pass2x:true}, art:'pass'},
   vip_g:    {id:'vip_g',    kind:'gems',priceGems:1500,name:'VIP Grower', once:true, desc:'Same VIP perks, earned with gems', grants:{vip:true}, art:'vip'},
 };
@@ -72,8 +72,8 @@ for(const [sl,g] of Object.entries(window.COSMETICS)) for(const [id,c] of Object
 window.PRODUCTS.mgr_slot  ={id:'mgr_slot',  kind:'usd',  priceUSD:4.99, once:true, name:'Extra manager: Lani', desc:'Lani is a roaming manager who works every location you own. Also earnable for 1,800 gems.', grants:{mgrSlot:true}, art:'mgr'};
 window.PRODUCTS.mgr_slot_g={id:'mgr_slot_g',kind:'gems', priceGems:1800, once:true, name:'Extra manager: Lani', desc:'Same roaming manager, earned with gems', grants:{mgrSlot:true}, art:'mgr'};
 
-/* ---- Exclusive premium strains (real Leafly names). Also drop rarely in play: legendary packs (4%) and finished pheno hunts (3%). ---- */
-window.PREMIUM_STRAINS={'animal-face':{usd:2.99,gems:450},'gastro-pop':{usd:2.99,gems:450},'blue-lobster':{usd:2.99,gems:450}};
+/* ---- Exclusive premium strains (original names). Also drop rarely in play: legendary packs and finished pheno hunts (chances live in game.js DROP). ---- */
+window.PREMIUM_STRAINS={'menehune-mint':{usd:2.99,gems:450},'lilikoi-pop':{usd:2.99,gems:450},'honu-blue':{usd:2.99,gems:450}};
 for(const [id,c] of Object.entries(window.PREMIUM_STRAINS)){
   const nm=(window.STRAINS||[]).find(s=>s.id===id); const n=nm?nm.name:id;
   window.PRODUCTS['strain_'+id]  ={id:'strain_'+id,  kind:'usd', priceUSD:c.usd, name:n+' seeds', desc:'5 seeds of an exclusive Legendary strain', grants:{strain:id,n:5}, strain:id};
@@ -82,7 +82,7 @@ for(const [id,c] of Object.entries(window.PREMIUM_STRAINS)){
 /* ---- Timed boosts (gems only, 1 hour each, stack) ---- */
 window.PRODUCTS.boost_grow ={id:'boost_grow', kind:'gems',priceGems:60,name:'2x Growth (1h)', desc:'All plants grow twice as fast for 1 hour', grants:{boost:'grow',sec:3600}, art:'boost_grow'};
 window.PRODUCTS.boost_price={id:'boost_price',kind:'gems',priceGems:80,name:'2x Sale Price (1h)', desc:'Every sale pays double for 1 hour', grants:{boost:'price',sec:3600}, art:'boost_price'};
-window.PRODUCTS.boost_pheno={id:'boost_pheno',kind:'gems',priceGems:50,name:'Better Pheno Odds (1h)', desc:'Pheno hunts that finish in the next hour roll stronger keepers', grants:{boost:'pheno',sec:3600}, art:'boost_pheno'};
+window.PRODUCTS.boost_pheno={id:'boost_pheno',kind:'gems',priceGems:50,name:'Better Pheno Odds (1h)', desc:'Pheno hunts that finish in the next hour roll wider keeper stats (yield, quality, growth). Not a random item, and it does not change seed-pack drop rates.', grants:{boost:'pheno',sec:3600}, art:'boost_pheno'};
 /* ---- Piggy bank: fills with gems while you play, one purchase cracks it ---- */
 window.PRODUCTS.piggy={id:'piggy',kind:'usd',priceUSD:2.99,name:'Crack the Piggy Bank',desc:'Get every gem saved in your piggy bank',grants:{piggy:true},art:'piggy'};
 

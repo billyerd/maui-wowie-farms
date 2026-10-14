@@ -11,7 +11,7 @@ window.G = (function(){
   const ECON={yield:.1, startCash:120, xp:.07};
   S.forEach(x=>{ const g=x.game; if(g._real) return; g._real=1; const t=Math.min(1,Math.max(0,(g.unlockLevel-1)/20)); let h=0; for(const c of x.id) h=(h*31+c.charCodeAt(0))>>>0; const v=.92+(h%17)/100;
     const old=g.growSec, comp=old<=300?old:Math.round(300*Math.pow(old/300,.25));
-    // END GAME pacing: Legendary grows take 1-3 REAL days (the Leafly-based original times), Epic takes 2-8 real hours; the rest stay compressed.
+    // END GAME pacing: Legendary grows take 1-3 REAL days (the catalog's original times), Epic takes 2-8 real hours; the rest stay compressed.
     g.growSec=x.tier>=4?Math.max(86400,Math.min(259200,old)):x.tier===3?Math.round(Math.max(7200,Math.min(28800,old*.25))):comp; g._comp=comp;
     g.waitMult=x.tier>=3?Math.pow(g.growSec/comp,.88):1;   // long grows pay much more per plant (worth the wait): per real hour roughly on par with fast strains, without the check-ins
     g.xp=Math.max(1,Math.round(g.xp*Math.min(1,comp/old)*g.waitMult));
@@ -205,7 +205,7 @@ window.G = (function(){
     purple: {name:'Purple Reign', desc:'Harvest the purple-flowering strains', bonus:'+10% growth speed everywhere', ids:S.filter(s=>s.look&&s.look.base==='purple'&&s.tier<=3).map(s=>s.id)},
     dessert:{name:'Dessert Menu', desc:'Harvest the cookie, gelato and cake family', bonus:'+10% yield everywhere', ids:['gsc','gelato','biscotti','ice-cream-cake','wedding-cake','gmo-cookies','lemon-cherry-gelato'].filter(i=>BY[i])},
     cbd:    {name:'Hemp Heritage', desc:'Harvest every CBD-rich hemp strain', bonus:'-15% upkeep everywhere', ids:S.filter(s=>s.hemp).map(s=>s.id)},
-    soty:   {name:'Strain of the Year', desc:'Harvest every Leafly Strain of the Year winner', bonus:'+15% XP', ids:S.filter(s=>/Strain of the Year \d{4} \(winner\)/.test(s.recognition||'')).map(s=>s.id)},
+    soty:   {name:'Garden Cup', desc:'Harvest every Garden Cup winner', bonus:'+15% XP', ids:S.filter(s=>/Garden Cup \d{4} \(winner\)/.test(s.recognition||'')).map(s=>s.id)},
   };
   function checkSets(){ if(!F.sets) return; for(const [k,d] of Object.entries(SETS)){ if(st.sets[k]) continue; if(d.ids.length&&d.ids.every(i=>(st.harv[i]||0)>0)){ st.sets[k]=true; emit('set',{k,d}); } } }
   // ---------- prestige (Island Spirit) ----------
@@ -230,9 +230,12 @@ window.G = (function(){
     {id:'monarch', name:'Merrie Monarch Week',desc:'+20% growth everywhere',strain:'cereal-milk',goal:200,k:'sold'},
   ];
   const EVENT_ONLY=Object.fromEntries(FESTS.map(f=>[f.strain,f.id]));
-  // Exclusive premium strains: sold in the shop (money or gems) and also drop rarely in play (legendary packs 4%, finished pheno hunts 3%)
-  const PREMIUM=['animal-face','gastro-pop','blue-lobster']; PREMIUM.forEach(id=>{ if(S.some(s=>s.id===id)) EVENT_ONLY[id]='premium'; }); S.forEach(s=>{ if(s.passExclusive) EVENT_ONLY[s.id]='pass'; });
-  function premiumDrop(chance,how){ if(Math.random()>=chance) return null; const id=PREMIUM[Math.floor(Math.random()*PREMIUM.length)]; if(!strain(id)) return null; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare find! A '+strain(id).name+' seed ('+how+')',k:'good'}); return id; }
+  // Exclusive premium strains: sold in the shop (money or gems) and also drop rarely in play.
+  // Chances are the single source for the shop odds table (packOdds). Do not duplicate them in UI copy.
+  const PREMIUM=['menehune-mint','lilikoi-pop','honu-blue'];
+  const DROP={packPremium:.04, packSeason:.02, huntPremium:.03, huntSeason:.02};
+  PREMIUM.forEach(id=>{ if(S.some(s=>s.id===id)) EVENT_ONLY[id]='premium'; }); S.forEach(s=>{ if(s.passExclusive) EVENT_ONLY[s.id]='pass'; });
+  function premiumDrop(chance,how){ if(Math.random()>=chance) return null; const live=PREMIUM.filter(id=>strain(id)); if(!live.length) return null; const id=live[Math.floor(Math.random()*live.length)]; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare find! A '+strain(id).name+' seed ('+how+')',k:'good'}); return id; }
   // Timed gem boosts (1 hour each, stack by adding time): 2x growth, 2x sale price, better pheno odds
   const BOOSTS={grow:{name:'2x growth',icon:'🌱'},price:{name:'2x sale price',icon:'💰'},pheno:{name:'Better pheno odds',icon:'🧬'}};
   function boostLeft(k){ return Math.max(0,(st.boosts&&st.boosts[k])||0); }
@@ -737,7 +740,7 @@ window.G = (function(){
     st.cuts=st.cuts||[]; st.cuts.push({id,n,t:0,dur:Math.round(CUT.root*(st.breedLab?.6:1))}); bump('cuttings',n); emit('cuttings',{id,n}); return true; }
   function tickCuts(dt){ if(!st.cuts||!st.cuts.length) return; for(const c of st.cuts) c.t+=dt; const done_=st.cuts.filter(c=>c.t>=c.dur); if(!done_.length) return;
     st.cuts=st.cuts.filter(c=>c.t<c.dur); st.cutSeeds=st.cutSeeds||{}; for(const c of done_){ st.seeds[c.id]=(st.seeds[c.id]||0)+c.n; st.cutSeeds[c.id]=(st.cutSeeds[c.id]||0)+c.n; emit('rooted',c); } }
-  function tickHunt(dt){ tickCuts(dt); const H=st.hunt; if(!H||H.phenos) return; H.t+=dt; if(H.t>=H.dur){ H.phenos=rollPhenos(H); if(lv('labSeq')) st.hints++; emit('huntdone',H); premiumDrop(.03,'pheno hunt'); seasonDrop(.02,'pheno hunt'); } }
+  function tickHunt(dt){ tickCuts(dt); const H=st.hunt; if(!H||H.phenos) return; H.t+=dt; if(H.t>=H.dur){ H.phenos=rollPhenos(H); if(lv('labSeq')) st.hints++; emit('huntdone',H); premiumDrop(DROP.huntPremium,'pheno hunt'); seasonDrop(DROP.huntSeason,'pheno hunt'); } }
   function tickBreed(dt){ tickHunt(dt); tickCert(dt); if(!st.breed) return; st.breed.t+=dt; if(st.breed.t<st.breed.dur) return;
     const B=st.breed; st.breed=null; st.stats.bred++; bump('bred',0);
     if(B.id){ const s=strain(B.id); st.lines=st.lines||{}; if(!st.lines[B.id]) st.lines[B.id]={gen:1,at:Date.now()}; const fresh=discover(B.id,false,'bred'); st.tried[B.key]=B.id; st.recipes[B.id]=B.key; st.seeds[B.id]=(st.seeds[B.id]||0)+3; addXP(10+s.tier*10); emit('bred',{s,fresh}); }
@@ -746,7 +749,7 @@ window.G = (function(){
   function openPack(kind){
     const out=[]; const n=kind==='leg'?4:5;
     for(let i=0;i<n;i++){ const s=kind==='leg'&&i===0?pickSeed(3)||pickSeed(2):pickSeed(kind==='leg'?2:1); if(!s) continue; out.push(s); st.seeds[s.id]=(st.seeds[s.id]||0)+1; discover(s.id,true); }
-    if(kind==='leg'){ st.hints+=2; const pd=premiumDrop(.04,'legendary pack'); if(pd) out.push(strain(pd)); const sd=seasonDrop(.02,'legendary pack'); if(sd) out.push(strain(sd)); }
+    if(kind==='leg'){ st.hints+=2; const pd=premiumDrop(DROP.packPremium,'legendary pack'); if(pd) out.push(strain(pd)); const sd=seasonDrop(DROP.packSeason,'legendary pack'); if(sd) out.push(strain(sd)); }
     emit('pack',out); return out;
   }
   // ---------- upgrades / workers ----------
@@ -859,7 +862,60 @@ window.G = (function(){
   const EVENTS={ moon:{name:'Lucky Pheno Hunt',desc:'3x mutation chance, +1 hint token',dur:120}, festival:{name:'Island Festival',desc:'2x XP',dur:120}, swell:{name:'Big Swell',desc:'Surfers in town: +25% prices',dur:100} };
   function mutChance(p){ return (p&&p.zone==='garage'&&garageRole()==='pheno'?2:1)*(st.breedLab?2:1)*.035*(st.weather.type==='vog'?1.5:1)*(evFx('moon')?3:1)*(1+.25*mana('pheno')); }
   function tickEvent(dt){ if(!F.events||st.level<GATE.events) return; const e=st.event; if(e.id){ e.t-=dt; if(e.t<=0){ e.id=null; e.next=240+Math.random()*240; emit('eventend'); } } else { e.next-=dt; if(e.next<=0){ if(Math.random()<.4){ const se=seasonEv(); e.id='season'; e.t=se.dur; if(se.fx==='moon') st.hints++; bump('seasonEv'); emit('event',se); } else { const ks=Object.keys(EVENTS); const id=ks[Math.floor(Math.random()*ks.length)]; e.id=id; e.t=EVENTS[id].dur; if(id==='moon') st.hints++; emit('event',EVENTS[id]); } } } }
-  function pickSeed(minT){ const c=S.filter(s=>s.tier>=minT&&!s.mystery&&!EVENT_ONLY[s.id]&&s.tier<=Math.max(minT,2)); if(!c.length) return null; const w=c.map(s=>s.tier>=3?1:s.tier===2?3:6); let r=Math.random()*w.reduce((a,b)=>a+b,0); for(let i=0;i<c.length;i++){ r-=w[i]; if(r<=0) return c[i]; } return c[0]; }
+  function tierWeight(tier){ return tier>=3?1:tier===2?3:6; }
+  // Same filter and weights as pickSeed. packOdds reads this so the shop table cannot drift from the roll.
+  function seedPool(minT){
+    const cap=Math.max(minT,2);
+    const items=S.filter(s=>s.tier>=minT&&!s.mystery&&!EVENT_ONLY[s.id]&&s.tier<=cap);
+    const weights=items.map(s=>tierWeight(s.tier));
+    const total=weights.reduce((a,b)=>a+b,0);
+    return {items,weights,total};
+  }
+  function pickSeed(minT){
+    const {items,weights,total}=seedPool(minT);
+    if(!items.length||!total) return null;
+    let r=Math.random()*total;
+    for(let i=0;i<items.length;i++){ r-=weights[i]; if(r<=0) return items[i]; }
+    return items[0];
+  }
+  function poolOdds(minT){
+    const {items,weights,total}=seedPool(minT);
+    if(!total) return {tiers:[], empty:true};
+    const by={};
+    items.forEach((s,i)=>{
+      const p=weights[i]/total;
+      const row=by[s.tier]||(by[s.tier]={tier:s.tier, rarity:TIERN[s.tier]||s.rarity, chance:0, items:[]});
+      row.chance+=p;
+      row.items.push({id:s.id, name:s.name, rarity:s.rarity, chance:p});
+    });
+    const tiers=Object.keys(by).map(k=>by[k]).sort((a,b)=>a.tier-b.tier);
+    tiers.forEach(t=>t.items.sort((a,b)=>a.name.localeCompare(b.name)));
+    return {tiers, empty:false};
+  }
+  function slotOdds(minT, fallback){
+    const primary=poolOdds(minT);
+    if(!primary.empty) return Object.assign({minT, fallbackUsed:false}, primary);
+    if(fallback!=null) return Object.assign({minT:fallback, fallbackUsed:true}, poolOdds(fallback));
+    return {minT, fallbackUsed:false, tiers:[], empty:true};
+  }
+  // kind: 'rare' (5 independent Uncommon/Rare rolls) or 'leg' (1 Epic slot, 3 Rare slots, plus bonus rolls).
+  function packOdds(kind){
+    const leg=kind==='leg';
+    const slots=leg
+      ? [Object.assign({count:1, label:'Seed 1 of 4, Epic slot'}, slotOdds(3,2)), Object.assign({count:3, label:'Seeds 2 to 4, each rolls on its own'}, slotOdds(2))]
+      : [Object.assign({count:5, label:'Each of the 5 seeds rolls on its own'}, slotOdds(1))];
+    const bonuses=[];
+    if(leg){
+      const prem=PREMIUM.map(id=>strain(id)).filter(Boolean);
+      bonuses.push({label:'Extra premium seed. This roll does not replace the 4 seeds.', chance:DROP.packPremium, none:1-DROP.packPremium,
+        items:prem.map(s=>({id:s.id, name:s.name, rarity:s.rarity, chance:prem.length?DROP.packPremium/prem.length:0}))});
+      const sid=window.PASS&&PASS.seasonNow&&PASS.seasonNow().strain;
+      const ss=sid&&strain(sid);
+      bonuses.push({label:'Extra season seed. This roll does not replace the 4 seeds.', chance:DROP.packSeason, none:1-DROP.packSeason,
+        items:ss?[{id:ss.id, name:ss.name, rarity:ss.rarity, chance:DROP.packSeason}]:[]});
+    }
+    return {kind:leg?'leg':'rare', seedCount:leg?4:5, slots, bonuses, hints:leg?2:0};
+  }
   // ---------- tick ----------
   function tick(dt,offline){
     st.playT+=dt; tickBoosts(dt);
@@ -894,10 +950,46 @@ window.G = (function(){
   // ---------- save ----------
   function save(){ st.lastSave=Date.now(); Store.set(CFG.saveKey,JSON.stringify(st)); }
   function migrateGarage(st){ if(st&&!st.garageV){ st.garageV=2; st.garage=Math.max(0,Math.min(7,st.garage|0)); } }   // see GARAGE note
+  // Retired strain ids (renamed paid exclusives and Naupaka) keep the player's seeds, plants, and breeding log.
+  function migrateStrainIds(st){
+    const MAP=window.STRAIN_MIGRATIONS||{};
+    const NAME=window.STRAIN_NAME_MIGRATIONS||{};
+    if(!st||st.idMig>=1||!Object.keys(MAP).length) return;
+    const mapId=id=>id&&MAP[id]||id;
+    const remapPair=k=>{
+      if(typeof k!=='string') return k;
+      const parts=k.split(' × ');
+      if(parts.length<2) return NAME[k]||k;
+      return parts.map(p=>NAME[p.trim()]||p.trim()).sort().join(' × ');
+    };
+    const moveNum=obj=>{ if(!obj) return; for(const [o,n] of Object.entries(MAP)){ if(obj[o]==null) continue; obj[n]=(obj[n]||0)+obj[o]; delete obj[o]; } };
+    const moveObj=obj=>{ if(!obj) return; for(const [o,n] of Object.entries(MAP)){ if(obj[o]==null) continue; if(obj[n]==null) obj[n]=obj[o]; delete obj[o]; } };
+    const moveFlag=obj=>{ if(!obj) return; for(const [o,n] of Object.entries(MAP)){ if(!(o in obj)) continue; if(obj[o]) obj[n]=true; else if(!(n in obj)) obj[n]=obj[o]; delete obj[o]; } };
+    const moveHist=obj=>{ if(!obj) return; for(const [o,n] of Object.entries(MAP)){ if(obj[o]==null) continue; if(!obj[n]||(Array.isArray(obj[n])&&!obj[n].length)) obj[n]=obj[o]; else if(Array.isArray(obj[o])&&Array.isArray(obj[n])) obj[n]=obj[n].concat(obj[o]); delete obj[o]; } };
+    const moveKey=k=>{ if(typeof k!=='string') return k; const p=k.split('|'); if(MAP[p[0]]) p[0]=MAP[p[0]]; else if(p.length>1&&MAP[p[1]]) p[1]=MAP[p[1]]; return p.join('|'); };
+    const moveKeyed=obj=>{ if(!obj) return; const next={}; for(const [k,v] of Object.entries(obj)){ const nk=moveKey(k); if(typeof v==='number') next[nk]=(next[nk]||0)+v; else if(next[nk]==null) next[nk]=v; } for(const k of Object.keys(obj)) delete obj[k]; Object.assign(obj,next); };
+    moveNum(st.seeds); moveNum(st.harv); moveNum(st.cutSeeds); moveNum(st.hintRev);
+    moveFlag(st.discovered); moveObj(st.keepers); moveObj(st.lines);
+    if(st.market){ moveNum(st.market.f); moveHist(st.market.hist); if(st.market.hot) st.market.hot=mapId(st.market.hot); }
+    ['wet','dry','cured'].forEach(stage=>{ if(st.inv&&st.inv[stage]) moveKeyed(st.inv[stage]); });
+    moveKeyed(st.goods);
+    (st.dryer||[]).forEach(j=>{ if(j&&j.k) j.k=moveKey(j.k); });
+    (st.craft||[]).forEach(j=>{ if(j&&j.id) j.id=mapId(j.id); });
+    (st.cuts||[]).forEach(c=>{ if(c&&c.id) c.id=mapId(c.id); });
+    (st.orders||[]).forEach(o=>{ if(o&&o.s) o.s=mapId(o.s); });
+    (st.plots||[]).forEach(p=>{ if(!p) return; if(p.strain) p.strain=mapId(p.strain); if(p.last) p.last=mapId(p.last); });
+    if(st.selSeed) st.selSeed=mapId(st.selSeed);
+    if(st.hunt&&st.hunt.id) st.hunt.id=mapId(st.hunt.id);
+    if(st.cert&&st.cert.id) st.cert.id=mapId(st.cert.id);
+    if(st.breed){ if(st.breed.id) st.breed.id=mapId(st.breed.id); ['a','b'].forEach(side=>{ const x=st.breed[side]; if(x&&x.type==='s'&&x.id) x.id=mapId(x.id); }); if(st.breed.key) st.breed.key=remapPair(st.breed.key); }
+    if(st.tried){ const next={}; for(const [k,v] of Object.entries(st.tried)){ const nk=remapPair(k); const nv=v==='dud'?'dud':mapId(v); if(!(nk in next)) next[nk]=nv; } st.tried=next; }
+    if(st.recipes){ const next={}; for(const [k,v] of Object.entries(st.recipes)) next[mapId(k)]=typeof v==='string'?remapPair(v):v; st.recipes=next; }
+    st.idMig=1;
+  }
   function load(){
     let raw=null; raw=Store.getJSON(CFG.saveKey,null);
     st=newState(); let migrated=false;
-    if(raw&&raw.v===2){ st=Object.assign(newState(),raw); st.stats=Object.assign(newState().stats,raw.stats||{}); if(!raw.event) st.event={id:null,t:0,next:240}; S.forEach(s=>{ if(st.market.f[s.id]==null) st.market.f[s.id]=1; if(!st.market.hist[s.id]) st.market.hist[s.id]=[]; }); }
+    if(raw&&raw.v===2){ st=Object.assign(newState(),raw); st.stats=Object.assign(newState().stats,raw.stats||{}); if(!raw.event) st.event={id:null,t:0,next:240}; migrateStrainIds(st); S.forEach(s=>{ if(st.market.f[s.id]==null) st.market.f[s.id]=1; if(!st.market.hist[s.id]) st.market.hist[s.id]=[]; }); }
     else if(raw&&raw.v===1){ // v1 -> v2: new progression starts in the garage; keep meta progress
       migrated=true; st=newState({gems:raw.gems||20,level:raw.level||1,xp:raw.xp||0,lifetime:raw.lifetime||0,streak:raw.streak||st.streak,ach:raw.ach||{},themes:raw.themes||st.themes,theme:raw.theme||'classic',pass2x:!!raw.pass2x,vip:!!raw.vip,rarePacks:raw.rarePacks||0,legPacks:raw.legPacks||0,settings:raw.settings||st.settings,stats:Object.assign(newState().stats,raw.stats||{})});
       st.cash=150+Math.min(5000,(raw.cash||0)*.1); st.hints=3; }
@@ -990,7 +1082,7 @@ window.G = (function(){
     REP, repTier, addRep, MASTERY, mastery, SETS, MANA_UPG, manaCost, manaGain, buyMana, mana,
     passState, passTier, passClaim, passClaimAll, seasonEv, evFx, sqInfo, sqClaim, sqReady, sqWeek, startSeasonEvent:()=>{ const se=seasonEv(); st.event.id='season'; st.event.t=se.dur; emit('event',se); },
     LINE, HEIR, VAULT, heirCount, heirCost, canCertify, startCertify, claimVault, checkVault, lineGen, lineName, lineMult, stableLines, breedProgress, breedPlanEstimate, CROSS_T, HUNT_T,
-    ADS, adState, adReward, PREMIUM, BOOSTS, boostLeft, PIGGY,
+    ADS, adState, adReward, PREMIUM, DROP, packOdds, BOOSTS, boostLeft, PIGGY,
     cosOwned, equipCos, rushCost, timers, rush,
     on, emit, fmt, num, dur, cost, maxLv, lv, wk, earnMult, xpNeed, key, unkey, invCount, capOf, syncPlots, locOpen, nextStep, buyStep, buyLand, buildGH, buyPermit, indoorChecklist, buildIndoor,
     buySeeds, seedPrice, plant, water, feed, feedCost, harvest, quality, yieldMult, cycleCost, upkeepRates, growRate, timeLeft, isNight, dayPhase, stage, dryerSlots, batchMax, loadDryer,

@@ -170,12 +170,21 @@
     UI.modal(`${portraitImg('Unko Kuli','dport')}<h3>While you were away</h3><p>You were gone ${G.dur(el)}${el>cap?' (catch-up capped at '+G.dur(cap)+')':''}.</p><div class="big-n">${r.cash>=0?'+':''}${G.fmt(r.cash)}</div><ul class="away">${li.map(t=>`<li>${t}</li>`).join('')}</ul>${r.cash>0?'<p style="font-size:13px;color:#cfe">Watch a short ad to double what your crew earned. It\'s optional.</p>':''}`,[...(r.cash>0?[{label:'Watch ad: 2x',cls:'pink',v:'ad'}]:[]),{label:'Back to the farm',cls:'gold'}]).then(async v=>{ if(v!=='ad') return; const a=await window.Ads.show(); if(a&&a.completed){ G.addCash(r.cash,'away'); Sound.play('cash',5); Haptics.success(); UI.toast('Doubled! +'+G.fmt(r.cash),'good'); } else UI.toast('No reward, the ad was closed early.'); });
   }
 
-  // ---------- age gate + splash ----------
+  // ---------- age gate, ad consent, splash ----------
   const AGE_KEY='mwfarms_age_ok';
-  const ag=document.getElementById('ageGate'), pb=document.getElementById('playBtn');
-  if(Store.get(AGE_KEY)!=='1'){ ag.classList.remove('hidden'); pb.classList.add('hidden'); }
-  document.getElementById('ageYes').onclick=()=>{ Store.set(AGE_KEY,'1'); ag.classList.add('hidden'); pb.classList.remove('hidden'); };
-  document.getElementById('ageNo').onclick=()=>{ ag.innerHTML='<p>Sorry, this game is only for players 17 and older. Thanks for stopping by!</p>'; };
+  const ag=document.getElementById('ageGate'), cg=document.getElementById('consentGate'), pb=document.getElementById('playBtn');
+  function splashStep(){
+    const aged=Store.get(AGE_KEY)==='1';
+    const cons=!!(window.Ads&&Ads.consent());
+    ag.classList.toggle('hidden', aged);
+    cg.classList.toggle('hidden', !aged||cons);
+    pb.classList.toggle('hidden', !aged||!cons);
+  }
+  splashStep();
+  document.getElementById('ageYes').onclick=()=>{ Store.set(AGE_KEY,'1'); splashStep(); };
+  document.getElementById('ageNo').onclick=()=>{ ag.innerHTML='<p>Sorry, this game is only for players 18 and older. Thanks for stopping by!</p>'; };
+  document.getElementById('consentYes').onclick=()=>{ Ads.setConsent('personalized'); splashStep(); };
+  document.getElementById('consentNo').onclick=()=>{ Ads.setConsent('contextual'); splashStep(); };
   pb.onclick=async()=>{
     Sound.resume(); document.getElementById('splash').classList.add('gone'); setTimeout(()=>document.getElementById('splash').remove(),600);
     const ret=await Payments.handleReturn(); if(ret&&!ret.ok) UI.toast('Purchase not completed: '+ret.error,'bad');

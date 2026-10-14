@@ -8,9 +8,9 @@ window.R=(function(){
   const cams={}; let cam={x:0,y:0,z:1};
   const IM={}; let imgOK=true, loaded=0;
   const NAMES=['p_vegtent','p_clonecart','p_fertig','p_swamp','p_pedfan','p_clipfan','p_drynet','p_press','garage','greenhouse','indoor','island-bg','home-lot','stage0','stage1','stage2','stage3','stage4','mature_green','mature_purple','mature_white','mature_golden','mature_pink','mature_blue','b_stand','b_hale','b_house','b_shed','b_tank','b_cart','b_cart_buds','skin_garage_surfshack','skin_greenhouse_bamboo','skin_indoor_neon'];
-  // Dedicated mature sprites for signature strains (art-src/signature-strains.jpg). acdc shares Charlotte's Web, white-truffle shares Animal Face.
-  const SIG={'maui-wowie':'maui-wowie','granddaddy-purple':'granddaddy-purple','charlottes-web':'charlottes-web',acdc:'charlottes-web','durban-poison':'durban-poison','animal-face':'animal-face','white-truffle':'animal-face','kauai-electric':'kauai-electric','glitter-bomb':'glitter-bomb','super-boof':'super-boof'};
-  // Adult people (art-src/npcs.jpg). The teen figure in the source sheet is never exported or used (17+ game).
+  // Dedicated mature sprites for signature strains. ACDC shares the Naupaka art; White Truffle shares Menehune Mint.
+  const SIG={'maui-wowie':'maui-wowie','granddaddy-purple':'granddaddy-purple','naupaka':'naupaka',acdc:'naupaka','durban-poison':'durban-poison','menehune-mint':'menehune-mint','white-truffle':'menehune-mint','kauai-electric':'kauai-electric','glitter-bomb':'glitter-bomb','super-boof':'super-boof'};
+  // Adult people (art-src/npcs.jpg). The teen figure in the source sheet is never exported or used (18+ game).
   const PEOPLE={customer:['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist'],farmhand:['npc_overalls','npc_crate'],walker:['npc_tourist','npc_aloha','npc_sundress','npc_elder','npc_tank']};
   [...new Set(Object.values(SIG))].forEach(n=>NAMES.push('sig_'+n,'sig_'+n+'_pot')); ['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist','npc_overalls','npc_crate'].forEach(n=>NAMES.push(n));
   function loadImages(){ NAMES.forEach(n=>{ const im=new Image(); im.onload=()=>{ loaded++; }; im.onerror=()=>{ im._bad=true; if(/^stage|^mature/.test(n)) imgOK=false; }; im.src='art/'+n+'.webp'; IM[n]=im; }); }

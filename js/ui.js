@@ -415,7 +415,7 @@ window.UI = (function(){
     const n=WG.nodes.get(id), st=G.st; if(n.kind==='p'){ const kids=WG.edges.filter(e=>e.a===id&&edgeVisible(e,WG)).map(e=>WG.nodes.get(e.b).s.name); el.innerHTML=`<h4>${esc(n.name)} <span class="tag">Pollen</span></h4><p>A parent line you can use as pollen in the Pheno Room.</p><p><b>Known children:</b> ${kids.length?esc(kids.join(', ')):'none found yet'}</p>`; return; }
     const s=n.s, stt=webState(n), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[id], k=st.keepers&&st.keepers[id], r=st.hintRev[id]||0;
     const pars=s.parents.length?s.parents.map((p,i)=>stt==='known'||(stt==='locked'&&!s.mystery)||i<r?esc(p):'???').join(' × '):'Landrace / original line';
-    const how=[]; if(ex) how.push('Exclusive: Island Shop (money or gems)','Rare drop: Legendary Seed Packs (4%)','Rare drop: finished pheno hunts (3%)');
+    const how=[]; if(ex){ const n=G.PREMIUM.filter(i=>G.strain(i)).length||1; how.push('Exclusive: Island Shop (money or gems)','Rare drop: Legendary Seed Packs ('+pct(G.DROP.packPremium/n)+' each, as an extra seed)','Rare drop: finished pheno hunts ('+pct(G.DROP.huntPremium/n)+' each)'); }
     if(s.mystery) how.push(stt==='known'?'Bred in the Pheno Room':'Cross the right two parents in the Pheno Room'+(r?' (hint: '+r+' parent'+(r>1?'s':'')+' revealed)':'')); else if(!ex) how.push(window.G.festNow&&G.FESTS.some(f=>f.strain===id)?'Island festival reward':'Seed shop from level '+s.game.unlockLevel);
     el.innerHTML=`<div class="wc-top"><img src="${R.closeup(s,96,stt==='mystery'||stt==='hinted')}" alt=""><div><h4>${stt==='mystery'?'??? mystery pheno':esc(s.name)} ${tag(s)}</h4><p>${esc(s.type)}${stt==='known'&&s.thc?' · '+s.thc+'% THC':''} · ${esc(s.rarity)}</p></div></div>
       <p><b>Parents:</b> ${pars}</p><p><b>How to get:</b> ${esc(how.join(' · '))}</p><p><b>Line:</b> ${G.st.lines&&G.st.lines[id]?esc(G.lineName(id)):s.mystery&&stt!=='known'?'not bred yet':'commercial stable line'}${s.tier>=4?' · Legendary recipe: parents must be stable lines (F'+G.LINE.stable+'+) in the Breeding Pheno Room':''}</p><p><b>Kept mother:</b> ${k?`Pheno ${esc(k.k)} · ${esc(k.terp)} · yield ${Math.round((k.y-1)*100)}%, quality +${Math.round(k.q*100)}%`:'none'}</p>
@@ -439,7 +439,7 @@ window.UI = (function(){
     if(tab==='web') return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · family web`,tabs:[['web','Web'],['list','List']],body:`${(()=>{ const P=G.breedProgress(); return `<div class="row" style="display:block"><h4>Breeding completion · ${P.pct}%</h4>${bar(P.pct/100,'amber')}<p>${P.found}/${P.mystery} mystery phenos bred · ${P.stable}/${P.mystery} lines stabilized to F${G.LINE.stable}+ · ${P.known}/${P.all} strains in your book</p></div>`; })()}<div id="webWrap"><canvas id="strainWeb"></canvas><div class="web-legend"><span><i style="background:#ffd35a"></i>Exclusive</span><span><i style="background:#9fd76a"></i>Pollen</span><span>? mystery</span><span>M kept mother</span></div></div><div id="webCard" class="row" style="display:block"></div>`};
     const cards=G.S.slice().sort((a,b)=>a.tier-b.tier||a.name.localeCompare(b.name)).map(s=>{ const d=st.discovered[s.id], hid=!d&&s.mystery;
       return `<button class="card ${d?'':'locked'}" data-a="strain" data-id="${s.id}"><img data-cu="${s.id}" data-sz="120" data-h="${hid?1:0}" alt="" style="width:100%;aspect-ratio:1;border-radius:12px;display:block;${d||hid?'':'filter:brightness(.35) saturate(.2)'}"><div class="nm">${hid?'???':esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span>${st.recipes[s.id]?'<span class="tag" style="font-size:12px;background:#7a4ad0;color:#fff">Recipe</span>':''}</button>`; }).join('');
-    return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · data from Leafly`,tabs:[['web','Web'],['list','List']],body:`<div class="grid">${cards}</div><div class="note">Strain facts come from Leafly strain pages. Fields marked ESTIMATE were not published. Close-ups are painted game art tinted from each strain's described look; no photos are shipped.</div>`};
+    return {title:'Strain Book',sub:`${n}/${G.S.length} discovered`,tabs:[['web','Web'],['list','List']],body:`<div class="grid">${cards}</div><div class="note">Strain notes are original game text. Fields marked ESTIMATE were not given a published figure. Close-ups are painted game art tinted from each strain's described look; no photos are shipped.</div>`};
   };
   function strainModal(id){
     const s=G.strain(id), st=G.st, d=st.discovered[id];
@@ -452,7 +452,7 @@ window.UI = (function(){
       <dt>Terpenes</dt><dd>${s.terpenes.length?s.terpenes.join(', '):'Not published'}</dd><dt>Flavors</dt><dd>${s.flavors.join(', ')}</dd>
       <dt>Flowering</dt><dd>${s.floweringDays} days (${esc(s.floweringSource)})</dd><dt>Look</dt><dd>${esc(L.shape||'')} buds, frost ${Math.round((L.frost||0)*100)}% <small style="color:var(--mut)">(${esc(L.src||'ESTIMATE')})</small></dd>
       <dt>In game</dt><dd>${sec(s.game.growSec)} grow · ${s.game.buds} buds · ~${fmt(s.game.payout)}/plant · seed ${fmt(G.seedPrice(s))}</dd>${G.F.mastery?`<dt>Mastery</dt><dd>${m.n} harvests · x${m.m} price${m.next?' · next x'+m.nextM+' at '+m.next:''}</dd>`:''}</dl>
-      <p style="text-align:left;font-size:12px">"${esc(s.blurb)}" (Leafly)</p><p style="font-size:12px">Source: Leafly strain page (${esc(s.leafly)})${d?'':' · <b>Not discovered yet</b>'}</p>`;
+      <p style="text-align:left;font-size:12px">${esc(s.blurb)}</p>${d?'':'<p style="font-size:12px"><b>Not discovered yet</b></p>'}`;
     modal(html,[{label:'Close',cls:'sec'}]);
   }
 
@@ -522,11 +522,42 @@ window.UI = (function(){
         return w(`<rect x="4" y="8" width="56" height="48" rx="10" fill="${th[0]}"/><path d="M4 40Q20 18 34 30T60 26V48a8 8 0 01-8 8H12a8 8 0 01-8-8z" fill="${th[2]}"/><circle cx="46" cy="20" r="7" fill="${th[1]}"/><path d="M14 44v-14M14 30c-6-2-8 2-8 2M14 30c6-3 9 1 9 1M14 30c-3-5-1-8-1-8" stroke="#3a2a1a" stroke-width="2" fill="none"/>`); }
     }
   }
+  function pct(p){ return (Math.round(p*10000)/100).toFixed(2)+'%'; }
+  function renderOdds(o){
+    if(!o) return '';
+    let h=`<div class="odds"><h5>Drop odds</h5><p>${o.seedCount} seeds. Each chance below is for one roll, taken from the live drop table. Percents are rounded to the nearest 0.01%.</p>`;
+    o.slots.forEach(slot=>{
+      h+=`<p><b>${esc(slot.label)}${slot.count>1?' · '+slot.count+' seeds':''}</b></p>`;
+      if(slot.fallbackUsed) h+=`<p>The higher tier has no seeds right now, so this slot uses the next tier.</p>`;
+      if(slot.empty||!slot.tiers.length){ h+=`<p>No seeds in this pool.</p>`; return; }
+      h+=`<table class="odds-table"><thead><tr><th>Rarity and item</th><th>Chance</th></tr></thead><tbody>`;
+      slot.tiers.forEach(t=>{
+        h+=`<tr class="odds-tier"><td>${esc(t.rarity)}</td><td>${pct(t.chance)}</td></tr>`;
+        t.items.forEach(it=>{ h+=`<tr class="odds-item"><td>${esc(it.name)}</td><td>${pct(it.chance)}</td></tr>`; });
+      });
+      h+=`</tbody></table>`;
+    });
+    if(o.hints) h+=`<p><b>Hint tokens:</b> ${o.hints}, every pack (100%).</p>`;
+    o.bonuses.forEach(b=>{
+      h+=`<p><b>${esc(b.label)}</b></p><table class="odds-table"><thead><tr><th>Outcome</th><th>Chance</th></tr></thead><tbody>`;
+      h+=`<tr class="odds-tier"><td>No extra seed</td><td>${pct(b.none)}</td></tr>`;
+      b.items.forEach(it=>{ h+=`<tr class="odds-item"><td>${esc(it.name)} <span class="mut">(${esc(it.rarity)})</span></td><td>${pct(it.chance)}</td></tr>`; });
+      h+=`</tbody></table>`;
+    });
+    return h+`</div>`;
+  }
+  function oddsForProduct(p){
+    const g=(p&&p.grants)||{}; const parts=[];
+    if(g.rarePacks) parts.push(renderOdds(G.packOdds('rare')));
+    if(g.legPacks) parts.push(renderOdds(G.packOdds('leg')));
+    return parts.join('');
+  }
   function prodCard(p){
     const st=G.st, P=window.Payments;
     const owned=p.once&&(P.isOwned(p.id)||(p.grants.pass2x&&st.pass2x)||(p.grants.vip&&st.vip)||(p.grants.theme&&!p.grants.gems&&st.themes[p.grants.theme]));
     const btn=owned?`<button class="btn sm sec" disabled>Owned</button>`:p.kind==='usd'?`<button class="btn sm pink" data-a="usd" data-id="${p.id}">${P.formatUSD(p.priceUSD)}</button>`:`<button class="btn sm gem" data-a="gemsbuy" data-id="${p.id}" ${st.gems<p.priceGems?'disabled':''}>${ico('gem')}${G.num(p.priceGems)}</button>`;
-    return `<div class="prod ${owned?'owned':''}">${p.flag&&!owned?`<span class="flag">${p.flag}</span>`:''}${art(p.art)}<h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p>${btn}</div>`;
+    const odds=oddsForProduct(p);
+    return `<div class="prod ${owned?'owned':''}${odds?' wide':''}">${p.flag&&!owned?`<span class="flag">${p.flag}</span>`:''}${art(p.art)}<h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p>${odds}${btn}</div>`;
   }
   // ---- ads / piggy / rush / cosmetics / exclusive strains ----
   function adsCard(){ const a=G.adState(), A=G.ADS, full=a.n>=A.cap; return `<div class="section-t">Watch ads for gems</div><div class="row adcard"><span class="ico ico-gem" style="width:34px;height:34px"></span><div class="grow"><h4>Watch a short ad: +${A.gems} gems</h4>
@@ -546,7 +577,8 @@ window.UI = (function(){
           (o?`<button class="btn sm ${on?'sec':'green'}" data-a="equip" data-sl="${sl}" data-id="${on?'':id}">${on?'Unequip':'Equip'}</button>`:c.pass?`<button class="btn sm sec" data-a="gopass">Grower Pass reward</button>`:`<div class="buy2"><button class="btn sm pink" data-a="usd" data-id="${pu.id}">${pay.formatUSD(pu.priceUSD)}</button><button class="btn sm gem" data-a="gemsbuy" data-id="${pg.id}" ${st.gems<pg.priceGems?'disabled':''}>${ico('gem')}${G.num(pg.priceGems)}</button></div>`)+`</div>`; }
       h+='</div>'; }
     return h; }
-  function strainsTab(){ const st=G.st, pay=window.Payments; let h=`<div class="note">Exclusive Legendary strains. Buy seeds here with money or gems, or find them in play: <b>Legendary Seed Packs (4% each)</b> and <b>finished pheno hunts (3% each)</b>.</div><div class="prod-grid">`;
+  function strainsTab(){ const st=G.st, pay=window.Payments, n=G.PREMIUM.filter(id=>G.strain(id)).length||1;
+    let h=`<div class="note">Exclusive Legendary strains. Buy seeds here with money or gems, or find an extra seed in play: <b>Legendary Seed Packs (${pct(G.DROP.packPremium)} total, ${pct(G.DROP.packPremium/n)} each)</b> and <b>finished pheno hunts (${pct(G.DROP.huntPremium)} total, ${pct(G.DROP.huntPremium/n)} each)</b>. Those extras do not replace the pack's listed seeds.</div><div class="prod-grid">`;
     for(const id of G.PREMIUM){ const s=G.strain(id); if(!s) continue; const pu=window.PRODUCTS['strain_'+id], pg=window.PRODUCTS['strain_'+id+'_g'];
       h+=`<div class="prod excl"><span class="flag">Exclusive</span><img data-cu="${id}" data-sz="160" data-h="0" alt="" style="width:100%;aspect-ratio:1;border-radius:14px"><h4>${esc(s.name)}</h4><p>${tag(s)} ${esc(s.type)} · ${s.thc?s.thc+'% THC':''}<br>${esc((s.blurb||'').slice(0,90))}…</p><p>${st.discovered[id]?'In your book · '+(st.seeds[id]||0)+' seeds':'Not discovered yet'}</p>
         <div class="buy2"><button class="btn sm pink" data-a="usd" data-id="${pu.id}">${pay.formatUSD(pu.priceUSD)}</button><button class="btn sm gem" data-a="gemsbuy" data-id="${pg.id}" ${st.gems<pg.priceGems?'disabled':''}>${ico('gem')}${G.num(pg.priceGems)}</button></div></div>`; }
@@ -556,7 +588,8 @@ window.UI = (function(){
   function passTab(){ const st=G.st, Z=window.PASS, S=Z.seasonNow(), P=G.passState(), T=Z.track(S), tier=G.passTier(), pay=window.Payments, left=S.end-Date.now(), into=P.xp-tier*Z.XP_PER_TIER;
     const tt=Z.totals(S); let h=`<div class="pass-hero" style="background:linear-gradient(135deg,${S.c1},${S.c2})"><div class="ph-t"><small>GROWER PASS · ${esc(S.tag.toUpperCase())}</small><h3>${esc(S.name)}</h3><p>Ends in <b>${sec(Math.max(0,left/1000))}</b> · ${new Date(S.start).toLocaleDateString([], {month:'short'})} - ${new Date(S.end-864e5).toLocaleDateString([], {month:'short',day:'numeric'})}</p></div><img class="ph-seed" data-cu="${S.strain}" data-sz="160" data-h="0" alt=""></div>`;
     h+=`<div class="row" style="display:block"><h4>Tier ${tier}/${Z.TIERS} ${P.premium?'<span class="tag" style="background:#ffd35a;color:#3a2500">Premium'+(P.plus?'+':'')+'</span>':''}</h4>${bar(tier>=Z.TIERS?1:into/Z.XP_PER_TIER,'amber')}<p>${tier>=Z.TIERS?'Pass complete!':G.num(into)+' / '+Z.XP_PER_TIER+' pass XP to tier '+(tier+1)} · Earn pass XP from harvests, sales, goals and quests, breeding, kept mothers and ads.</p></div>`;
-    if(!P.premium) h+=`<div class="pass-buy"><div><b>Premium track</b><p>~${G.num(tt.prem.gems)} gems, ${tt.prem.cosmetics} ${esc(S.name)} cosmetics, ${tt.prem.seeds} exclusive ${esc(G.strain(S.strain).name)} seeds, ${tt.prem.legPacks} Legendary + ${tt.prem.rarePacks} Rare packs, ${tt.prem.boosts} boosts, ${tt.prem.skipsH}h of skips</p></div>
+    if(!P.premium) h+=`<div class="pass-buy"><div><b>Premium track</b><p>~${G.num(tt.prem.gems)} gems, ${tt.prem.cosmetics} ${esc(S.name)} cosmetics, ${tt.prem.seeds} exclusive ${esc(G.strain(S.strain).name)} seeds, ${tt.prem.legPacks} Legendary + ${tt.prem.rarePacks} Rare packs, ${tt.prem.boosts} boosts, ${tt.prem.skipsH}h of skips. Drop odds for those packs are above the price.</p></div>
+      ${renderOdds(G.packOdds('rare'))}${renderOdds(G.packOdds('leg'))}
       <div class="buy2"><button class="btn sm pink" data-a="usd" data-id="pass_premium">Premium ${pay.formatUSD(Z.PRICE.premium)}</button><button class="btn sm gold" data-a="usd" data-id="pass_plus">Premium+ ${pay.formatUSD(Z.PRICE.plus)} (skip 10 tiers)</button><button class="btn sm gem" data-a="gemsbuy" data-id="pass_premium_g" ${st.gems<Z.PRICE.gems?'disabled':''}>${ico('gem')}${G.num(Z.PRICE.gems)}</button></div></div>`;
     const ready=T.filter(r=>r.tier<=tier&&((r.f&&!P.cf[r.tier])||(P.premium&&!P.cp[r.tier]))).length;
     h+=`<div class="section-t">Reward track ${ready?`<button class="btn sm gold" data-a="passall" style="float:right">Claim all (${ready})</button>`:''}</div><div class="pass-track" id="passTrack">`;
@@ -564,7 +597,7 @@ window.UI = (function(){
       h+=`<div class="pt-col ${un?'un':''} ${r.tier===tier+1?'next':''}"><div class="pt-n">${r.tier}</div>
         <div class="pt-cell free ${fc?'got':''}">${r.f?rwIcon(r.f)+`<span>${esc(rwText(r.f))}</span>`+(un&&!fc?`<button class="btn sm green" data-a="passclaim" data-t="${r.tier}" data-k="f">Claim</button>`:fc?'<i>✓</i>':''):'<span class="mut">-</span>'}</div>
         <div class="pt-cell prem ${pc?'got':''} ${P.premium?'':'locked'}">${rwIcon(r.p)}<span>${esc(rwText(r.p))}</span>${un&&P.premium&&!pc?`<button class="btn sm gold" data-a="passclaim" data-t="${r.tier}" data-k="p">Claim</button>`:pc?'<i>✓</i>':P.premium?'':'<i>🔒</i>'}</div></div>`; }
-    h+=`</div><div class="note">Free track for everyone. Pass cosmetics are cosmetic only. ${esc(G.strain(S.strain).name)} also drops rarely in play this season (2% from finished pheno hunts and Legendary Seed Packs).</div>`;
+    h+=`</div><div class="note">Free track for everyone. Pass cosmetics are cosmetic only. ${esc(G.strain(S.strain).name)} also drops rarely in play this season (${pct(G.DROP.huntSeason)} from finished pheno hunts and ${pct(G.DROP.packSeason)} from Legendary Seed Packs, as an extra seed).</div>`;
     h+=sqHTML(); return h; }
   function drawCosPrev(root){ root.querySelectorAll('canvas.cosprev').forEach(c=>{ try{ R.cosPreview(c.getContext('2d'),c.dataset.sl,c.dataset.id); }catch(e){} }); }
   PANELS.shop=()=>{
@@ -573,7 +606,7 @@ window.UI = (function(){
     const list=ids=>`<div class="prod-grid">${ids.map(i=>prodCard(P[i])).join('')}</div>`;
     if(tab==='featured'){
       const sOwned=pay.isOwned('starter');
-      if(!sOwned) body+=`<div class="shop-hero"><span class="ribbon">BEST DEAL</span><h3>Island Starter Bundle</h3><p>500 gems · 2 Rare Seed Packs · ${fmt(2500)} cash · Neon Luau theme</p><button class="btn" data-a="usd" data-id="starter" style="background:#fff;color:#d63d93;box-shadow:0 3px 0 #b02a78">Get it · ${pay.formatUSD(P.starter.priceUSD)}</button></div>`;
+      if(!sOwned) body+=`<div class="shop-hero"><span class="ribbon">BEST DEAL</span><h3>Island Starter Bundle</h3><p>500 gems · 2 Rare Seed Packs · ${fmt(2500)} cash · Neon Luau theme. Each Rare Seed Pack uses the odds below.</p>${renderOdds(G.packOdds('rare'))}<button class="btn" data-a="usd" data-id="starter" style="background:#fff;color:#d63d93;box-shadow:0 3px 0 #b02a78">Get it · ${pay.formatUSD(P.starter.priceUSD)}</button></div>`;
       body+=`<div class="section-t">Perks</div>`+list(['pass2x','vip']);
       if(st.rarePacks||st.legPacks) body+=`<div class="section-t">Your seed packs</div><div class="row"><div class="grow"><h4>Rare packs: ${st.rarePacks} · Legendary packs: ${st.legPacks}</h4></div>${st.rarePacks?'<button class="btn sm" data-a="openpack" data-k="rare">Open rare</button>':''}${st.legPacks?'<button class="btn sm gold" data-a="openpack" data-k="leg">Open legendary</button>':''}</div>`;
       body+=`<div class="section-t">Gems</div>`+list(['gems_s','gems_m','gems_l','gems_xl']);
@@ -597,7 +630,9 @@ window.UI = (function(){
       +`<div class="section-t">Performance</div>`+tg('hq','High quality graphics',st.settings.hq)+tg('autoQ','Auto quality (lower detail if the game runs slowly)',st.settings.autoQ!==false)
       +`<div class="row"><div class="grow"><h4>Daily gift</h4><p>Login streak: day ${st.streak.n||0}</p></div><button class="btn sm gem" data-a="daily" ${G.dailyReady()?'':'disabled'}>${G.dailyReady()?'Claim':'Claimed'}</button></div>`
       +`<div class="row"><div class="grow"><h4>Restore purchases</h4><p>Re-apply perks and themes bought on this account</p></div><button class="btn sm sec" data-a="restore">Restore</button></div>`
-      +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 17+. It depicts legal, licensed cultivation as a business; it has no real-world sales, no age-restricted products for minors, and nothing in it can be bought or delivered in real life. Progress saves on this device and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain data: Leafly strain pages and award lists (see SOURCES.md). Art: see CREDITS.md.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
+      +`<div class="section-t">Privacy and ads</div><div class="row"><div class="grow"><h4>Privacy policy</h4><p>Saves, ads, payments, and analytics</p></div><a class="btn sm sec" href="privacy.html" target="_blank" rel="noopener">Open</a></div>`
+      +`<div class="row"><div class="grow"><h4>Ad preference</h4><p>${window.Ads.consent()==='personalized'?'Personalized ads are allowed.':window.Ads.consent()==='contextual'?'Only non-personalized ads.':'Choose one before ads can play.'}</p></div><div class="buy2"><button class="btn sm ${window.Ads.consent()==='personalized'?'':'sec'}" data-a="adconsent" data-v="personalized">Personalized</button><button class="btn sm ${window.Ads.consent()==='contextual'?'':'sec'}" data-a="adconsent" data-v="contextual">Non-personalized</button></div></div>`
+      +`<div class="section-t">About</div><div class="note"><b>${esc(T())}</b> is a free-to-play farming simulation for players 18+. It depicts legal, licensed cultivation as a business. Nothing in it can be bought or delivered in real life. Progress saves on this device and your farm keeps working while you're away (72h, 96h with VIP).<br>Strain notes are original game text. Art is painted for the game.<br>Payments: ${window.Payments.mode==='test'?'TEST MODE (no real charges)':esc(window.Payments.mode)}.</div>`
       +`<div class="row"><div class="grow"><h4>Reset farm</h4><p>Erase this device's save (store purchases stay)</p></div><button class="btn sm sec" data-a="reset">Reset</button></div>`;
     return {title:'Settings',sub:'',body};
   };
@@ -653,6 +688,7 @@ window.UI = (function(){
       case 'openpack': { const k=d.k; if(k==='rare'&&st.rarePacks>0){ st.rarePacks--; showPack(G.openPack('rare')); } else if(k==='leg'&&st.legPacks>0){ st.legPacks--; showPack(G.openPack('leg')); } break; }
       case 'theme': st.theme=d.k; toast(window.THEMES[d.k].name+' theme on','good'); break;
       case 'set': st.settings[d.k]=!(st.settings[d.k]!==false); if(window.applySettings) applySettings(); break;
+      case 'adconsent': window.Ads.setConsent(d.v); toast(d.v==='personalized'?'Personalized ads allowed':'Non-personalized ads only','good'); break;
       case 'daily': if(G.claimDaily()){ Sound.play('gem'); } break;
       case 'qclaim': if(G.claimQ(d.w,+d.i)){ Sound.play('coin'); } break;
       case 'achclaim': if(G.claimAch(d.id)) Sound.play('gem'); break;
@@ -693,7 +729,7 @@ window.UI = (function(){
     $('#harvestAll').onclick=()=>{ let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog>=1&&G.harvest(p)) n++; }); if(!n) toast('Nothing ripe here yet'); };
     $('#waterAll').onclick=()=>{ if(G.lv('water')<1){ toast('Water all needs a garden hose','bad'); open('upgrades','lines'); return; } let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog<1&&p.water<.95){ G.water(p); n++; } }); if(!n) toast('Everything here is watered'); };
     $('#feedAll').onclick=()=>{ if(G.lv('nutes')<1){ toast('Feed all needs a nutrient reservoir','bad'); open('upgrades','lines'); return; } let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&G.isHungry(p)&&G.feed(p,true)) n++; }); toast(n?'Fed '+n+' plants':'Nobody here is hungry'); };
-    window.Payments.setConfirmUI(p=>modal(`${art(p.art)}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><div class="big-n">${window.Payments.formatUSD(p.priceUSD)}</div><div class="testbanner">TEST MODE: you will not be charged. This grants the item locally.</div>`,[{label:'Cancel',cls:'sec',v:false},{label:'Buy (test)',cls:'pink',v:true}]));
+    window.Payments.setConfirmUI(p=>modal(`${art(p.art)}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p>${oddsForProduct(p)}<div class="big-n">${window.Payments.formatUSD(p.priceUSD)}</div><div class="testbanner">TEST MODE: you will not be charged. This grants the item locally.</div>`,[{label:'Cancel',cls:'sec',v:false},{label:'Buy (test)',cls:'pink',v:true}]));
   }
   let acc=0;
   function update(dt){ hud(dt); acc+=dt; if(acc>.5){ acc=0; if(panel&&performance.now()-lastPointer>700&&!document.activeElement?.matches('select')) render(); if(popPlot) renderPop(); } }
