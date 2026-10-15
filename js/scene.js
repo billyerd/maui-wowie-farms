@@ -981,7 +981,9 @@ window.R=(function(){
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
     const gearTop=Math.round(barTop-gearH), bedsTop=tab, bedsH=Math.max(40,gearTop-bedsTop);
     const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
-    const bedH=bedsH/nBeds, cell=W/per;
+    // Greenhouse poles are the outer pairs. Keep plants, timers, and the light inside them.
+    const edge=spot==='gh'?0.08:0, bedL=W*edge, bedR=W*(1-edge);
+    const bedH=bedsH/nBeds, cell=(bedR-bedL)/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
     const snaps=[75,72,64,60,56,50,48,40];
@@ -1003,11 +1005,12 @@ window.R=(function(){
       const glow=ctx.createLinearGradient(0,y0+lightH-2,0,soil+6);
       glow.addColorStop(0,spot==='gh'?'rgba(255,236,190,.20)':'rgba(255,246,220,.34)');
       glow.addColorStop(1,'rgba(255,246,220,0)');
-      ctx.fillStyle=glow; ctx.beginPath(); ctx.moveTo(24,y0+lightH-2); ctx.lineTo(W-24,y0+lightH-2); ctx.lineTo(W-6,soil-2); ctx.lineTo(6,soil-2); ctx.closePath(); ctx.fill();
+      const gL=spot==='gh'?bedL+4:24, gR=spot==='gh'?bedR-4:W-24, sL=spot==='gh'?bedL:6, sR=spot==='gh'?bedR:W-6;
+      ctx.fillStyle=glow; ctx.beginPath(); ctx.moveTo(gL,y0+lightH-2); ctx.lineTo(gR,y0+lightH-2); ctx.lineTo(sR,soil-2); ctx.lineTo(sL,soil-2); ctx.closePath(); ctx.fill();
       row.forEach((p,i)=>{
-        const x=(i+.5)*cell; p.prog=.9; p.water=1; p.food=1; p.pest=null; p._dv=1;
+        const x=bedL+(i+.5)*cell; p.prog=.9; p.water=1; p.food=1; p.pest=null; p._dv=1;
         const sl={x,y:kind==='pot'?soil:soil-.09*ppm,ppm,sp:Math.max(.25,(cell-12)/ppm/1.2),cls,kind};
-        bedsClip(i*cell+1,y0+lightH,cell-2,bedH-lightH-2,()=>{
+        bedsClip(bedL+i*cell+1,y0+lightH,cell-2,bedH-lightH-2,()=>{
           const yoff=potLift(sl); ctx.save(); ctx.translate(0,-yoff);
           if(kind==='pot') bucketPot(sl.x,sl.y,sl.ppm); else soilMound(sl.x,sl.y,sl.ppm);
           drawPlantAt(p,null,sl,now); ctx.restore();
@@ -1036,7 +1039,7 @@ window.R=(function(){
       const im=bedIM['light-'+spot]||bedIM['light-garage']; if(!im||!im.naturalWidth) return;
       // The sprite's bar is the lower half (about 8:1). Its built-in chains are a couple of pixels wide, so draw two short cables up to the bed top and the bar art beneath them.
       const srcY=Math.round(im.naturalHeight*.5), srcH=im.naturalHeight-srcY;
-      const fh=Math.max(16,lightH-10), fw=Math.min(W-32, fh*im.naturalWidth/srcH), cx=W/2, top=y0+8;
+      const fh=Math.max(16,lightH-10), fw=Math.min(bedR-bedL-16, fh*im.naturalWidth/srcH), cx=(bedL+bedR)/2, top=y0+8;
       const x0=cx-fw/2, xL=x0+fw*(16/im.naturalWidth), xR=x0+fw*(238/im.naturalWidth);
       ctx.strokeStyle='rgba(198,204,210,.95)'; ctx.lineWidth=2.25; ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo(xL,y0+1); ctx.lineTo(xL,top+2); ctx.moveTo(xR,y0+1); ctx.lineTo(xR,top+2); ctx.stroke();
@@ -1049,8 +1052,9 @@ window.R=(function(){
       let h=Math.min(56,bottom-top-2);
       let widths=use.map(k=>h*bedIM[k].naturalWidth/bedIM[k].naturalHeight);
       let sum=widths.reduce((a,b)=>a+b,0)+(use.length-1)*8;
-      if(sum>W-12){ const sc=(W-12)/sum; h*=sc; widths=widths.map(w=>w*sc); }
-      let x=6, feet=bottom-1;
+      const left=spot==='gh'?bedL:6, right=spot==='gh'?bedR:W-6, room=right-left;
+      if(sum>room){ const sc=room/sum; h*=sc; widths=widths.map(w=>w*sc); }
+      let x=left, feet=bottom-1;
       use.forEach((k,i)=>{ const w=widths[i]; ctx.drawImage(bedIM[k],x,feet-h,w,h); x+=w+8; });
     }
   }
