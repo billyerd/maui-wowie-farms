@@ -5,16 +5,11 @@
     document.documentElement.classList.add('mock-cam','mock-upgrades');
     window.__paused=true;
     const root=document.createElement('div'); root.id='upgMock';
-    root.innerHTML=`<header><h2>Upgrades</h2><p>Gear for each room. Harvest, water, and feed for the whole room live here.</p></header>
-      <div class="qa">
-        <button type="button"><span class="ico ico-scythe"></span>Harvest all<small>This room</small></button>
-        <button type="button" class="locked" disabled><span class="ico ico-lock"></span>Water all<small>Needs garden hose</small></button>
-        <button type="button" class="gold"><span class="ico ico-feed"></span>Feed all<small>Free</small></button>
-      </div>
+    root.innerHTML=`<header><h2>Upgrades</h2><p>Buy gear for each room. Harvest, water, and feed stay on the room button.</p></header>
       <div class="body" id="upgBody"></div>`;
     document.body.appendChild(root);
     const groups=[
-      ['Water + feed','Water all stays locked until the garden hose is yours. Feed all is already free.',[
+      ['Water + feed','The garden hose unlocks Water all on the room button. Feed all is already free.',[
         ['Garden hose','Unlocks Water all for the room you are in.','$40',0,'drop'],
         ['Feed tank','One free feed at halfway. Feed all needs no purchase.','Owned',1,'water-barrel.png']
       ]],
@@ -74,6 +69,20 @@
       b.onclick=()=>{ location.search='?mock='+mock+'&spot='+id; }; nav.appendChild(b);
     });
     document.body.appendChild(nav);
+  }
+  if(mock==='beds'){
+    const fab=document.createElement('div'); fab.id='qaFab';
+    fab.innerHTML=`<div class="qa-pop">
+        <button type="button" class="go"><span class="ico ico-scythe"></span>Harvest all</button>
+        <button type="button" class="locked" disabled><span class="ico ico-lock"></span>Water all<small>Needs garden hose</small></button>
+        <button type="button" class="feed"><span class="ico ico-feed"></span>Feed all</button>
+      </div>
+      <button type="button" class="qa-main" aria-label="Harvest, water, and feed"><span class="ico ico-up"></span></button>`;
+    fab.querySelector('.qa-main').onclick=()=>fab.classList.toggle('open');
+    if(q.get('qa')==='open') fab.classList.add('open');
+    document.body.appendChild(fab);
+    const bar=document.getElementById('toolbar');
+    if(bar){ const top=bar.getBoundingClientRect().top; if(top>40) fab.style.bottom=(innerHeight-top+8)+'px'; }
   }
   const ids=['maui-wowie','granddaddy-purple','northern-lights','durban-poison','kauai-electric'];
   function arm(){

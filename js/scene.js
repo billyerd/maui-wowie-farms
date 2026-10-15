@@ -979,9 +979,13 @@ window.R=(function(){
     const tab=36;
     const bar=document.getElementById('toolbar');
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
+    // The quick-action button sits in the bottom-right, above the nav, so the beds stop short of it.
+    const fabMain=document.querySelector('#qaFab .qa-main');
+    const fabTop=fabMain&&fabMain.getBoundingClientRect().height>20?fabMain.getBoundingClientRect().top:barTop;
+    const bedsLimit=Math.min(barTop, fabTop-8);
     // One ceiling bar for the lit rooms. The greenhouse keeps its open farm view and no fixture.
     const lit=spot!=='gh', ceilH=lit?50:0;
-    const bedsTop=spot==='gh'?Math.round(H*0.16):tab+ceilH, bedsH=Math.max(40,barTop-bedsTop);
+    const bedsTop=spot==='gh'?Math.round(H*0.16):tab+ceilH, bedsH=Math.max(40,bedsLimit-bedsTop);
     // Upgrades live on their own tab, so each bed uses the width. Indoor is 5 rows of 8.
     const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
     const edge=spot==='gh'?0.04:0.012;
@@ -997,7 +1001,7 @@ window.R=(function(){
       : snaps.find(s=>s<=widthMax && head+s+0.32*(s/Hm)+22<=bedH)
     )||40;
     const ppm=plantH/Hm;
-    window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per;
+    window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per; window.__bedLimit=Math.round(bedsLimit);
     const bg=bedIM['bg-'+spot];
     if(bg&&bg.naturalWidth){ ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; const s=Math.max(W/bg.naturalWidth,H/bg.naturalHeight), dw=bg.naturalWidth*s, dh=bg.naturalHeight*s; ctx.drawImage(bg,(W-dw)/2,(H-dh)/2,dw,dh); }
     else { ctx.fillStyle=spot==='garage'?'#16120e':spot==='gh'?'#1a2416':'#10141a'; ctx.fillRect(0,0,W,H); }
