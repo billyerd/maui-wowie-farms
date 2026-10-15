@@ -979,10 +979,8 @@ window.R=(function(){
     const tab=36, gearH=78, lightH=spot==='gh'?32:42;
     const bar=document.getElementById('toolbar');
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
-    const gearTop=Math.round(barTop-gearH);
-    // The greenhouse photo's island view is the top quarter. Leave that band under the tabs empty.
-    const bedsTop=spot==='gh'?Math.max(tab, Math.round(H*0.22)):tab, bedsH=Math.max(40,gearTop-bedsTop);
-    const nBeds=spot==='gh'?4:5, per=spot==='indoor'?8:spot==='gh'?9:5;
+    const gearTop=Math.round(barTop-gearH), bedsTop=tab, bedsH=Math.max(40,gearTop-bedsTop);
+    const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
     const bedH=bedsH/nBeds, cell=W/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
@@ -1001,7 +999,7 @@ window.R=(function(){
       bedsFresh();
       if(spot==='garage') drawGarageShelf(soil,0,W);
       else if(spot==='indoor') drawIndoorRack(soil,0,W);
-      else drawRaisedBed(soil,0,W);
+      // Greenhouse plants sit on the photo's dirt floor. The metal poles and topper are in that photo.
       const glow=ctx.createLinearGradient(0,y0+lightH-2,0,soil+6);
       glow.addColorStop(0,spot==='gh'?'rgba(255,236,190,.20)':'rgba(255,246,220,.34)');
       glow.addColorStop(1,'rgba(255,246,220,0)');
@@ -1033,12 +1031,6 @@ window.R=(function(){
     function drawIndoorRack(y,x0,x1){
       ctx.fillStyle='#2a3036'; const step=Math.max(48,(x1-x0)/8); for(let x=x0+8;x<x1-6;x+=step) ctx.fillRect(x,y+4,3,18);
       ctx.fillStyle='#8d959e'; ctx.fillRect(x0,y-1,x1-x0,6); ctx.fillStyle='#e4eaf0'; ctx.fillRect(x0,y-1,x1-x0,2); ctx.fillStyle='#525a64'; ctx.fillRect(x0,y+5,x1-x0,3);
-    }
-    function drawRaisedBed(y,x0,x1){
-      ctx.fillStyle='#6a645c'; ctx.fillRect(x0,y+10,x1-x0,16);
-      ctx.fillStyle='#8c857b'; for(let i=x0+2;i<x1;i+=9) ctx.fillRect(i,y+13+(i%5),3,2);
-      ctx.fillStyle='#3c2616'; ctx.fillRect(x0+8,y-3,x1-x0-16,8);
-      ctx.fillStyle='#7a4e2c'; ctx.fillRect(x0+2,y+4,x1-x0-4,12); ctx.fillStyle='#c48a56'; ctx.fillRect(x0+2,y+4,x1-x0-4,3); ctx.fillStyle='#4e3018'; ctx.fillRect(x0+2,y+14,x1-x0-4,3);
     }
     function hangLight(spot,y0,soil){
       const im=bedIM['light-'+spot]||bedIM['light-garage']; if(!im||!im.naturalWidth) return;
