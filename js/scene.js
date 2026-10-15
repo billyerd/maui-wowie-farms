@@ -979,8 +979,10 @@ window.R=(function(){
     const tab=36, gearH=78, lightH=spot==='gh'?32:42;
     const bar=document.getElementById('toolbar');
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
-    const gearTop=Math.round(barTop-gearH), bedsTop=tab, bedsH=Math.max(40,gearTop-bedsTop);
-    const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
+    const gearTop=Math.round(barTop-gearH);
+    // The greenhouse photo's island view is the top quarter. Leave that band under the tabs empty.
+    const bedsTop=spot==='gh'?Math.max(tab, Math.round(H*0.22)):tab, bedsH=Math.max(40,gearTop-bedsTop);
+    const nBeds=spot==='gh'?4:5, per=spot==='indoor'?8:spot==='gh'?9:5;
     const bedH=bedsH/nBeds, cell=W/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
@@ -988,9 +990,9 @@ window.R=(function(){
     const maxH=Math.min(bedH-lightH-28, Math.floor((cell-8)/0.70));
     const plantH=snaps.find(s=>s<=maxH)||40;
     const ppm=plantH/Hm;
-    window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot;
+    window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per;
     const bg=bedIM['bg-'+spot];
-    if(bg&&bg.naturalWidth){ const s=Math.max(W/bg.naturalWidth,H/bg.naturalHeight), dw=bg.naturalWidth*s, dh=bg.naturalHeight*s; ctx.drawImage(bg,(W-dw)/2,(H-dh)/2,dw,dh); }
+    if(bg&&bg.naturalWidth){ ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; const s=Math.max(W/bg.naturalWidth,H/bg.naturalHeight), dw=bg.naturalWidth*s, dh=bg.naturalHeight*s; ctx.drawImage(bg,(W-dw)/2,(H-dh)/2,dw,dh); }
     else { ctx.fillStyle=spot==='garage'?'#16120e':spot==='gh'?'#1a2416':'#10141a'; ctx.fillRect(0,0,W,H); }
     ctx.fillStyle='rgba(4,8,6,.22)'; ctx.fillRect(0,0,W,H);
     for(let r=0;r<nBeds;r++){
