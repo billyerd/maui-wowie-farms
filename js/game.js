@@ -213,7 +213,7 @@ window.G = (function(){
   function plotScore(p){ return quality(p)*(p.zone==='in'?.97:1); }
   const GRADE=[1,1.5,2.5,3.75], GRADE_L=['','Indoor AAA','Mutant','Indoor AAA Mutant'];
   function gradeLabel(g){ return GRADE_L[g]||''; }
-  function invCount(stage){ return Object.values(st.inv[stage]).reduce((a,b)=>a+b,0); }
+  function invCount(stage){ const bag=st.inv&&st.inv[stage]; if(!bag||typeof bag!=='object'||Array.isArray(bag)) return 0; return Object.values(bag).reduce((a,b)=>a+(typeof b==='number'&&isFinite(b)?b:0),0); }
   // ---------- reputation, mastery, sets ----------
   const REP=[{n:'Backyard Grower',at:0,b:0},{n:'Local Favorite',at:40,b:.05},{n:'North Shore Name',at:250,b:.10},{n:'Island Famous',at:1200,b:.18},{n:'Legendary Grower',at:5000,b:.30}];
   function addRep(n){ if(!F.repTiers) return; if(festOn('aloha')) n*=2; const t0=repTier(); st.rep+=n; const t1=repTier(); if(t1>t0) emit('rep',{tier:t1,r:REP[t1]}); }
@@ -328,7 +328,7 @@ window.G = (function(){
   function goodPrice(key){ const [t,id,c,q]=key.split('|'); const s=strain(id), C=CRAFT[t]; return (boostLeft('price')>0?2:1)*s.game.budValue*C.need*C.mult*(QMULT[q]||1)*(+c?STAGE_MULT.cured:1)*st.market.f[id]*mastery(id).m*earnMult()*(boostOn('price')?1.5:1)*(festOn('leiday')?1.15:1)*(evFx('swell')?1.25:1); }
   function sellGood(key,n){ const have=st.goods[key]||0; n=Math.min(n==null?have:n,have); if(n<=0) return 0; const v=goodPrice(key)*n; st.goods[key]-=n; if(st.goods[key]<=0) delete st.goods[key];
     addCash(v,'sale'); addXP(Math.max(1,Math.round(n*2))); addRep(n*.08); bump('goodsSold',n); emit('sold',{v,n,id:key.split('|')[1],good:true}); return v; }
-  function goodsCount(){ return Object.values(st.goods||{}).reduce((a,b)=>a+b,0); }
+  function goodsCount(){ const bag=st.goods; if(!bag||typeof bag!=='object'||Array.isArray(bag)) return 0; return Object.values(bag).reduce((a,b)=>a+(typeof b==='number'&&isFinite(b)?b:0),0); }
   // ---------- availability / mystery strains ----------
   function refreshUnlocks(){
     S.forEach(s=>{ if(st.discovered[s.id]||s.mystery||EVENT_ONLY[s.id]) return; if(st.level>=s.game.unlockLevel) discover(s.id,true); });
@@ -421,8 +421,8 @@ window.G = (function(){
   // of that grow (it does not drain) and restores the fed bonuses. Before halfway there is no penalty.
   function feedCost(){ return 0; }
   function feed(p,auto){ if(!p||!p.strain||p.prog>=1||p.prog<.5||p.food>0) return false; p.food=1; bump('feed'); if(!auto) done('feed'); emit('feed',p); return true; }
-  function quality(p){ let q=p.q; { const K=st.keepers&&st.keepers[p.strain]; if(K) q+=K.q; q*=lineGen(p.strain)>=LINE.stable?1:lineMult(p.strain); } if(p.zone==='in') q+=.1+.06*lv('hvac'); if(p.zone==='garage') q+=.03*lv('fan')+.02*lv('oscfan')+.05*lv('phkit'); if(p.zone==='gh') q+=.04*lv('shade')+.03*lv('cooler'); if(lv('water')>=4) q+=.03; if(lv('nutes')>=3) q+=.05; return Math.max(.5,q); }
-  function yieldMult(p){ const z=ZONE[p.zone]; let y=z.yield; { const K=st.keepers&&st.keepers[p.strain]; if(K) y*=K.y; y*=lineMult(p.strain); } if(p.zone==='garage') y*=1+.05*lv('light'); if(p.zone==='in'&&lv('fert')) y*=1.1; if(p.zone==='gh'||p.zone==='field') y*=1+.2*lv('beds');  if(lv('nutes')>=3) y*=1.15; if(setDone('dessert')) y*=1.1; return y; }
+  function quality(p){ let q=p.q; { const K=keeperRec(p.strain); if(K&&typeof K.q==='number') q+=K.q; q*=lineGen(p.strain)>=LINE.stable?1:lineMult(p.strain); } if(p.zone==='in') q+=.1+.06*lv('hvac'); if(p.zone==='garage') q+=.03*lv('fan')+.02*lv('oscfan')+.05*lv('phkit'); if(p.zone==='gh') q+=.04*lv('shade')+.03*lv('cooler'); if(lv('water')>=4) q+=.03; if(lv('nutes')>=3) q+=.05; return Math.max(.5,q); }
+  function yieldMult(p){ const z=ZONE[p.zone]; let y=z.yield; { const K=keeperRec(p.strain); if(K&&typeof K.y==='number') y*=K.y; y*=lineMult(p.strain); } if(p.zone==='garage') y*=1+.05*lv('light'); if(p.zone==='in'&&lv('fert')) y*=1.1; if(p.zone==='gh'||p.zone==='field') y*=1+.2*lv('beds');  if(lv('nutes')>=3) y*=1.15; if(setDone('dessert')) y*=1.1; return y; }
   function mgrCovers(l){ return wk('farmhand')>0||(l==='garage'&&wk('mgrG')>0)||(l==='farm'&&wk('mgrF')>0)||(l==='indoor'&&wk('mgrI')>0); }
   function offColCap(){ return (8+4*lv('water'))*3600; }   // upgradable via Watering
   function harvest(p){
@@ -473,7 +473,7 @@ window.G = (function(){
   function isNight(){ const t=(st.time%DAY_LEN)/DAY_LEN; return t<.2||t>.8; }
   function dayPhase(){ return (st.time%DAY_LEN)/DAY_LEN; }
   function growRate(p,offline){
-    const s=strain(p.strain); let r=1/s.game.growSec; { const K=st.keepers&&st.keepers[p.strain]; if(K) r*=K.g; }
+    const s=strain(p.strain); let r=1/s.game.growSec; { const K=keeperRec(p.strain); if(K&&typeof K.g==='number') r*=K.g; }
     const z=ZONE[p.zone];
     if(!st.stats.harvests) r*=3;   // fast first harvest (~10 s) for the guided first minute
     if(p.zone==='garage') r*=(1+.125*lv('light'))*(1+.05*lv('timer'));
@@ -724,8 +724,14 @@ window.G = (function(){
   function linePresent(id){ const bag=lineBag(); return !!(bag&&Object.prototype.hasOwnProperty.call(bag,id)); }
   function lineOf(id){ return linePresent(id)?lineRecord(lineBag()[id],true):null; }
   function eachLine(){ const bag=lineBag(); if(!bag) return []; return Object.keys(bag).map(k=>[k,lineRecord(bag[k],true)]); }
-  function healLines(map){ const src=map&&typeof map==='object'&&!Array.isArray(map)?map:{}; const out={}; Object.keys(src).forEach(k=>{ if(typeof k==='string'&&k) out[k]=lineRecord(src[k],true); }); return out; }
+  // Load drops nulls, strings, and arrays. A number or {g}/{gen} object is a real record. A missing key stays commercial F6.
+  function healLines(map){ const src=map&&typeof map==='object'&&!Array.isArray(map)?map:{}; const out={};
+    Object.keys(src).forEach(k=>{ if(typeof k!=='string'||!k) return; const v=src[k];
+      if(typeof v==='number'&&isFinite(v)) out[k]=lineRecord(v,true);
+      else if(v&&typeof v==='object'&&!Array.isArray(v)) out[k]=lineRecord(v,true);
+    }); return out; }
   function healKeepers(map){ const src=map&&typeof map==='object'&&!Array.isArray(map)?map:{}; const out={}; Object.keys(src).forEach(k=>{ const v=src[k]; if(v&&typeof v==='object'&&!Array.isArray(v)) out[k]=v; }); return out; }
+  function keeperRec(id){ const K=st.keepers&&st.keepers[id]; return K&&typeof K==='object'&&!Array.isArray(K)?K:null; }
   function lineGen(id){ const rec=lineOf(id); return rec?rec.gen:LINE.max; }
   function lineName(id){ const rec=lineOf(id), g=rec?rec.gen:LINE.max; return rec&&rec.heir?'Heirloom (F6)':g>=LINE.max?'IBL (F6)':'F'+g+(g>=LINE.stable?' stable':' unstable'); }
   function lineMult(id){ const rec=lineOf(id); if(!rec) return 1; const g=rec.gen; return rec.heir?HEIR.mult:g>=LINE.max?1.06:g>=LINE.stable?1.03:.86+.04*g; }
@@ -742,7 +748,7 @@ window.G = (function(){
   function canCertify(id){ const L=lineOf(id); return !!(L&&L.gen>=LINE.max&&!L.heir&&st.breedLab&&!st.cert); }
   function startCertify(id){ if(!canCertify(id)){ emit('toast',{t:st.cert?'The seed bank is already certifying a line':'Only F6 (IBL) lines can be certified, in the Breeding Pheno Room',k:'bad'}); return false; }
     if(!spend(heirCost(id))) return false; st.cert={id,t:0,dur:HEIR.sec}; emit('certstart',id); save(); return true; }
-  function tickCert(dt){ const C=st.cert; if(!C) return; C.t+=dt; if(C.t<C.dur) return; st.cert=null; const L=st.lines[C.id]; if(L){ L.heir=Date.now(); } bump('heirlooms'); emit('heirloom',{id:C.id,n:heirCount()}); checkVault(); }
+  function tickCert(dt){ const C=st.cert; if(!C) return; C.t+=dt; if(C.t<C.dur) return; st.cert=null; const L=st.lines&&st.lines[C.id]; if(L&&typeof L==='object'&&!Array.isArray(L)){ L.heir=Date.now(); } bump('heirlooms'); emit('heirloom',{id:C.id,n:heirCount()}); checkVault(); }
   function checkVault(){ st.vault=st.vault||{}; const n=heirCount(); VAULT.forEach((v,i)=>{ if(n>=v.n&&!st.vault[i]){ st.vault[i]=1; emit('vault',v); } }); }
   function claimVault(i){ st.vault=st.vault||{}; if(st.vault[i]!==1) return false; st.vault[i]=2; grantReward(VAULT[i].r,'Seed Vault'); emit('vaultclaim',VAULT[i]); save(); return true; }
   function legendaryGate(s,a,b){ if(!s||s.tier<4) return null; if(!st.breedLab) return 'Legendary recipes need the Breeding Pheno Room';
@@ -757,9 +763,9 @@ window.G = (function(){
   function triedResult(a,b){ return st.tried[pairKey(a,b)]; } // undefined | 'dud' | strain id
   const FAM=[['Hawaiian',/hawai|maui|kona|puna|kauai/i],['Kush',/kush|og\b|ogkb|bubba|hindu/i],['Cookies',/cookie|gsc|gelato|biscotti|mints|cake|sherb|sherbert|runtz|zkittlez|original z|wife|y life/i],['Diesel / Chem',/diesel|chem|gmo|gasoline|dawg/i],['Purple',/purple|grape|granddaddy|purps|punch|uva|ape/i],['Fruit',/apple|banana|cherry|papaya|guava|tropic|clementine|lemon|grapefruit|mimosa|blueberry|berry/i],['Skunk / Haze',/skunk|haze|durban|thai|african|colombian|afghani|durb/i],['Breath',/breath|mendo|dosi|do-si|face off/i]];
   function familyOf(name){ for(const [f,re] of FAM) if(re.test(name)) return f; return 'Heirloom'; }
-  function vagueHint(s){ if(!s.parents.length) return null; const f=s.parents.map(familyOf); return s.parents.length===1?'Parents: a '+f[0]+' line crossed with itself':'Parents: one '+f[0]+', one '+f[1]; }
+  function vagueHint(s){ if(!s||!Array.isArray(s.parents)||!s.parents.length) return null; const f=s.parents.map(familyOf); return s.parents.length===1?'Parents: a '+f[0]+' line crossed with itself':'Parents: one '+f[0]+', one '+f[1]; }
   function hintLevel(s){ // 0 nothing, 1 vague family hint, 2+ exact parents revealed by tokens
-    const r=st.hintRev[s.id]||0; if(r) return 1+r; return st.level>=s.game.unlockLevel-4||st.fails>=4?1:0; }
+    const rev=st.hintRev&&typeof st.hintRev==='object'&&!Array.isArray(st.hintRev)?st.hintRev:{}; const r=rev[s.id]||0; if(r) return 1+r; return st.level>=s.game.unlockLevel-4||st.fails>=4?1:0; }
   function useHint(id){ const s=strain(id); if(!s||st.discovered[id]||!s.mystery) return false; const r=st.hintRev[id]||0; if(r>=Math.min(2,s.parents.length)) return false; if(st.hints<1){ emit('toast',{t:'No hint tokens. Earn them from quests, events and failed crosses',k:'bad'}); return false; } st.hints--; st.hintRev[id]=r+1; emit('hint',{s,r:r+1}); return true; }
   function cloneCost(name){ return 300; }
   function buyClone(name){ if(st.clones[name]) return false; if(!spend(cloneCost(name))) return false; st.clones[name]=true; emit('clone',name); return true; }
@@ -781,13 +787,14 @@ window.G = (function(){
     for(let i=0;i<H.n;i++) out.push({k:'#'+(i+1),y:rd(r(.85,1.18+.06*L)),q:rd(r(-.05,.07+.03*L)),g:rd(r(.9,1.12+.04*L)),terp:TERPS[Math.floor(Math.random()*TERPS.length)],h:r(.75,1.15)});
     return out; }
   function phenoScore(x){ return (x.y-1)+(x.q*2)+(x.g-1); }
-  function keepPheno(i){ const H=st.hunt; if(!H||!H.phenos||!H.phenos[i]) return false; const x=H.phenos[i]; st.keepers[H.id]=Object.assign({at:Date.now()},x); st.hunt=null; if(st.lines&&st.lines[H.id]&&st.lines[H.id].gen<LINE.max){ st.lines[H.id].gen++; emit('linegen',{id:H.id,gen:st.lines[H.id].gen}); } bump('keepers'); emit('keeper',{id:H.id,x}); return true; }
+  function keepPheno(i){ const H=st.hunt; if(!H||!H.phenos||!H.phenos[i]) return false; const x=H.phenos[i]; st.keepers[H.id]=Object.assign({at:Date.now()},x); st.hunt=null;
+    const rec=lineOf(H.id); if(rec&&rec.gen<LINE.max){ const bag=lineBag()||(st.lines={}); bag[H.id]=Object.assign({},rec,{gen:rec.gen+1}); emit('linegen',{id:H.id,gen:bag[H.id].gen}); } bump('keepers'); emit('keeper',{id:H.id,x}); return true; }
   function dropHunt(){ if(!st.hunt||!st.hunt.phenos) return false; st.hunt=null; return true; }
   // cuttings from a mother: snip a few tips, root them in a clone dome (rooting cubes ~$2 each), they come out as rooted clones
   // that plant 10% grown and carry the mother's traits. A mother needs a rest between snips; the Breeding Pheno Room roots faster.
   const CUT={n:4,cost:2,rest:180,root:90};
-  function cutState(id){ const K=st.keepers&&st.keepers[id]; if(!K) return null; const now=Date.now(); return {ready:!(K.next>now), wait:Math.max(0,((K.next||0)-now)/1000)}; }
-  function takeCuttings(id){ const K=st.keepers&&st.keepers[id]; if(!K) return false; const c=cutState(id); if(!c.ready){ emit('toast',{t:'This mother needs to regrow before you snip again',k:'bad'}); return false; }
+  function cutState(id){ const K=keeperRec(id); if(!K) return null; const now=Date.now(); return {ready:!(K.next>now), wait:Math.max(0,((K.next||0)-now)/1000)}; }
+  function takeCuttings(id){ const K=keeperRec(id); if(!K) return false; const c=cutState(id); if(!c.ready){ emit('toast',{t:'This mother needs to regrow before you snip again',k:'bad'}); return false; }
     const n=CUT.n+(st.breedLab?2:0); if(!spend(CUT.cost*n)) return false; K.next=Date.now()+CUT.rest*1000; K.cut=(K.cut||0)+n;
     st.cuts=st.cuts||[]; st.cuts.push({id,n,t:0,dur:Math.round(CUT.root*(st.breedLab?.6:1))}); bump('cuttings',n); emit('cuttings',{id,n}); return true; }
   function tickCuts(dt){ if(!st.cuts||!st.cuts.length) return; for(const c of st.cuts) c.t+=dt; const done_=st.cuts.filter(c=>c.t>=c.dur); if(!done_.length) return;
@@ -983,7 +990,7 @@ window.G = (function(){
   }
   // Never soft-lock: if broke with nothing growing, nothing to sell and no seeds, Unko Kuli drops off free starter seeds.
   function safetyNet(){
-    if(st.cash>=1) return; if(Object.values(st.seeds).some(n=>n>0)) return; if(st.plots.some(p=>p.strain)) return;
+    if(st.cash>=1) return; const seedBag=st.seeds&&typeof st.seeds==='object'&&!Array.isArray(st.seeds)?st.seeds:{}; if(Object.values(seedBag).some(n=>typeof n==='number'&&n>0)) return; if(st.plots.some(p=>p.strain)) return;
     if(invCount('wet')+invCount('dry')+invCount('cured')>0||st.dryer.length) return;
     st.seeds['northern-lights']=(st.seeds['northern-lights']||0)+3; st.selSeed='northern-lights'; emit('toast',{t:'Unko Kuli dropped off 3 free Northern Lights seeds. Keep growing!',k:'good'}); emit('seeds',{id:'northern-lights',n:3});
   }
@@ -1098,10 +1105,17 @@ window.G = (function(){
     const asMap=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:{};
     ['orders','cust','dryer','cuts','craft'].forEach(k=>{ st[k]=asList(st[k]); });
     ['goods','clones','keepers','lines','tried','recipes','harv','upkeepWarn','hintRev','cutSeeds','seeds','workers','upg','boosts','fest','lb','sets','manaSpent'].forEach(k=>{ st[k]=asMap(st[k]); });
+    const keepMap=(v,ok)=>{ const src=v&&typeof v==='object'&&!Array.isArray(v)?v:{}; const out={}; Object.keys(src).forEach(k=>{ if(typeof k==='string'&&k&&ok(src[k])) out[k]=src[k]; }); return out; };
+    const numOk=v=>typeof v==='number'&&isFinite(v);
+    ['seeds','harv','cutSeeds','workers','upg','hintRev','boosts','goods','manaSpent'].forEach(k=>{ st[k]=keepMap(st[k], numOk); });
+    ['wet','dry','cured'].forEach(k=>{ st.inv[k]=keepMap(st.inv[k], numOk); });
+    st.tried=keepMap(st.tried, v=>typeof v==='string'&&v);
+    st.recipes=keepMap(st.recipes, v=>typeof v==='string'&&v);
+    st.clones=keepMap(st.clones, v=>v===true||v===1);
     st.lines=healLines(st.lines);
     st.keepers=healKeepers(st.keepers);
     if(Array.isArray(raw.discovered)){ st.discovered={}; raw.discovered.forEach(id=>{ if(typeof id==='string') st.discovered[id]=true; }); }
-    else st.discovered=asMap(st.discovered);
+    else st.discovered=keepMap(asMap(st.discovered), v=>v!=null&&v!==false);
     if(typeof st.cash!=='number'||!isFinite(st.cash)) st.cash=0;
     if(typeof st.gems!=='number'||!isFinite(st.gems)) st.gems=0;
     if(typeof st.level!=='number'||!isFinite(st.level)||st.level<1) st.level=1;
@@ -1249,7 +1263,10 @@ window.G = (function(){
     if(k==='breed') st.breed.t=st.breed.dur; else if(k==='hunt') st.hunt.t=st.hunt.dur; else if(k==='cert') st.cert.t=st.cert.dur; else if(k==='cut') st.cuts[i].t=st.cuts[i].dur; else if(k==='dry') st.dryer[i].t=st.dryer[i].dur; else if(k==='craft') st.craft[i].T=st.craft[i].dur;
     tickBreed(0); tickCraft(0); tickDryer(0); emit('rushed',t); save(); return true; }
   // breeding completion (strain web tracker) + a rough plan estimate for the pacing report
-  function breedProgress(){ const M=S.filter(s=>s&&s.mystery), disc=st.discovered&&typeof st.discovered==='object'&&!Array.isArray(st.discovered)?st.discovered:{}, d=M.filter(s=>disc[s.id]).length, L=eachLine(), stab=L.filter(([,v])=>v.gen>=LINE.stable).length, ibl=L.filter(([,v])=>v.gen>=LINE.max).length, heir=L.filter(([,v])=>v.heir).length;
+  function breedProgress(){ const M=S.filter(s=>s&&s.mystery), disc=st.discovered&&typeof st.discovered==='object'&&!Array.isArray(st.discovered)?st.discovered:{}, d=M.filter(s=>disc[s.id]).length;
+    const bag=st.lines&&typeof st.lines==='object'&&!Array.isArray(st.lines)?st.lines:{};
+    const L=Object.values(bag).filter(v=>v&&typeof v==='object'&&!Array.isArray(v)).map(v=>lineRecord(v,true)).filter(v=>v&&typeof v==='object'&&typeof v.gen==='number');
+    const stab=L.filter(v=>v.gen>=LINE.stable).length, ibl=L.filter(v=>v.gen>=LINE.max).length, heir=L.filter(v=>v.heir).length;
     return {mystery:M.length, found:d, all:S.length, known:Object.keys(disc).length, lines:L.length, stable:stab, ibl, heir, pct:M.length?Math.round(100*(d+stab+heir)/(3*M.length)):0}; }
   function breedPlanEstimate(o){ o=Object.assign({sessionsPerDay:4,labLv:1},o||{}); // real days, assuming the Breeding Pheno Room, ~4 check-ins a day and the lab upgrades bought over time
     const lab=.6, pol=Math.pow(.85,2), tis=Math.pow(.8,2), gap=24*3600/o.sessionsPerDay/2; let sec=0, n=0;

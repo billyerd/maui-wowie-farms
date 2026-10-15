@@ -109,16 +109,13 @@ function bookOk(label){
   const tabs = els.sheetTabs._html;
   const title = els.sheetTitle.textContent;
   assert(!body.includes(FAIL), label + ' showed the save-error page');
-  assert(tabs.includes('Web') && tabs.includes('List'), label + ' tabs were ' + tabs);
+  assert(!tabs.includes('Web') && !tabs.includes('List'), label + ' still has a Web/List toggle: ' + tabs);
+  assert(!body.includes('id="strainWeb"') && !body.includes('id="webFit"'), label + ' still mounts the web');
   assert(title === 'Strain Book', label + ' title was ' + title);
-  assert(!!els.strainWeb, label + ' did not mount the strain web');
   assert(body.includes('Breeding completion'), label + ' did not render breeding progress');
+  assert(body.includes('class="sbook"') && body.includes('class="sgen"') && body.includes('class="srow'), label + ' list did not render generation rows');
+  assert(body.includes('class="schips"'), label + ' rows are missing parent chips');
   assert(errors.length === before, label + ' threw\n' + errors.slice(before).join('\n'));
-  sandbox.UI.open('book', 'list');
-  const list = els.sheetBody._html;
-  assert(!list.includes(FAIL), label + ' list tab showed the save-error page');
-  assert(list.includes('class="grid"'), label + ' list tab did not render cards');
-  assert(errors.length === before, label + ' list tab threw\n' + errors.slice(before).join('\n'));
 }
 
 function boot(file){
@@ -149,12 +146,13 @@ boot('mid-strain-save.json');
 const lines = sandbox.G.st.lines;
 assert(lines['maui-wowie'] && lines['maui-wowie'].gen === 2, 'maui-wowie {g:2} did not become gen 2');
 assert(lines['northern-lights'] && lines['northern-lights'].gen === 2, 'numeric line did not become {gen:2}');
-assert(lines['blue-dream'] && lines['blue-dream'].gen === 1, 'null line did not default to F1');
+assert(!lines['blue-dream'], 'null line was not dropped on load');
+assert(sandbox.G.lineGen('blue-dream') === sandbox.G.LINE.max, 'a dropped null line should read as a missing commercial line');
 assert(!sandbox.G.st.keepers['maui-wowie'], 'string keeper should be dropped on load');
 assert(sandbox.G.lineName('maui-wowie') === 'F2 unstable', 'line name was ' + sandbox.G.lineName('maui-wowie'));
 assert(sandbox.G.lineGen('og-kush') === sandbox.G.LINE.max, 'undiscovered line slot should stay commercial');
 prog = sandbox.G.breedProgress();
-assert(prog.stable === 0 && prog.lines === 3, 'mid progress counted ' + prog.stable + ' stable / ' + prog.lines + ' lines');
+assert(prog.stable === 0 && prog.lines === 2, 'mid progress counted ' + prog.stable + ' stable / ' + prog.lines + ' lines');
 sandbox.G.st.lines.gelato = { gen: 6, heir: 123, at: 1 };
 assert(sandbox.G.lineName('gelato') === 'Heirloom (F6)', 'a normal heirloom record was ' + sandbox.G.lineName('gelato'));
 assert(sandbox.G.lineMult('gelato') === sandbox.G.HEIR.mult, 'heirloom multiplier changed');
@@ -174,11 +172,24 @@ assert(sandbox.G.lineGen('gelato') === 4, 'live numeric line did not read as gen
 assert(sandbox.G.lineGen('blue-dream') === 1, 'live null line did not read as F1');
 bookOk('mid live bad records');
 sandbox.UI.open('book');
-sandbox.StrainWeb.select('maui-wowie');
-assert(!els.webCard._html.includes(FAIL), 'selecting a strain with a string keeper blanked the page');
-assert(els.webCard._html.includes('Kept mother'), 'strain card did not render');
-assert(els.webCard._html.includes('none'), 'string keeper was shown as a mother');
-assert(!errors.length, 'selecting a strain threw\n' + errors.join('\n'));
+const row = els.sheetBody._html;
+const maui = row.slice(row.indexOf('data-id="maui-wowie"') - 80, row.indexOf('data-id="maui-wowie"') + 220);
+assert(!row.includes(FAIL), 'a string keeper blanked the strain list');
+assert(maui.includes('Kept mother'), 'maui-wowie row did not render');
+assert(maui.includes('none'), 'string keeper was shown as a mother');
+assert(!maui.includes('best'), 'string keeper text leaked into the row');
+assert(typeof sandbox.StrainWeb === 'undefined', 'StrainWeb should be gone');
+assert(!errors.length, 'opening the list threw\n' + errors.join('\n'));
+
+const boom = sandbox.G.breedProgress;
+sandbox.G.breedProgress = function breedProgress(){ throw new TypeError('boom'); };
+sandbox.UI.open('book');
+assert(els.sheetBody._html.includes(FAIL), 'a thrown render did not show the save-error page');
+assert(/TypeError [A-Za-z0-9_.-]+\.js:\d+/.test(els.sheetBody._html), 'error page missed name and file:line: ' + els.sheetBody._html);
+assert(errors.some(e => /TypeError/.test(e) && /boom/.test(e)), 'the thrown error was not console.error-ed');
+sandbox.G.breedProgress = boom;
+sandbox.UI.open('book');
+assert(!els.sheetBody._html.includes(FAIL), 'the book stayed on the error page after the throw was fixed');
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log('strain book regression ok');

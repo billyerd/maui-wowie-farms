@@ -1001,7 +1001,7 @@ window.R=(function(){
     if(G.st.loc!==loc) setLoc(G.st.loc);
     stepPan(dt);
     drawBase(); // static backdrop comes from the cached blit only (a stray second drawWorldBase() here re-painted the full room art every frame)
-    const hasSeed=Object.values(st.seeds).some(n=>n>0);
+    const hasSeed=st.seeds&&typeof st.seeds==='object'&&Object.values(st.seeds).some(n=>typeof n==='number'&&n>0);
     const plots=st.plots.filter(p=>p.loc===loc); const list=[]; tags=[]; qbub=[]; bubBounds();
     const backs=[], fronts=[]; let signFn=null;
     if(loc==='garage'){

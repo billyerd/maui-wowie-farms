@@ -174,7 +174,7 @@ window.Tutorial=(function(){
   function sync(){ try{ const t=tut(); if(!t||!t.on||t.done) return; ensureBase(); const i=t.step|0; const step=STEPS[i]; if(step&&met(step)) advance(i); else paint(); }catch(e){} }
   function next(){ const t=tut(); if(!t) return; if((t.step|0)>=STEPS.length){ finish(); return; } advance(t.step|0); }
   function resumeStory(){ try{ if(window.UI&&UI.storyLine&&G.curQuest) UI.storyLine(G.curQuest()); }catch(e){} }
-  function skip(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=true; G.save(); hide(); if(window.UI&&UI.toast) UI.toast('Tutorial skipped. You can replay it in Settings.'); resumeStory(); }
+  function skip(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=true; G.save(); hide(); if(window.UI&&UI.brief) UI.brief('Tutorial skipped. You can replay it in Settings.'); else if(window.UI&&UI.toast) UI.toast('Tutorial skipped. You can replay it in Settings.'); resumeStory(); }
   function finish(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=false; t.step=STEPS.length; G.save(); hide(); resumeStory(); }
   function start(){ const t=tut(); if(!t) return; t.on=true; t.done=false; t.skip=false; t.step=0; t.bought=t.bought|0; snap(); G.save(); paint(); }
   function offer(){
