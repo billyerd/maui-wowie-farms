@@ -462,6 +462,13 @@ window.UI = (function(){
   function webGens(){ let max=0; if(WG) WG.nodes.forEach(n=>{ if((n.g||0)>max) max=n.g; }); const out=[]; for(let i=0;i<=max;i++) out.push(i); return out; }
   function webNodes(g){ const list=[]; if(!WG) return list; WG.nodes.forEach(n=>{ if((n.g||0)===g) list.push(n); });
     const label=n=>(n.s&&n.s.name)||n.name||''; list.sort((a,b)=>(a.kind==='p'?1:0)-(b.kind==='p'?1:0)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||label(a).localeCompare(label(b))); return list; }
+  function fitSplit(S,P,W,H){ const gap=4; let best=null; if(!P) return null;
+    for(let cols=3; cols<=8 && cols<=P; cols++){ const rows=Math.ceil(P/cols), cw=Math.floor((W-gap*(cols-1))/cols); if(cw<52) continue;
+      const minH=rows*40+(rows-1)*gap, room=S?H-minH-8:H; if(S?room<40:minH>H) continue;
+      const strain=S?pack(S,W,room):null; if(S&&!strain) continue;
+      const used=strain?strain.rows*strain.node+(strain.rows-1)*gap:0, left=H-used-(S?8:0), ch=Math.min(48, Math.floor((left-gap*(rows-1))/rows)); if(ch<40) continue;
+      const score=cw*10+ch+(strain?strain.node:0); if(!best||score>best.score) best={cols,rows,cw,ch,strain,gap}; }
+    return best; }
   function pack(n,W,H){ if(n<1||W<40||H<40) return null; const gap=4, labelH=14; let best=null;
     const maxCols=Math.min(n, Math.max(1, Math.floor((W+gap)/(40+gap))));
     for(let cols=1; cols<=maxCols; cols++){ const rows=Math.ceil(n/cols); const nodeW=Math.floor((W-gap*(cols-1))/cols); const nodeH=Math.floor((H-gap*(rows-1))/rows); const node=Math.min(nodeW, nodeH, 72); if(node<40) continue; const orb=node-labelH, labels=orb>=44;
@@ -485,13 +492,21 @@ window.UI = (function(){
   function webLayout(){ if(!WG) return; const grid=document.getElementById('strainWeb'); if(!grid) return; const box=innerBox(grid);
     if(box.w<40||box.h<40){ if(!grid._wait){ grid._wait=1; const raf=typeof requestAnimationFrame==='function'?requestAnimationFrame:null; if(raf) raf(()=>webLayout()); } return; } grid._wait=0;
     const nodes=webNodes(WEB.tier||0), fit=pack(nodes.length, box.w, box.h);
-    const sig=(WEB.tier||0)+'|'+box.w+'x'+box.h+'|'+nodes.length+'|'+discKey()+'|'+(fit?fit.cols+'x'+fit.node+(fit.labels?'L':''):'x');
+    const strains=nodes.filter(n=>n.kind!=='p'), pollen=nodes.filter(n=>n.kind==='p');
+    const split=fit&&!fit.labels&&pollen.length>12?fitSplit(strains.length, pollen.length, box.w, box.h):null;
+    const sig=(WEB.tier||0)+'|'+box.w+'x'+box.h+'|'+nodes.length+'|'+discKey()+'|'+(split?'S'+split.cols+'x'+split.cw+'x'+split.ch:(fit?fit.cols+'x'+fit.node+(fit.labels?'L':''):'x'));
     if(grid._sig===sig){ webMark(); return; }
     const tiers=document.getElementById('webTiers'); if(tiers) tiers.innerHTML=webGens().map(g=>`<button type="button" data-tier="${g}">${g===0?'Start':'Gen '+(g+1)}</button>`).join('');
-    if(!fit){ grid._sig=sig; grid.dataset.node='0'; grid.innerHTML='<p class="wc-hint">This generation does not fit.</p>'; webMark(); return; }
-    grid.style.gridTemplateColumns='repeat('+fit.cols+','+fit.node+'px)'; grid.style.gridAutoRows=fit.node+'px'; grid.style.gap=fit.gap+'px';
-    grid.dataset.node=String(fit.node); grid.dataset.cols=String(fit.cols); grid.dataset.labels=fit.labels?'1':'0';
-    grid.innerHTML=nodes.map(n=>webNode(n,fit)).join(''); grid._sig=sig; paintStrainImgs(grid); webMark(); }
+    const clearSplit=()=>{ grid.style.display=''; grid.style.flexDirection=''; grid.style.alignItems=''; grid.style.justifyContent=''; };
+    if(!fit){ clearSplit(); grid._sig=sig; grid.dataset.node='0'; grid.innerHTML='<p class="wc-hint">This generation does not fit.</p>'; webMark(); return; }
+    if(split){ const band=(cols,w,h,html)=>`<div class="web-band" style="grid-template-columns:repeat(${cols},${w}px);grid-auto-rows:${h}px">${html}</div>`;
+      const chips=pollen.map(n=>{ const name=n.name||'Pollen', on=WEB.sel===n.id?' on':''; return `<button type="button" class="wn pollen chip${on}" data-web="${esc(n.id)}" aria-label="${esc(name)}"><span class="dot"></span><b>${esc(name)}</b></button>`; }).join('');
+      grid.style.display='flex'; grid.style.flexDirection='column'; grid.style.alignItems='center'; grid.style.justifyContent='center'; grid.style.gap='8px'; grid.style.gridTemplateColumns=''; grid.style.gridAutoRows='';
+      grid.dataset.node=String(Math.min(split.strain?split.strain.node:99, split.ch, split.cw)); grid.dataset.cols=String(split.cols); grid.dataset.labels='1';
+      grid.innerHTML=(split.strain?band(split.strain.cols,split.strain.node,split.strain.node,strains.map(n=>webNode(n,split.strain)).join('')):'')+band(split.cols,split.cw,split.ch,chips);
+    } else { clearSplit(); grid.style.gridTemplateColumns='repeat('+fit.cols+','+fit.node+'px)'; grid.style.gridAutoRows=fit.node+'px'; grid.style.gap=fit.gap+'px';
+      grid.dataset.node=String(fit.node); grid.dataset.cols=String(fit.cols); grid.dataset.labels=fit.labels?'1':'0'; grid.innerHTML=nodes.map(n=>webNode(n,fit)).join(''); }
+    grid._sig=sig; paintStrainImgs(grid); webMark(); }
   function webCard(){ const el=document.getElementById('webCard'); if(!el) return; const id=WEB.sel;
     if(!id||!WG){ el.innerHTML='<p class="wc-hint">Tap a strain. Each generation stays on this screen.</p>'; return; }
     const n=WG.nodes.get(id); if(!n){ el.innerHTML='<p class="wc-hint">Tap a strain. Each generation stays on this screen.</p>'; return; }
