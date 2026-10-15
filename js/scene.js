@@ -938,7 +938,7 @@ window.R=(function(){
     swamp:'assets/new-art/sprites/swamp-cooler.png', rack:'assets/new-art/sprites/drying-rack.png', tent:'assets/new-art/sprites/grow-tent.png',
     panel:'assets/new-art/sprites/grow-light-hanging.png'
   };
-  const bedIM={}, propTint={};
+  const bedIM={};
   function bedSpotOf(s){ if(s==='gh'||s==='greenhouse') return 'gh'; if(s==='indoor'||s==='land'||s==='in') return 'indoor'; return 'garage'; }
   function ensureBedArt(){
     if(ensureBedArt.done) return; ensureBedArt.done=1; let need=0;
@@ -980,13 +980,12 @@ window.R=(function(){
     const bar=document.getElementById('toolbar');
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
     // One ceiling bar for the lit rooms. The greenhouse keeps its open farm view and no fixture.
-    // Upgrades sit in the side aisles and (greenhouse) the open view, so the tray row is gone.
     const lit=spot!=='gh', ceilH=lit?50:0;
     const bedsTop=spot==='gh'?Math.round(H*0.16):tab+ceilH, bedsH=Math.max(40,barTop-bedsTop);
-    // Indoor is 8 rows of 5 so the plants can be wider than a 40px cell. Garage stays 5x5, greenhouse 6x6.
-    const nBeds=spot==='indoor'?8:spot==='gh'?6:5, per=spot==='indoor'?5:spot==='gh'?6:5;
-    const aisle=spot==='gh'?44:46;
-    const bedL=aisle, bedR=W-aisle;
+    // Upgrades live on their own tab, so each bed uses the width. Indoor is 5 rows of 8.
+    const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
+    const edge=spot==='gh'?0.04:0.012;
+    const bedL=W*edge, bedR=W*(1-edge);
     const bedH=bedsH/nBeds, cell=(bedR-bedL)/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
@@ -998,7 +997,7 @@ window.R=(function(){
       : snaps.find(s=>s<=widthMax && head+s+0.32*(s/Hm)+22<=bedH)
     )||40;
     const ppm=plantH/Hm;
-    window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per; window.__bedAisle=aisle;
+    window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per;
     const bg=bedIM['bg-'+spot];
     if(bg&&bg.naturalWidth){ ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; const s=Math.max(W/bg.naturalWidth,H/bg.naturalHeight), dw=bg.naturalWidth*s, dh=bg.naturalHeight*s; ctx.drawImage(bg,(W-dw)/2,(H-dh)/2,dw,dh); }
     else { ctx.fillStyle=spot==='garage'?'#16120e':spot==='gh'?'#1a2416':'#10141a'; ctx.fillRect(0,0,W,H); }
@@ -1033,7 +1032,6 @@ window.R=(function(){
       });
     }
     bedsFresh();
-    placeGear();
     function drawGarageShelf(y,x0,x1){
       ctx.fillStyle='#3e454c'; for(let x=x0+14;x<x1-8;x+=72){ ctx.fillRect(x,y+6,4,16); ctx.fillRect(x+22,y+6,4,16); ctx.fillStyle='#2a3036'; ctx.fillRect(x-2,y+20,30,3); ctx.fillStyle='#3e454c'; }
       const g=ctx.createLinearGradient(0,y-8,0,y+3); g.addColorStop(0,'#e4b57e'); g.addColorStop(.5,'#a56b3c'); g.addColorStop(1,'#6b4124');
@@ -1052,110 +1050,6 @@ window.R=(function(){
       ctx.strokeStyle='rgba(198,204,210,.95)'; ctx.lineWidth=2.25; ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo(xL,y0+1); ctx.lineTo(xL,top+2); ctx.moveTo(xR,y0+1); ctx.lineTo(xR,top+2); ctx.stroke();
       ctx.drawImage(im,0,srcY,im.naturalWidth,srcH,x0,top,fw,fh);
-    }
-    function rowFeet(r){
-      const y0=bedsTop+r*bedH, lift=kind==='pot'?0.32*ppm:0;
-      return y0+head+(spot==='gh'?4:0)+plantH+lift;
-    }
-    function gearOwned(k){
-      if(!k||typeof G.lv!=='function') return true;
-      try{ return G.lv(k)>0; }catch(e){ return true; }
-    }
-    function tintedSprite(key,im,w,h){
-      const tw=Math.max(1,Math.round(w*dpr)), th=Math.max(1,Math.round(h*dpr));
-      const id=spot+'|'+key+'|'+tw+'x'+th;
-      if(propTint[id]) return propTint[id];
-      const c=document.createElement('canvas'); c.width=tw; c.height=th;
-      const g=c.getContext('2d');
-      g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
-      g.drawImage(im,0,0,tw,th);
-      g.globalCompositeOperation='source-atop';
-      g.fillStyle=spot==='garage'?'rgba(92,62,36,.22)':spot==='gh'?'rgba(42,58,32,.20)':'rgba(32,44,68,.24)';
-      g.fillRect(0,0,tw,th);
-      propTint[id]=c; return c;
-    }
-    // Each upgrade rests on a shelf, the floor, or a short post. Nothing is drawn over a plant cell.
-    function sceneProp(key,cx,feet,h,o){
-      o=o||{};
-      const im=bedIM[key]; if(!im||!im.naturalWidth) return null;
-      const aspect=im.naturalWidth/im.naturalHeight;
-      const maxW=o.maxW||(aisle-4);
-      let w=h*aspect;
-      if(w>maxW){ w=maxW; h=w/aspect; }
-      const x=cx-w/2, y=feet-h;
-      const ghost=!gearOwned(o.upg);
-      if(o.sky){
-        ctx.fillStyle='rgba(0,0,0,.18)';
-        ctx.beginPath(); ctx.ellipse(cx+2,feet+1,w*0.36,3.2,0,0,TAU); ctx.fill();
-      } else if(o.post){
-        const pw=6, px=o.side==='right'?x+w-pw-2:x+2;
-        ctx.fillStyle=spot==='indoor'?'#3a4450':spot==='gh'?'#6a624c':'#5c4030';
-        ctx.fillRect(px,y-4,pw,h+6);
-        ctx.fillStyle='rgba(0,0,0,.22)';
-        ctx.fillRect(px+pw,y-2,3,h+2);
-        ctx.fillStyle=spot==='indoor'?'#8d959e':'#a56b3c';
-        ctx.fillRect(px-2,feet-2,pw+8,3);
-      } else if(spot==='indoor'){
-        ctx.fillStyle='rgba(0,0,0,.32)';
-        ctx.beginPath(); ctx.ellipse(cx+3,feet+2,w*0.42,3.4,0,0,TAU); ctx.fill();
-        ctx.fillStyle='#8d959e'; ctx.fillRect(x-1,feet-1,w+2,4);
-        ctx.fillStyle='#e4eaf0'; ctx.fillRect(x-1,feet-1,w+2,1);
-      } else if(spot==='garage'){
-        ctx.fillStyle='rgba(0,0,0,.32)';
-        ctx.beginPath(); ctx.ellipse(cx+3,feet+3,w*0.44,3.6,0,0,TAU); ctx.fill();
-        ctx.fillStyle='#a56b3c'; ctx.fillRect(x-1,feet-1,w+2,5);
-        ctx.fillStyle='#6b4124'; ctx.fillRect(x-1,feet+3,w+2,2);
-      } else {
-        ctx.fillStyle='rgba(0,0,0,.30)';
-        ctx.beginPath(); ctx.ellipse(cx+3,feet+1,w*0.46,4,0,0,TAU); ctx.fill();
-      }
-      ctx.save();
-      ctx.globalAlpha=ghost?0.22:(o.fade==null?1:o.fade);
-      if(ghost){
-        ctx.filter='grayscale(1) brightness(1.45)';
-        ctx.drawImage(im,x-1,y,w,h); ctx.drawImage(im,x+1,y,w,h);
-        ctx.globalAlpha=0.16; ctx.filter='grayscale(1)'; ctx.drawImage(im,x,y,w,h);
-      } else ctx.drawImage(tintedSprite(key,im,w,h),x,y,w,h);
-      ctx.restore();
-      bedsFresh();
-      const names={fan:'Clip fan',ped:'Pedestal fan',inline:'Inline fan',dehu:'Dehumidifier',ph:'pH meter',temp:'Temp meter',tank:'Water barrel',res:'Reservoir',press:'Rosin press',box:'Boxes',hoop:'Hoop house',shade:'Shade cloth',swamp:'Swamp cooler',rack:'Drying rack',tent:'Grow tent'};
-      return {key,name:names[key]||key,upg:o.upg||'',where:o.where||'',x:Math.round(x),y:Math.round(y),w:Math.round(w),h:Math.round(h),feet:Math.round(feet),ghost};
-    }
-    function placeGear(){
-      const maxW=aisle-4, L=aisle/2, R=W-aisle/2, gear=[];
-      const put=(key,side,row,h,upg,mode,where)=>{
-        const cap=Math.max(28,bedH-18);
-        const rec=sceneProp(key,side==='right'?R:L,rowFeet(row),Math.min(h,cap),{upg,maxW,post:mode==='post',side,where});
-        if(rec) gear.push(rec);
-      };
-      if(spot==='garage'){
-        put('fan','left',0,64,'oscfan','post','left wall, top shelf post');
-        put('ph','left',1,70,'phkit','post','left wall, second shelf post');
-        put('press','left',2,56,'press','shelf','left side, third shelf');
-        put('box','left',3,72,'trays','shelf','left side, fourth shelf');
-        put('tank','left',4,80,'nutes','shelf','left side, bottom shelf');
-        put('temp','right',0,48,'timer','post','right wall, top shelf post');
-        put('ped','right',2,120,'fan','shelf','right side, third shelf');
-        put('dehu','right',4,70,'dehu','shelf','right side, bottom shelf');
-      } else if(spot==='gh'){
-        const band=bedsTop-8;
-        const hoop=sceneProp('hoop',W*0.30,band,72,{upg:'shutters',maxW:140,sky:true,where:'over the farm view, left of center'});
-        const shade=sceneProp('shade',W*0.72,band,50,{upg:'shade',maxW:160,sky:true,fade:.78,where:'over the farm view, right of center'});
-        if(hoop) gear.push(hoop); if(shade) gear.push(shade);
-        put('inline','right',0,48,'cooler','post','right wall, beside the first bed');
-        put('temp','left',1,44,'timer','post','left wall, beside the second bed');
-        put('tank','left',5,78,'catch','floor','left side, on the dirt by the last bed');
-        put('swamp','right',5,80,'cooler','floor','right side, on the dirt by the last bed');
-      } else {
-        put('ph','left',0,56,'phkit','post','left wall, top rack post');
-        put('rack','left',1,90,'dryroom','shelf','left side, second rack');
-        put('tent','left',2,64,'veg','shelf','left side, third rack');
-        put('res','left',nBeds-1,40,'fert','shelf','left side, bottom rack');
-        put('fan','right',0,56,'hvac','post','right wall, top rack post');
-        put('temp','right',1,40,'timer','post','right wall, second rack post');
-        put('dehu','right',nBeds-1,56,'hvac','shelf','right side, bottom rack');
-      }
-      window.__bedGear=gear;
     }
   }
   function mockFrame(dt){
