@@ -41,6 +41,7 @@ window.UI = (function(){
   function modal(html,acts){ return new Promise(res=>{ mq.push({html,acts,res}); if(!mOpen&&!cOpen) nextModal(); }); }
   function nextModal(){ const it=mq.shift(); const m=$('#modal'), c=$('#modalCard'); if(!it){ mOpen=false; m.classList.add('hidden'); if(cq.length&&!cOpen){ setTimeout(()=>{ if(!mOpen&&!cOpen) nextCel(); },200); return; } if(celWait.length) setTimeout(()=>{ while(celWait.length&&!mOpen) loginCel(celWait.shift()); },250); setTimeout(pumpNotices,0); return; } mOpen=true;
     c.innerHTML=it.html+`<div class="acts">${it.acts.map((a,i)=>`<button class="btn ${a.cls||''}" data-i="${i}">${a.label}</button>`).join('')}</div>`;
+    paintStrainImgs(c);
     m.classList.remove('hidden'); Sound.play('open');
     c.querySelectorAll('.acts .btn').forEach(b=>b.onclick=()=>{ m.classList.add('hidden'); it.res(it.acts[+b.dataset.i].v); setTimeout(nextModal,120); }); }
   // ---------- celebrations (level up, login streak, milestones) ----------
@@ -82,7 +83,7 @@ window.UI = (function(){
   }
   // mystery strain reveal: silhouette -> painted close-up
   function reveal(s){ Sound.play('discover'); confetti(140);
-    modal(`<div class="reveal"><img class="r-sil" src="${R.closeup(s,220,true)}" alt=""><img class="r-real" src="${R.closeup(s,220)}" alt=""></div><div style="font-size:12px;font-weight:900;letter-spacing:3px;color:#d9a8ff">PHENO DISCOVERED</div><h3>${esc(s.name)}</h3><div>${tag(s)}</div><p>${esc(s.parents.join(' × '))}<br>Recipe recorded in your Strain Book. Seeds unlocked (+3 in your bag).</p>`,[{label:'Details',cls:'sec',v:'d'},{label:'Thanks!',cls:'gold'}]).then(v=>{ if(v==='d') strainModal(s.id); }); }
+    modal(`<div class="reveal"><img class="r-sil" data-cu="${s.id}" data-sz="220" data-h="1" alt=""><img class="r-real" data-cu="${s.id}" data-sz="220" data-h="0" alt=""></div><div style="font-size:12px;font-weight:900;letter-spacing:3px;color:#d9a8ff">PHENO DISCOVERED</div><h3>${esc(s.name)}</h3><div>${tag(s)}</div><p>${esc((s.parents||[]).join(' × '))}<br>Recipe recorded in your Strain Book. Seeds unlocked (+3 in your bag).</p>`,[{label:'Details',cls:'sec',v:'d'},{label:'Thanks!',cls:'gold'}]).then(v=>{ if(v==='d') strainModal(s.id); }); }
 
   // ---------- HUD ----------
   let shownCash=0;
@@ -219,11 +220,28 @@ window.UI = (function(){
     catch(err){ console.error(err); const body=$('#sheetBody'), foot=$('#sheetFoot'); if(body) body._h=''; if(foot) foot._h=''; $('#sheetTitle').textContent='Farm'; $('#sheetSub').innerHTML=''; $('#sheetTabs').innerHTML=''; body.innerHTML='<div class="empty">This page hit a problem in this save. The rest of the farm is still here.</div>'; foot.innerHTML=''; }
     $('#sheet').classList.remove('hidden'); document.body.classList.add('sheet-open'); Sound.play('open'); }
   function close(){ panel=null; $('#sheet').classList.add('hidden'); document.body.classList.remove('sheet-open'); }
+  // One bad picture must not blank the sheet. Mount a canvas (Safari paints that; a data URL often stays empty).
+  function mountStrainArt(im){
+    const id=im&&im.dataset&&im.dataset.cu;
+    if(!id||(!im.isConnected&&!(im.parentNode))) return;
+    const sz=Math.max(16,Math.min(512,+im.dataset.sz||96))||96, hid=im.dataset.h==='1';
+    const s=G.strain(id); if(!s) return;
+    let src=null;
+    try{ if(R.closeupCanvas) src=R.closeupCanvas(s,sz,hid); }catch(e){ src=null; }
+    if(!src&&window.Art&&Art.thumbCanvas){ try{ src=Art.thumbCanvas(s,sz,hid); }catch(e){ src=null; } }
+    if(!src){ try{ if(R.closeup) im.src=R.closeup(s,sz,hid)||''; }catch(e){} return; }
+    const view=document.createElement('canvas'); view.width=src.width||sz; view.height=src.height||sz;
+    view.className=im.className||''; const st=im.getAttribute&&im.getAttribute('style'); if(st) view.setAttribute('style',st);
+    view.dataset.cu=id; view.dataset.sz=String(sz); view.dataset.h=hid?'1':'0';
+    try{ const x=view.getContext('2d'); if(x) x.drawImage(src,0,0); }catch(e){}
+    if(im.replaceWith) im.replaceWith(view); else if(im.parentNode) im.parentNode.replaceChild(view,im);
+  }
+  function paintStrainImgs(root){ if(!root||!root.querySelectorAll) return; root.querySelectorAll('img[data-cu]').forEach(im=>{ try{ mountStrainArt(im); }catch(e){ console.error(e); } }); }
   function render(reset){
     if(!panel) return; const P=PANELS[panel]; const body=$('#sheetBody'); const top=body.scrollTop;
     const o=P(); $('#sheetTitle').textContent=o.title; $('#sheetSub').innerHTML=o.sub||'';
     $('#sheetTabs').innerHTML=(o.tabs||[]).map(([k,l])=>`<button data-tab="${k}" class="${k===tab?'on':''}">${l}</button>`).join('');
-    if(body._h!==o.body||reset){ body._h=o.body; body.innerHTML=o.body; body.querySelectorAll('img[data-cu]').forEach(im=>{ const s=G.strain(im.dataset.cu); im.src=R.closeup(s,+im.dataset.sz||96,im.dataset.h==='1'); }); syncVol(body); }
+    if(body._h!==o.body||reset){ body._h=o.body; body.innerHTML=o.body; paintStrainImgs(body); syncVol(body); }
     const f=o.foot||''; if($('#sheetFoot')._h!==f){ $('#sheetFoot')._h=f; $('#sheetFoot').innerHTML=f; }
     if(!reset) body.scrollTop=top; else body.scrollTop=0;
     const lc=document.getElementById('labScene'); if(lc) drawLab(lc); drawCosPrev(body); { const pt=document.getElementById('passTrack'); if(pt&&!pt._init){ pt._init=1; const nx=pt.querySelector('.pt-col.next')||pt.querySelector('.pt-col.un:last-child'); if(nx) pt.scrollLeft=Math.max(0,nx.offsetLeft-60); } } if(document.getElementById('strainWeb')){ try{ webInit(); }catch(err){ console.error(err); } } body.querySelectorAll('canvas.pcard').forEach(c=>{ const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); try{ R.plantCard(x,JSON.parse(c.dataset.pc)); }catch(e){} });
@@ -460,7 +478,10 @@ window.UI = (function(){
   // which parent edges of a node the player may see (no spoilers): discovered child = all, hinted = first r parents, otherwise none
   function edgeVisible(e,Gr){ const n=Gr.nodes.get(e.b); if(!n) return false; const stt=webState(n); if(stt==='known'||stt==='locked'&&!(n.s&&n.s.mystery)) return true; if(stt==='hinted'){ const hints=G.st&&G.st.hintRev&&typeof G.st.hintRev==='object'?G.st.hintRev:{}; return e.i<(hints[n.id]||0); } return false; }
   const webImg=new Map();
-  function thumb(n,hid){ const k=n.id+(hid?'h':''); let im=webImg.get(k); if(im) return im; const u=R.closeup(n.s,96,hid); im=new Image(); if(u&&u.toDataURL) im.src=u.toDataURL(); else im.src=u; im.onload=()=>webDraw(); webImg.set(k,im); return im; }
+  function thumb(n,hid){ const k=n.id+(hid?'h':''); let im=webImg.get(k); if(im) return im;
+    try{ if(n.s&&R.closeupCanvas){ const c=R.closeupCanvas(n.s,96,hid); if(c&&c.width){ webImg.set(k,c); return c; } } }catch(e){}
+    if(n.s&&window.Art&&Art.thumbCanvas){ try{ const c=Art.thumbCanvas(n.s,96,hid); if(c&&c.width){ webImg.set(k,c); return c; } }catch(e){} }
+    const u=n.s&&R.closeup?R.closeup(n.s,96,hid):''; im=new Image(); if(u&&u.toDataURL) im.src=u.toDataURL(); else im.src=u||''; im.onload=()=>webDraw(); webImg.set(k,im); return im; }
   let WG=null;
   function webDraw(){ const cv=document.getElementById('strainWeb'); if(!cv||!WG||!WEB.cam) return; const x=cv.getContext('2d'), d=Math.min(2,devicePixelRatio||1), W=cv.clientWidth, H=cv.clientHeight;
     if(W<2||H<2) return;
@@ -488,7 +509,7 @@ window.UI = (function(){
       if(n.kind==='p'){ x.fillStyle='#1c2c22'; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.fill(); x.strokeStyle='#b6e88a'; x.lineWidth=3; x.stroke(); x.fillStyle='#d8f0c0'; for(let k=0;k<6;k++){ const a=k*TAU/6-webT*.25; x.beginPath(); x.arc(n.x+Math.cos(a)*9,n.y+Math.sin(a)*9,3.1,0,TAU); x.fill(); } x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x,n.y,4.5,0,TAU); x.fill(); }
       else { const hid=stt==='mystery'||stt==='hinted', im=thumb(n,hid), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[n.id], ring=WEB.sel===n.id?'#fff':ex?'#ffd35a':(RAR[n.s.rarity]||'#9aa8a0');
         if(stt==='known'){ x.fillStyle=ex?'rgba(255,211,90,.34)':'rgba(120,220,150,.26)'; x.beginPath(); x.arc(n.x,n.y,r+8,0,TAU); x.fill(); }
-        x.save(); x.beginPath(); x.arc(n.x,n.y,r-2,0,TAU); x.clip(); if(im.complete&&im.naturalWidth) x.drawImage(im,n.x-r,n.y-r,2*r,2*r); else { x.fillStyle='#1a2820'; x.fillRect(n.x-r,n.y-r,2*r,2*r); }
+        x.save(); x.beginPath(); x.arc(n.x,n.y,r-2,0,TAU); x.clip(); const ready=im&&((im.nodeName==='CANVAS'&&im.width)||(im.complete&&im.naturalWidth)); if(ready) x.drawImage(im,n.x-r,n.y-r,2*r,2*r); else { x.fillStyle='#1a2820'; x.fillRect(n.x-r,n.y-r,2*r,2*r); }
         if(stt==='locked'||hid){ x.fillStyle=stt==='locked'?'rgba(4,8,6,.62)':'rgba(6,10,8,.42)'; x.fillRect(n.x-r,n.y-r,2*r,2*r); } x.restore();
         x.strokeStyle=(stt==='locked'||stt==='mystery')?'rgba(186,196,190,.5)':ring; x.lineWidth=stt==='known'?4.5:2.6; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.stroke();
         x.strokeStyle='rgba(255,255,255,.38)'; x.lineWidth=1.6; x.beginPath(); x.arc(n.x,n.y,r-4,-2.5,-.35); x.stroke();
@@ -515,9 +536,9 @@ window.UI = (function(){
     const how=[]; if(ex){ const n=G.PREMIUM.filter(i=>G.strain(i)).length||1; how.push('Exclusive: Island Shop (money or gems)','Rare drop: Legendary Seed Packs ('+pct(G.DROP.packPremium/n)+' each, as an extra seed)','Rare drop: finished pheno hunts ('+pct(G.DROP.huntPremium/n)+' each)'); }
     if(s.mystery) how.push(stt==='known'?'Bred in the Pheno Room':'Cross the right two parents in the Pheno Room'+(r?' (hint: '+r+' parent'+(r>1?'s':'')+' revealed)':'')); else if(!ex) how.push(window.G.festNow&&G.FESTS.some(f=>f.strain===id)?'Island festival reward':'Seed shop from level '+((s.game&&s.game.unlockLevel)||1));
     const lines=st.lines&&typeof st.lines==='object'?st.lines:{}, lineKnown=!!(lines[id]&&(typeof lines[id]==='object'||typeof lines[id]==='number'));
-    el.innerHTML=`<div class="wc-top"><img src="${R.closeup(s,96,stt==='mystery'||stt==='hinted')}" alt=""><div><h4>${stt==='mystery'?'??? mystery pheno':esc(s.name)} ${tag(s)}</h4><p>${esc(s.type)}${stt==='known'&&s.thc?' · '+s.thc+'% THC':''} · ${esc(s.rarity)}</p></div></div>
+    el.innerHTML=`<div class="wc-top"><img data-cu="${s.id}" data-sz="96" data-h="${stt==='mystery'||stt==='hinted'?1:0}" alt=""><div><h4>${stt==='mystery'?'??? mystery pheno':esc(s.name)} ${tag(s)}</h4><p>${esc(s.type)}${stt==='known'&&s.thc?' · '+s.thc+'% THC':''} · ${esc(s.rarity)}</p></div></div>
       <p><b>Parents:</b> ${pars}</p><p><b>How to get:</b> ${esc(how.join(' · '))}</p><p><b>Line:</b> ${lineKnown?esc(G.lineName(id)):s.mystery&&stt!=='known'?'not bred yet':'commercial stable line'}${s.tier>=4?' · Legendary recipe: parents must be stable lines (F'+G.LINE.stable+'+) in the Breeding Pheno Room':''}</p><p><b>Kept mother:</b> ${k?`Pheno ${esc(k.k||'?')} · ${esc(k.terp||'')} · yield ${Math.round(((+k.y||1)-1)*100)}%, quality +${Math.round((+k.q||0)*100)}%`:'none'}</p>
-      ${stt==='known'?`<button class="btn sec" data-a="strain" data-id="${id}">Open strain page</button>`:''}`; }
+      ${stt==='known'?`<button class="btn sec" data-a="strain" data-id="${id}">Open strain page</button>`:''}`; paintStrainImgs(el); }
   function webInit(){ const cv=document.getElementById('strainWeb'); if(!cv) return; if(cv._init){ webDraw(); webKick(); return; } cv._init=1; WG=webGraph(); if(!WEB.cam){ let minY=1e9,maxY=-1e9,sx=0,n0=0; WG.nodes.forEach(n=>{ if(n.g) return; n0++; sx=n.x; minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); }); const Wv=cv.clientWidth||360, z=.95; WEB.cam={x:n0?(Wv/2-96)/z+sx:0,y:n0?(minY+maxY)/2:0,z}; }
     const pts=new Map(); let moved=0, pinch=null;
     const toW=(px,py)=>{ const c=WEB.cam, W=cv.clientWidth, H=cv.clientHeight; return {x:c.x+(px-W/2)/c.z, y:c.y+(py-H/2)/c.z}; };
@@ -542,9 +563,9 @@ window.UI = (function(){
   function strainModal(id){
     const s=G.strain(id), st=G.st||{}, disc=st.discovered&&typeof st.discovered==='object'?st.discovered:{}, d=disc[id];
     if(!s){ modal('<h3>Unknown strain</h3><p>This save names a strain that is not in the book.</p>',[{label:'Close',cls:'sec'}]); return; }
-    if(!d&&s.mystery){ const hl=G.hintLevel(s); modal(`<img src="${R.closeup(s,200,true)}" style="width:180px;height:180px;border-radius:20px"><h3>??? ${tag(s)}</h3><p>A mystery pheno. Find it by crossbreeding in the Pheno Room.</p><p>${hl>=1?esc(G.vagueHint(s)):'No hint yet.'}</p>`,[{label:'Close',cls:'sec'}]); return; }
+    if(!d&&s.mystery){ const hl=G.hintLevel(s); modal(`<img data-cu="${s.id}" data-sz="200" data-h="1" alt="" style="width:180px;height:180px;border-radius:20px"><h3>??? ${tag(s)}</h3><p>A mystery pheno. Find it by crossbreeding in the Pheno Room.</p><p>${hl>=1?esc(G.vagueHint(s)):'No hint yet.'}</p>`,[{label:'Close',cls:'sec'}]); return; }
     const m=G.mastery(id), L=s.look||{}, parents=Array.isArray(s.parents)?s.parents:[], terps=Array.isArray(s.terpenes)?s.terpenes:[], flavors=Array.isArray(s.flavors)?s.flavors:[], game=s.game||{}, recipes=st.recipes&&typeof st.recipes==='object'?st.recipes:{}, recipe=typeof recipes[id]==='string'?recipes[id]:'';
-    const html=`<img src="${R.closeup(s,220)}" style="width:200px;height:200px;border-radius:20px"><h3>${esc(s.name)}</h3><div>${tag(s)} <span class="chip">${s.type}</span></div>
+    const html=`<img data-cu="${s.id}" data-sz="220" data-h="0" alt="" style="width:200px;height:200px;border-radius:20px"><h3>${esc(s.name)}</h3><div>${tag(s)} <span class="chip">${s.type}</span></div>
       <dl class="kv" style="text-align:left"><dt>Recognition</dt><dd>${esc(s.recognition)}</dd>
       <dt>Lineage</dt><dd>${parents.length?parents.map(esc).join(' × '):'Landrace / unpublished'}</dd>${recipe?`<dt>Your recipe</dt><dd>${esc(recipe.split('|').join(' × '))}</dd>`:''}
       <dt>THC / CBD</dt><dd>${s.thc==null?'THC not published (game estimate '+s.thcEstimate+'%)':s.thc+'%'} / ${s.cbd==null?'n/a':s.cbd+'%'}</dd>
@@ -870,7 +891,7 @@ window.UI = (function(){
     G.save(); render();
   }
   function showPack(list){ Sound.play('discover');
-    modal(`<h3>Seed pack opened!</h3><div class="grid" style="margin-top:10px">${list.map(s=>`<div class="card"><img src="${R.closeup(s,96)}" style="width:100%;border-radius:12px"><div class="nm">${esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span></div>`).join('')}</div>`,[{label:'Thanks!',cls:'gold'}]); }
+    modal(`<h3>Seed pack opened!</h3><div class="grid" style="margin-top:10px">${list.map(s=>`<div class="card"><img data-cu="${s.id}" data-sz="96" data-h="0" alt="" style="width:100%;border-radius:12px"><div class="nm">${esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span></div>`).join('')}</div>`,[{label:'Thanks!',cls:'gold'}]); }
   // story dialogue (Unko Kuli teaches the trade) - shown when a new goal starts
   const QUICK={plant:'Tap the seed bag, then a bucket',water:'Tap your plant to water it',harvest:'Ripe! Tap to harvest',dry:'Open Dry & Cure to dry your buds',sell:'Open Market to sell'};
   function storyLine(q){ if(!q||!G.F.storyGoals) return; if(window.Tutorial&&Tutorial.active&&Tutorial.active()) return; if(QUICK[q.id]&&G.st.quest<=4){ toast('👆 '+QUICK[q.id],'good'); return; } const who=q.who||'Unko Kuli'; const c=window.CHARACTERS[who];
@@ -909,5 +930,6 @@ window.UI = (function(){
   }
   let acc=0;
   function update(dt){ hud(dt); acc+=dt; if(acc>.5){ acc=0; if(panel&&performance.now()-lastPointer>700&&!document.activeElement?.matches('select')) render(); if(popPlot) renderPop(); } }
-  return {init,update,toast,modal,celebrate,levelUp,loginCel,confetti,open,close,tapPlot,quick,hidePop,setTool,strainModal,bigCel,reveal,storyLine,landModal,indoorModal,get tool(){return tool},get panel(){return panel},render};
+  function artReady(){ webImg.clear(); const body=document.getElementById('sheetBody'); if(body) body._h=''; if(panel) render(); const card=document.getElementById('modalCard'); const host=card&&card.closest&&card.closest('#modal'); if(card&&host&&!host.classList.contains('hidden')) paintStrainImgs(card); }
+  return {init,update,toast,modal,celebrate,levelUp,loginCel,confetti,open,close,tapPlot,quick,hidePop,setTool,strainModal,bigCel,reveal,storyLine,landModal,indoorModal,artReady,get tool(){return tool},get panel(){return panel},render};
 })();

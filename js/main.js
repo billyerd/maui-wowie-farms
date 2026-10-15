@@ -74,7 +74,7 @@
   G.on('noseed',fx(()=>{ UI.toast('Out of those seeds. Visit the seed shop','bad'); }));
   G.on('toast',fx(({t,k})=>UI.toast(t,k)));
   G.on('discover',fx(({s,quiet,how})=>{ if(quiet==='lvl') return; if(how==='bred'&&s.mystery) return; Sound.play('discover'); UI.toast((quiet?'Unlocked: ':'New strain: ')+s.name+'!','good'); }));
-  G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.modal(`<img src="${R.closeup(s,160)}" style="width:150px;height:150px;border-radius:22px"><h3>${fresh?'New strain bred!':'Cross complete'}</h3><p><b>${s.name}</b> (${s.rarity})<br>${s.parents.join(' × ')}</p><p>+3 seeds added to your seed bag.</p>`,[{label:'Thanks!',cls:'gold'}]); }));
+  G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.modal(`<img data-cu="${s.id}" data-sz="160" data-h="0" alt="" style="width:150px;height:150px;border-radius:22px"><h3>${fresh?'New strain bred!':'Cross complete'}</h3><p><b>${s.name}</b> (${s.rarity})<br>${(s.parents||[]).join(' × ')}</p><p>+3 seeds added to your seed bag.</p>`,[{label:'Thanks!',cls:'gold'}]); }));
   G.on('dud',fx(({hint,back})=>{ Sound.play('tap'); UI.toast('No stable pheno from that cross.'+(back?' You saved a '+back.name+' seed.':'')+(hint?' +1 hint token for your persistence!':''),hint?'gemt':''); }));
   G.on('hint',fx(({s})=>{ Sound.play('gem'); UI.toast('Hint used: a parent of a '+s.rarity+' mystery revealed','gemt'); }));
   G.on('hot',fx(s=>UI.toast('Tourist rush! '+s.name+' sells 2x','good')));

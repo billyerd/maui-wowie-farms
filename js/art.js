@@ -57,14 +57,15 @@ window.Art = (function(){
   const cache=new Map();
   const PW=150, PH=200; // logical sprite size (base at x=75,y=190)
   function plantColors(st){
-    const tags=st.colorTags||[]; const g=st.game; const t0=tags[0]||'green';
+    const tags=st.colorTags||[]; const g=st.game||{}; const L=st.look||{}; const t0=tags[0]||'green';
+    const budColor=g.budColor||L.bud||'#7fb04a', budLightC=g.budLight||L.bud2||'#d6f09a', pistil=g.pistil||L.pistil||'#e8c56b';
     const strong=['purple','violet','lavender','pink','blue','black'].includes(t0);
     const frosty=['white','frost','frosty','silver'].includes(t0);
     const k=strong?.8:frosty?.2:t0==='dark'?.5:.52;
-    const bud=frosty?'#9fcf7a':mix('#7fb04a',g.budColor,k), budLight=frosty?'#f2fbe8':mix('#d6f09a',g.budLight,Math.min(.9,k*1.05));
+    const bud=frosty?'#9fcf7a':mix('#7fb04a',budColor,k), budLight=frosty?'#f2fbe8':mix('#d6f09a',budLightC,Math.min(.9,k*1.05));
     const purple=strong;
     const leaf=st.type==='Sativa'?'#4f9e36':st.type==='Indica'?'#2c6e30':'#3c8434';
-    return {bud,budLight,pistil:g.pistil,leaf,sugar:mix(leaf,g.budColor,strong?.45:.15),leafLate:purple?mix(leaf,g.budColor,.4):mix(leaf,'#b9a83a',.22),frosty};
+    return {bud,budLight,pistil,leaf,sugar:mix(leaf,budColor,strong?.45:.15),leafLate:purple?mix(leaf,budColor,.4):mix(leaf,'#b9a83a',.22),frosty};
   }
   function plantSprite(st,stage,scale,droop=0){
     const key=st.id+'|'+stage+'|'+scale+'|'+droop;
@@ -115,15 +116,21 @@ window.Art = (function(){
     br.sort((a,b)=>b.y-a.y).forEach(b=>{ const L=(ripe?34:22)*(1-b.t*.3)*sz, w=(ripe?10:6.5)*(1-b.t*.22)*sz; cola(ctx,b.tx+Math.cos(b.a)*-3,b.ty+Math.sin(b.a)*-3,-Math.PI/2+(b.a+Math.PI/2)*.35,L,w,c2,R,ripe); });
     cola(ctx,bx,by-H+12,-Math.PI/2,(ripe?58:38)*sz,(ripe?14:9.5)*sz,c2,R,ripe);
   }
-  // Thumbnail for UI (data URL)
+  // Procedural stand-in used until the painted sprite is ready, and if a photo canvas cannot be read.
+  function thumbCanvas(st,size=96,locked=false){
+    size=size||96; const c=document.createElement('canvas'); c.width=size; c.height=size; const ctx=c.getContext('2d'); if(!ctx||!st) return c;
+    const g=st.game||{}, L=st.look||{}, bud=g.budColor||L.bud||'#6a9a3a';
+    const grd=ctx.createRadialGradient(size/2,size*.45,4,size/2,size/2,size*.7);
+    grd.addColorStop(0,mix(bud,'#0a1712',.6)); grd.addColorStop(1,'#08140f'); ctx.fillStyle=grd; ctx.fillRect(0,0,size,size);
+    if(locked){ ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='800 '+Math.round(size*.22)+'px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('???',size/2,size/2); return c; }
+    const s=size/96; ctx.save(); ctx.translate(size/2,size*.98); ctx.scale(s*.62,s*.62); try{ drawPlant(ctx,st,5,0,0,1); }catch(e){} ctx.restore(); return c;
+  }
   const thumbs={};
   function thumb(st,size=96,locked=false){
-    const key=st.id+size+(locked?'L':''); if(thumbs[key]) return thumbs[key];
-    const c=document.createElement('canvas'); c.width=size; c.height=size; const ctx=c.getContext('2d');
-    const g=ctx.createRadialGradient(size/2,size*.45,4,size/2,size/2,size*.7);
-    g.addColorStop(0,mix(st.game.budColor,'#0a1712',.6)); g.addColorStop(1,'#08140f'); ctx.fillStyle=g; ctx.fillRect(0,0,size,size);
-    const s=size/96; ctx.save(); ctx.translate(size/2,size*.98); ctx.scale(s*.62,s*.62); drawPlant(ctx,st,5,0,0,1); ctx.restore();
-    thumbs[key]=c.toDataURL(); return thumbs[key];
+    const key=(st&&st.id||'?')+size+(locked?'L':''); if(thumbs[key]) return thumbs[key];
+    const c=thumbCanvas(st,size,locked); let url='';
+    try{ url=c.toDataURL('image/jpeg',.86); }catch(e){ try{ url=c.toDataURL(); }catch(e2){ url=''; } }
+    thumbs[key]=url; return url;
   }
   // ---- tropical foliage ----
   function palm(ctx,x,y,h,R,sway,night){
@@ -178,5 +185,5 @@ window.Art = (function(){
       ctx.fillStyle=night?'#1b3a22':(i%2?'#4fa23f':'#3b8a35'); ctx.beginPath(); ctx.ellipse(s*.38,0,s*.42,s*.11,0,0,TAU); ctx.fill();
       ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(s*.78,0); ctx.stroke(); ctx.restore(); }
   }
-  return {plantColors,cola,rng,hash,mix,shade,plantSprite,thumb,palm,monstera,hibiscus,banana,fanLeaf,drawPlant};
+  return {plantColors,cola,rng,hash,mix,shade,plantSprite,thumb,thumbCanvas,palm,monstera,hibiscus,banana,fanLeaf,drawPlant};
 })();

@@ -13,7 +13,9 @@ window.R=(function(){
   // Adult people (art-src/npcs.jpg). The teen figure in the source sheet is never exported or used (18+ game).
   const PEOPLE={customer:['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist'],farmhand:['npc_overalls','npc_crate'],walker:['npc_tourist','npc_aloha','npc_sundress','npc_elder','npc_tank']};
   [...new Set(Object.values(SIG))].forEach(n=>NAMES.push('sig_'+n,'sig_'+n+'_pot')); ['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist','npc_overalls','npc_crate'].forEach(n=>NAMES.push(n));
-  function loadImages(){ NAMES.forEach(n=>{ const im=new Image(); im.onload=()=>{ loaded++; }; im.onerror=()=>{ im._bad=true; if(/^stage|^mature/.test(n)) imgOK=false; }; im.src='art/'+n+'.webp'; IM[n]=im; }); }
+  function loadImages(){ let left=NAMES.length; NAMES.forEach(n=>{ const im=new Image(); im.onload=()=>{ loaded++; if(--left===0) artSettled(); }; im.onerror=()=>{ im._bad=true; if(/^stage|^mature/.test(n)) imgOK=false; if(--left===0) artSettled(); }; im.src='art/'+n+'.webp'; IM[n]=im; }); }
+  // Sprites finished (or failed). Drop baked thumbs so an open Seeds / Strains sheet upgrades from the stand-in plant.
+  function artSettled(){ dropCloseups(); try{ if(window.UI&&UI.artReady) UI.artReady(); }catch(e){} }
   const ok=n=>IM[n]&&IM[n].complete&&IM[n].naturalWidth>0;
   const hash=s=>{ let h=2166136261; for(const c of String(s)){ h^=c.charCodeAt(0); h=Math.imul(h,16777619); } return h>>>0; };
   const rgb=h=>{ h=(h||'#6a9a3a').replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
@@ -105,25 +107,29 @@ window.R=(function(){
     else if(prog<.8){ const k=(prog-.45)/.35; h=ve+(H-ve)*(1-(1-k)*(1-k)); } else h=H;
     const fill=prog<.45?.75:.75+.4*smooth((prog-.45)/.4);                  // canopy closes the gap as it matures
     const w=Math.min(h*(ASP[type]||.78)*(prog<.08?1.3:1),(sl.sp||.8)*fill); return {h,w}; }
-  function look(s){ return s.look||{bud:s.game.budColor,bud2:s.game.budLight,leaf:'#4f8a32',frost:.5,pistil:s.game.pistil,shape:'round',base:'green'}; }
+  function look(s){ const g=s&&s.game||{}; return (s&&s.look)||{bud:g.budColor||'#6a9a3a',bud2:g.budLight||'#d6f09a',leaf:'#4f8a32',frost:.5,pistil:g.pistil||'#e8c56b',shape:'round',base:'green'}; }
+  function tintPixels(a,L,id,mature){
+    const lf=rgb(L.leaf), b1=rgb(L.bud), b2=rgb(L.bud2||L.bud), pi=rgb(L.pistil);
+    let seed=hash(id)||1; const rnd=()=>((seed=Math.imul(seed^seed>>>15,2246822507)+1013904223>>>0)/4294967296);
+    const fr=Math.max(0,Math.min(1,L.frost==null?.5:L.frost)), lumL=(lf[0]*.3+lf[1]*.59+lf[2]*.11)/255;
+    for(let i=0;i<a.length;i+=4){ if(a[i+3]<10) continue; const r=a[i],g=a[i+1],b=a[i+2];
+      const lum=(r*.3+g*.59+b*.11)/255, mx=Math.max(r,g,b), mn=Math.min(r,g,b), sat=(mx-mn)/(mx+1);
+      const leafy=g>r*1.06&&g>=b&&sat>.16&&lum<.62;
+      if(!mature||leafy){ const k=lum/Math.max(.15,lumL)*.95; for(let j=0;j<3;j++) a[i+j]=a[i+j]*.62+Math.min(255,lf[j]*k)*.38; }
+      else { const t2=Math.min(1,lum*1.3); for(let j=0;j<3;j++){ const tg=(b1[j]*(1-t2)+b2[j]*t2)*(.55+lum*.7); a[i+j]=a[i+j]*.5+Math.min(255,tg)*.5; }
+        const q=rnd(); if(q<fr*.22){ a[i]=a[i]*.35+236*.65; a[i+1]=a[i+1]*.35+242*.65; a[i+2]=a[i+2]*.35+248*.65; }
+        else if(q>1-.014*(1.2-fr*.5)){ a[i]=pi[0]; a[i+1]=pi[1]; a[i+2]=pi[2]; } } }
+  }
   function tinted(name,s,mature){
     const key=name+'|'+s.id; if(tcache.has(key)) return tcache.get(key);
     const im=IM[name]; if(!ok(name)) return null;
     const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight; const x=c.getContext('2d'); x.drawImage(im,0,0);
     const L=look(s);
     try{
-      const d=x.getImageData(0,0,c.width,c.height), a=d.data, lf=rgb(L.leaf), b1=rgb(L.bud), b2=rgb(L.bud2||L.bud), pi=rgb(L.pistil);
-      let seed=hash(s.id)||1; const rnd=()=>((seed=Math.imul(seed^seed>>>15,2246822507)+1013904223>>>0)/4294967296);
-      const fr=Math.max(0,Math.min(1,L.frost==null?.5:L.frost)), lumL=(lf[0]*.3+lf[1]*.59+lf[2]*.11)/255;
-      for(let i=0;i<a.length;i+=4){ if(a[i+3]<10) continue; const r=a[i],g=a[i+1],b=a[i+2];
-        const lum=(r*.3+g*.59+b*.11)/255, mx=Math.max(r,g,b), mn=Math.min(r,g,b), sat=(mx-mn)/(mx+1);
-        const leafy=g>r*1.06&&g>=b&&sat>.16&&lum<.62;
-        if(!mature||leafy){ const k=lum/Math.max(.15,lumL)*.95; for(let j=0;j<3;j++) a[i+j]=a[i+j]*.62+Math.min(255,lf[j]*k)*.38; }
-        else { const t2=Math.min(1,lum*1.3); for(let j=0;j<3;j++){ const tg=(b1[j]*(1-t2)+b2[j]*t2)*(.55+lum*.7); a[i+j]=a[i+j]*.5+Math.min(255,tg)*.5; }
-          const q=rnd(); if(q<fr*.22){ a[i]=a[i]*.35+236*.65; a[i+1]=a[i+1]*.35+242*.65; a[i+2]=a[i+2]*.35+248*.65; }
-          else if(q>1-.014*(1.2-fr*.5)){ a[i]=pi[0]; a[i+1]=pi[1]; a[i+2]=pi[2]; } } }
+      const d=x.getImageData(0,0,c.width,c.height);
+      tintPixels(d.data,L,s.id,mature);
       x.putImageData(d,0,0);
-    }catch(e){ /* tainted canvas (file://) -> untinted */ }
+    }catch(e){ if(isTaint(e)) armCors(); /* tainted canvas (file:// or a CDN redirect) -> untinted, still drawn */ }
     const out={c,w:c.width,h:c.height}; tcache.set(key,out); return out;
   }
   const sigOf=(s,pot)=>{ const n=SIG[s.id]&&'sig_'+SIG[s.id]+(pot?'_pot':''); if(!n||!ok(n)) return null; const im=IM[n]; return {c:im,w:im.naturalWidth,h:im.naturalHeight,sig:1}; };
@@ -1398,20 +1404,65 @@ window.R=(function(){
     return {left:Math.min(a.x,b.x)+cr.left, top:Math.min(a.y,b.y)+cr.top, right:Math.max(a.x,b.x)+cr.left, bottom:Math.max(a.y,b.y)+cr.top};
   }
 
-  // ---------------- strain close-up (strain book) ----------------
-  const cups={};
-  function closeup(s,size,hidden){ size=size||220; const key=s.id+size+(hidden?'h':''); if(cups[key]) return cups[key];
-    const c=document.createElement('canvas'); c.width=size; c.height=size; const x=c.getContext('2d');
-    const L=look(s); const g=x.createRadialGradient(size/2,size*.45,6,size/2,size/2,size*.75); g.addColorStop(0,hidden?'#2a2a34':'#26402a'); g.addColorStop(1,hidden?'#101016':'#0c1a10'); x.fillStyle=g; x.fillRect(0,0,size,size);
-    const sg=imgOK&&sigOf(s,true), m=sg||(imgOK?tinted('mature_'+(L.base||'green'),s,true):null);
-    if(SIG[s.id]&&!sg) return window.Art?Art.thumb(s,size,hidden):'';   // not loaded yet: don't cache a generic look
-    if(m){ const sw=sg?m.w:m.w*.62, sh=sg?m.h*.62:m.h*.55, sx=(m.w-sw)/2, sy=sg?0:m.h*.05; const k=size/Math.max(sw,sh)*1.05;
-      if(hidden){ const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d'); y.drawImage(m.c,sx,sy,sw,sh,(size-sw*k)/2,(size-sh*k)/2,sw*k,sh*k); y.globalCompositeOperation='source-in'; y.fillStyle='#05050a'; y.fillRect(0,0,size,size); x.drawImage(t,0,0); x.fillStyle='rgba(255,255,255,.85)'; x.font='800 '+Math.round(size*.22)+'px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('???',size/2,size/2); }
-      else { x.drawImage(m.c,sx,sy,sw,sh,(size-sw*k)/2,(size-sh*k)/2,sw*k,sh*k); if(sg){ cups[key]=c.toDataURL('image/png'); return cups[key]; } let sd=hash(s.id); const r=()=>((sd=(sd*16807)%2147483647)/2147483647); x.fillStyle='rgba(255,255,255,.7)'; for(let i=0;i<(L.frost||.5)*120;i++){ x.globalAlpha=.3+r()*.6; x.beginPath(); x.arc(size*.2+r()*size*.6,size*.15+r()*size*.6,.6+r()*1.2,0,TAU); x.fill(); } x.globalAlpha=1; } }
-    else if(window.Art){ const im=new Image(); return Art.thumb(s,size,hidden); }
-    const url=c.toDataURL('image/png'); cups[key]=url; return url; }
+  // ---------------- strain close-up (Seeds, strain book, shop, modals) ----------------
+  // Shared painter. A PNG data URL from toDataURL paints on desktop and stays blank on Safari / WKWebView,
+  // and a cross-origin redirect (raw.githack.com -> its CDN) taints the canvas so toDataURL throws. That throw
+  // used to escape the sheet's image loop into the page-level catch, which replaced the whole page. Draw a
+  // small canvas (tint the thumb, not the full ~410px sprite) and let the page mount that canvas.
+  const cups={}, cupC={}; let corsTried=false;
+  function isTaint(e){ const msg=String(e&&(e.message||e)||''); return !!(e&&(e.name==='SecurityError'||e.code===18||/taint|insecure|security/i.test(msg))); }
+  function dropCloseups(){ for(const k in cups) delete cups[k]; for(const k in cupC) delete cupC[k]; }
+  function armCors(){
+    if(corsTried) return; corsTried=true;
+    const pending=NAMES.filter(n=>ok(n)); if(!pending.length) return;
+    let left=pending.length, upgraded=false;
+    pending.forEach(n=>{ const im=new Image(); im.crossOrigin='anonymous';
+      im.onload=()=>{ IM[n]=im; upgraded=true; if(--left===0&&upgraded){ tcache.clear(); dropCloseups(); artSettled(); } };
+      im.onerror=()=>{ if(--left===0&&upgraded){ tcache.clear(); dropCloseups(); artSettled(); } };
+      im.src=IM[n].src||('art/'+n+'.webp'); });
+  }
+  function closeupCanvas(s,size,hidden){
+    try{
+      if(!s||!s.id) return null;
+      size=Math.max(16,Math.min(512,+size||220));
+      const key=s.id+'|'+size+(hidden?'|h':''); if(cupC[key]) return cupC[key];
+      const L=look(s); const sg=imgOK&&sigOf(s,true);
+      const base='mature_'+(L.base||'green');
+      const photo=sg||(!SIG[s.id]&&imgOK&&ok(base)?{c:IM[base],w:IM[base].naturalWidth,h:IM[base].naturalHeight}:null);
+      if(!photo) return null; // sprite not decoded yet: caller draws a stand-in and does not cache it
+      const c=document.createElement('canvas'); c.width=size; c.height=size; const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
+      const grd=x.createRadialGradient(size/2,size*.45,6,size/2,size/2,size*.75); grd.addColorStop(0,hidden?'#2a2a34':'#26402a'); grd.addColorStop(1,hidden?'#101016':'#0c1a10'); x.fillStyle=grd; x.fillRect(0,0,size,size);
+      const sw=sg?photo.w:photo.w*.62, sh=sg?photo.h*.62:photo.h*.55, sx=(photo.w-sw)/2, sy=sg?0:photo.h*.05, k=size/Math.max(sw,sh)*1.05;
+      const dw=sw*k, dh=sh*k, dx=(size-dw)/2, dy=(size-dh)/2;
+      const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d',{willReadFrequently:true});
+      y.drawImage(photo.c,sx,sy,sw,sh,dx,dy,dw,dh);
+      if(hidden){ y.globalCompositeOperation='source-in'; y.fillStyle='#05050a'; y.fillRect(0,0,size,size); x.drawImage(t,0,0); x.fillStyle='rgba(255,255,255,.85)'; x.font='800 '+Math.round(size*.22)+'px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('???',size/2,size/2); }
+      else {
+        if(!sg){ try{ const d=y.getImageData(0,0,size,size); tintPixels(d.data,L,s.id,true); y.putImageData(d,0,0); }catch(e){ if(isTaint(e)) armCors(); } }
+        x.drawImage(t,0,0);
+        if(!sg){ let sd=hash(s.id); const r=()=>((sd=(sd*16807)%2147483647)/2147483647); x.fillStyle='rgba(255,255,255,.7)'; for(let i=0;i<(L.frost||.5)*120;i++){ x.globalAlpha=.3+r()*.6; x.beginPath(); x.arc(size*.2+r()*size*.6,size*.15+r()*size*.6,.6+r()*1.2,0,TAU); x.fill(); } x.globalAlpha=1; }
+      }
+      cupC[key]=c; return c;
+    }catch(e){ if(isTaint(e)) armCors(); return null; }
+  }
+  function closeup(s,size,hidden){
+    try{
+      if(!s||!s.id) return '';
+      size=Math.max(16,Math.min(512,+size||220));
+      const key=s.id+'|'+size+(hidden?'|h':''); if(cups[key]) return cups[key];
+      const c=closeupCanvas(s,size,hidden);
+      const painted=c||(window.Art&&Art.thumbCanvas&&Art.thumbCanvas(s,size,!!hidden));
+      if(!painted) return window.Art&&Art.thumb?Art.thumb(s,size,hidden):'';
+      let url='';
+      try{ url=painted.toDataURL('image/jpeg',.86); }
+      catch(e){ if(isTaint(e)) armCors(); return window.Art&&Art.thumb?Art.thumb(s,size,hidden):''; }
+      if(!url||url.length<24) return window.Art&&Art.thumb?Art.thumb(s,size,hidden):'';
+      if(c) cups[key]=url; // keep the stand-in out of the cache so the photo can replace it
+      return url;
+    }catch(e){ try{ return window.Art&&Art.thumb?Art.thumb(s,size,!!hidden):''; }catch(e2){ return ''; } }
+  }
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();
