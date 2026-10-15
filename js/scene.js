@@ -833,7 +833,283 @@ window.R=(function(){
       upan={t:0,d:1.5,to,from:{z:z0,x:cx-W/2/z0-W*.08/z0,y:cy-H/2/z0-H*.06/z0}}; Object.assign(cam,upan.from); }
     if(!upan) return; upan.t+=dt; const k=Math.min(1,upan.t/upan.d), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2, F=upan.from, T=upan.to;
     cam.z=F.z+(T.z-F.z)*e; const fcx=F.x+W/2/F.z, fcy=F.y+H/2/F.z, tcx=T.x+W/2/T.z, tcy=T.y+H/2/T.z, cx=fcx+(tcx-fcx)*e, cy=fcy+(tcy-fcy)*e; cam.x=cx-W/2/cam.z; cam.y=cy-H/2/cam.z; if(k>=1){ Object.assign(cam,T); upan=null; } }
+  function mockSpec(){
+    if(mockSpec.done) return mockSpec.v;
+    mockSpec.done=1; const q=new URLSearchParams(location.search), k=q.get('mock');
+    mockSpec.v=(k==='grid'||k==='iso'||k==='room'||k==='beds')?{k,spot:q.get('spot')||(k==='room'?'land':'garage')}:null; return mockSpec.v;
+  }
+  // Side-view grow room (?mock=room&spot=land|garage|gh). Gear stays in its own band.
+  function roomRows(n){ if(n>=40) return [14,13,13]; if(n>=36) return [14,12,10]; if(n>=25) return [9,8,8]; const a=Math.ceil(n/3), b=Math.ceil((n-a)/2); return [a,b,n-a-b]; }
+  function roomClip(x,y,w,h,fn){ ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip(); fn(); ctx.restore(); }
+  function roomFrame(dt,M){
+    t+=dt; const now=t, st=G.st; if(!st) return;
+    cam.x=0; cam.y=0; cam.z=1;
+    const spot=M.spot==='garage'||M.spot==='gh'?M.spot:'land';
+    const zone=spot==='land'?'field':spot==='gh'?'gh':'garage';
+    const plots=st.plots.filter(p=>p.zone===zone&&p.owned);
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+    const tab=34, wall=36, floorH=78, ceilH=46, overH=spot==='garage'?0:34;
+    const x0=wall, x1=W-wall, iw=x1-x0, yFloor=H-floorH, ceilBot=tab+ceilH;
+    const cls=zone==='field'?'out':zone==='gh'?'gh':'in', kind=zone==='garage'?'pot':'soil';
+    const Hm=cls==='out'?2.3:cls==='gh'?1.2:1.25, drop=kind==='pot'?.42:.1;
+    const counts=roomRows(plots.length);
+    const overTop=ceilBot, plantTop=ceilBot+overH, slotH=(yFloor-plantTop)/3;
+    const geos=counts.map(cnt=>{ const cell=iw/Math.max(1,cnt), span=Math.max(36,slotH-8), ppm=span/(Hm+drop); return {cnt,cell,ppm,span}; });
+    if(spot==='garage'){ const g=ctx.createLinearGradient(0,tab,0,H); g.addColorStop(0,'#24302a'); g.addColorStop(1,'#141c18'); ctx.fillStyle=g; ctx.fillRect(0,tab,W,H-tab); }
+    else { const g=ctx.createLinearGradient(0,tab,0,yFloor); g.addColorStop(0,spot==='gh'?'#c5ddc4':'#8ec8ea'); g.addColorStop(.55,spot==='gh'?'#6a9a62':'#5d8a32'); g.addColorStop(1,'#3d5a28'); ctx.fillStyle=g; ctx.fillRect(0,tab,W,yFloor-tab); const gr=grass(); if(gr&&spot==='land'){ ctx.save(); ctx.globalAlpha=.35; ctx.drawImage(gr,0,ceilBot,W,yFloor-ceilBot); ctx.restore(); } }
+    ctx.fillStyle=spot==='garage'?'#1a2220':'#2a2218'; ctx.fillRect(0,yFloor,W,floorH);
+    ctx.fillStyle=spot==='garage'?'#121816':'rgba(20,28,18,.55)'; ctx.fillRect(0,ceilBot,wall,yFloor-ceilBot); ctx.fillRect(x1,ceilBot,wall,yFloor-ceilBot);
+    ctx.fillStyle=spot==='garage'?'#101614':'#1c2418'; ctx.fillRect(0,tab,W,ceilH);
+    if(spot!=='land') roomClip(x0,tab,iw,ceilH,()=>{ growLight({x:x0+6,y:ceilBot-3},{x:x1-6,y:ceilBot-3},16); });
+    if(overH>0){
+      roomClip(x0,overTop,iw,overH,()=>{
+        if(spot==='land'){ const n=8, bw=iw/n; ctx.lineCap='butt';
+          for(let i=0;i<n;i++){ const a=x0+i*bw+bw*.12, b=x0+(i+1)*bw-bw*.12, yb=overTop+overH-1;
+            ctx.strokeStyle='rgba(245,247,248,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(a,yb); ctx.quadraticCurveTo((a+b)/2,overTop+1,b,yb); ctx.stroke(); }
+        } else {
+          ctx.fillStyle='rgba(22,30,26,.72)'; ctx.fillRect(x0,overTop,iw,overH);
+          ctx.strokeStyle='rgba(120,140,128,.35)'; ctx.lineWidth=1; for(let i=0;i<=iw;i+=5){ ctx.beginPath(); ctx.moveTo(x0+i,overTop); ctx.lineTo(x0+i,overTop+overH); ctx.stroke(); }
+        }
+      });
+    }
+    let pi=0;
+    for(let r=0;r<3;r++){
+      const geo=geos[r], row=plots.slice(pi,pi+geo.cnt); pi+=geo.cnt; if(!row.length) continue;
+      const slotY=plantTop+r*slotH, gy=slotY+slotH-2;
+      roomClip(x0,slotY,iw,slotH,()=>{
+        ctx.fillStyle=kind==='pot'?'#2c261e':'#4a3018'; ctx.fillRect(x0,gy-6,iw,6);
+        row.forEach((p,i)=>{
+          const px=x0+(i+.5)*geo.cell; p.prog=.9; p.water=1; p.food=1; p.pest=null;
+          const sl={x:px,y:gy-.09*geo.ppm,ppm:geo.ppm,sp:geo.cell/geo.ppm,cls,kind};
+          const yoff=potLift(sl); ctx.save(); ctx.translate(0,-yoff);
+          if(kind==='pot') bucketPot(sl.x,sl.y,sl.ppm); else soilMound(sl.x,sl.y,sl.ppm);
+          drawPlantAt(p,null,sl,now); ctx.restore();
+        });
+      });
+    }
+    const stack=(x,items)=>{ let y=ceilBot+4; items.forEach(fn=>{ const h=fn(x,y); y+=h; }); };
+    if(spot==='garage'){
+      roomClip(0,ceilBot,wall,yFloor-ceilBot,()=>{
+        stack(wall/2,[
+          (x,y)=>fitArt('p_clipfan',x,y,wall-6),
+          (x,y)=>fitArt('p_pedfan',x,y,wall-6),
+          (x,y)=>fitDehu(x,y,wall-8)
+        ]);
+      });
+      roomClip(x1,ceilBot,wall,yFloor-ceilBot,()=>{
+        stack(x1+wall/2,[
+          (x,y)=>fitMeter(x,y,wall-8,'6.2','pH','#7dffa8'),
+          (x,y)=>fitMeter(x,y,wall-8,'75°','TEMP','#7fd3ff')
+        ]);
+      });
+      roomClip(0,yFloor,W,floorH,()=>{
+        const feet=H-4, h=floorH-12; let x=8;
+        x=fitArtFeet('p_press',x,feet,h)+8;
+        floorBox(x,feet,54,h); floorBox(x+62,feet,54,h);
+      });
+    } else if(spot==='land'){
+      roomClip(0,yFloor,W,floorH,()=>{
+        const feet=H-4, h=floorH-12; let x=6;
+        x=fitArtFeet('b_tank',x,feet,h)+8;
+        floorBox(x,feet,52,h); floorBox(x+60,feet,52,h); floorBox(x+120,feet,52,h);
+      });
+    } else {
+      roomClip(0,ceilBot,wall,yFloor-ceilBot,()=>{ fitArt('p_swamp',wall/2,ceilBot+4,wall-6); });
+      roomClip(x1,ceilBot,wall,yFloor-ceilBot,()=>{ fitMeter(x1+wall/2,ceilBot+4,wall-8,'75°','TEMP','#7fd3ff'); });
+      roomClip(0,yFloor,W,floorH,()=>{
+        const feet=H-4, h=floorH-12; floorBox(8,feet,52,h); floorBox(68,feet,52,h); floorBox(128,feet,52,h);
+      });
+    }
+    function fitArt(name,cx,top,maxW){ const im=IM[name]; if(!ok(name)) return 0; const aspect=im.naturalWidth/im.naturalHeight; let w=maxW, h=w/aspect; art(name,cx,top+h,h,1); return h; }
+    function fitArtFeet(name,left,feet,h){ const im=IM[name]; if(!ok(name)) return left; const w=h*im.naturalWidth/im.naturalHeight; art(name,left+w/2,feet,h,1); return left+w; }
+    function fitDehu(cx,top,maxW){ const h=maxW*1.25; drawProp('dehu',{x:cx,y:top+h},h/.75,.6,.75,(o,s)=>{ const w=.42*s, hh=.64*s; box(-w/2,0,w,hh,.22*s,LG(-w/2,0,w/2,0,['#d4d9dd','#f7f8f9','#c3cacf']),'#e9edf0','#9aa2a8'); ctx.fillStyle='#22272b'; RR(-w*.38,-hh*.9,w*.76,hh*.17,.02*s); ctx.fill(); ctx.fillStyle='#56d8ff'; ctx.font='800 '+(.07*s)+'px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('45%',0,-hh*.8); },0); return h; }
+    function fitMeter(cx,top,maxW,big,lab,col){ const w=maxW, h=w*1.35, x=cx-w/2; ctx.fillStyle='#d7dde1'; ctx.beginPath(); ctx.roundRect(x,top,w,h,5); ctx.fill(); ctx.fillStyle='#0d1712'; ctx.beginPath(); ctx.roundRect(x+3,top+3,w-6,h*.52,3); ctx.fill(); ctx.fillStyle=col; ctx.font='900 '+(h*.26)+'px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(big,cx,top+3+h*.26); ctx.fillStyle='#2b3035'; ctx.font='800 '+(h*.16)+'px system-ui'; ctx.fillText(lab,cx,top+h*.8); return h; }
+    function floorBox(left,feet,w,h){ box(left,feet,w,h*.72,h*.28,'#8a6038','#a87a4a','#6b4728'); }
+  }
+  // Phone mockups (?mock=grid|iso|room). Stacked beds (?mock=beds&spot=garage|gh|indoor).
+  // Room photos and upgrade sprites for the stacked-bed mockup live in assets/new-art/.
+  const BED_ART={
+    bg:{garage:'assets/new-art/backgrounds/garage.jpg',gh:'assets/new-art/backgrounds/greenhouse.jpg',indoor:'assets/new-art/backgrounds/indoor-facility.jpg'},
+    light:{garage:'assets/new-art/sprites/led-bar-light.png',gh:'assets/new-art/sprites/led-bar-light.png',indoor:'assets/new-art/sprites/led-bar-light.png'},
+    fan:'assets/new-art/sprites/clip-fan.png', ped:'assets/new-art/sprites/pedestal-fan.png', inline:'assets/new-art/sprites/inline-fan.png',
+    dehu:'assets/new-art/sprites/dehumidifier.png', ph:'assets/new-art/sprites/ph-meter.png', temp:'assets/new-art/sprites/temp-meter.png',
+    tank:'assets/new-art/sprites/water-barrel.png', res:'assets/new-art/sprites/reservoir.png', press:'assets/new-art/sprites/rosin-press.png',
+    box:'assets/new-art/sprites/boxes.png', hoop:'assets/new-art/sprites/hoop-house.png', shade:'assets/new-art/sprites/shade-cloth.png',
+    swamp:'assets/new-art/sprites/swamp-cooler.png', rack:'assets/new-art/sprites/drying-rack.png', tent:'assets/new-art/sprites/grow-tent.png',
+    panel:'assets/new-art/sprites/grow-light-hanging.png'
+  };
+  const bedIM={};
+  function bedSpotOf(s){ if(s==='gh'||s==='greenhouse') return 'gh'; if(s==='indoor'||s==='land'||s==='in') return 'indoor'; return 'garage'; }
+  function ensureBedArt(){
+    if(ensureBedArt.done) return; ensureBedArt.done=1; let need=0;
+    const add=(key,src)=>{ if(!src) return; need++; const im=new Image(); im.onload=()=>{ bedIM[key]=im; ensureBedArt.got=(ensureBedArt.got||0)+1; window.__bedArt=ensureBedArt.got; }; im.src=src; };
+    add('bg-garage',BED_ART.bg.garage); add('bg-gh',BED_ART.bg.gh); add('bg-indoor',BED_ART.bg.indoor);
+    add('light-garage',BED_ART.light.garage); add('light-gh',BED_ART.light.gh); add('light-indoor',BED_ART.light.indoor);
+    ['fan','ped','inline','dehu','ph','temp','tank','res','press','box','hoop','shade','swamp','rack','tent','panel'].forEach(k=>add(k,BED_ART[k]));
+    ensureBedArt.need=need; window.__bedArtNeed=need; window.__bedArt=0;
+  }
+  function bedSprite(key,cx,feet,h){ const im=bedIM[key]; if(!im||!im.naturalWidth) return 0; let w=h*im.naturalWidth/im.naturalHeight; ctx.drawImage(im,cx-w/2,feet-h,w,h); return w; }
+  // Stacked beds. Each bed is one full-width row between the tabs and the bottom bars.
+  // Plant drawing leaks a save, so a clip would stick and hide every plant after the first.
+  // Pop back to a clean bookmark instead of ctx.reset(), which clears the bitmap in this browser.
+  function bedsArm(){
+    if(bedsArm.ok) return; bedsArm.ok=1;
+    const rawSave=ctx.save.bind(ctx), rawRestore=ctx.restore.bind(ctx);
+    bedsArm.depth=0;
+    ctx.save=function(){ bedsArm.depth++; return rawSave(); };
+    ctx.restore=function(){ if(bedsArm.depth<=0) return; bedsArm.depth--; return rawRestore(); };
+    for(let i=0;i<40;i++) rawRestore();
+    rawSave(); bedsArm.depth=1;
+  }
+  function bedsFresh(){
+    while(bedsArm.depth>1) ctx.restore();
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0; ctx.filter='none'; ctx.beginPath();
+  }
+  function bedsClip(x,y,w,h,fn){
+    bedsFresh(); ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+    try{ fn(); } finally { bedsFresh(); }
+  }
+  function bedsFrame(dt,M){
+    t+=dt; const now=t, st=G.st; if(!st) return;
+    cam.x=0; cam.y=0; cam.z=1; ensureBedArt();
+    const spot=bedSpotOf(M.spot||'garage');
+    const zone=spot==='indoor'?'field':spot==='gh'?'gh':'garage';
+    const plots=st.plots.filter(p=>p.zone===zone&&p.owned);
+    bedsArm(); bedsFresh(); ctx.clearRect(0,0,W,H);
+    const tab=36;
+    const bar=document.getElementById('toolbar');
+    const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
+    // The quick-action button sits in the bottom-right, above the nav, so the beds stop short of it.
+    const fabMain=document.querySelector('#qaFab .qa-main');
+    const fabTop=fabMain&&fabMain.getBoundingClientRect().height>20?fabMain.getBoundingClientRect().top:barTop;
+    const bedsLimit=Math.min(barTop, fabTop-8);
+    // One ceiling bar for the lit rooms. The greenhouse keeps its open farm view and no fixture.
+    const lit=spot!=='gh', ceilH=lit?50:0;
+    const bedsTop=spot==='gh'?Math.round(H*0.16):tab+ceilH, bedsH=Math.max(40,bedsLimit-bedsTop);
+    // Upgrades live on their own tab, so each bed uses the width. Indoor is 5 rows of 8.
+    const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
+    const edge=spot==='gh'?0.04:0.012;
+    const bedL=W*edge, bedR=W*(1-edge);
+    const bedH=bedsH/nBeds, cell=(bedR-bedL)/per;
+    const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
+    const Hm=cls==='gh'?1.2:1.25;
+    const head=spot==='gh'?6:2;
+    const snaps=[96,90,84,80,75,72,64,60,56,50,48,40];
+    const widthMax=Math.floor((cell-8)/0.70);
+    const plantH=(spot==='gh'
+      ? snaps.find(s=>s<=Math.min(bedH-head-26, widthMax))
+      : snaps.find(s=>s<=widthMax && head+s+0.32*(s/Hm)+22<=bedH)
+    )||40;
+    const ppm=plantH/Hm;
+    window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per; window.__bedLimit=Math.round(bedsLimit);
+    const bg=bedIM['bg-'+spot];
+    if(bg&&bg.naturalWidth){ ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; const s=Math.max(W/bg.naturalWidth,H/bg.naturalHeight), dw=bg.naturalWidth*s, dh=bg.naturalHeight*s; ctx.drawImage(bg,(W-dw)/2,(H-dh)/2,dw,dh); }
+    else { ctx.fillStyle=spot==='garage'?'#16120e':spot==='gh'?'#1a2416':'#10141a'; ctx.fillRect(0,0,W,H); }
+    ctx.fillStyle='rgba(4,8,6,.22)'; ctx.fillRect(0,0,W,H);
+    if(lit){
+      // Soft wash under the one ceiling bar. Plants and timers are drawn after it, so they keep their contrast.
+      const glow=ctx.createLinearGradient(0,bedsTop-4,0,bedsTop+bedsH*0.45);
+      glow.addColorStop(0,'rgba(255,246,220,.16)');
+      glow.addColorStop(1,'rgba(255,246,220,0)');
+      ctx.fillStyle=glow; ctx.fillRect(bedL,bedsTop-4,bedR-bedL,bedsH*0.5);
+      hangLight(tab,ceilH);
+    }
+    for(let r=0;r<nBeds;r++){
+      const y0=bedsTop+r*bedH, row=plots.slice(r*per,(r+1)*per);
+      const lift=kind==='pot'?0.32*ppm:0;
+      const soil=y0+head+(spot==='gh'?4:0)+plantH+lift;
+      bedsFresh();
+      if(spot==='garage') drawGarageShelf(soil,bedL,bedR);
+      else if(spot==='indoor') drawIndoorRack(soil,bedL,bedR);
+      // Greenhouse plants root in the photo's dirt. No painted bed over the farm view.
+      row.forEach((p,i)=>{
+        const x=bedL+(i+.5)*cell; p.prog=.9; p.water=1; p.food=1; p.pest=null; p._dv=1;
+        const sl={x,y:kind==='pot'?soil:soil-.09*ppm,ppm,sp:Math.max(.25,(cell-12)/ppm/1.2),cls,kind};
+        bedsClip(bedL+i*cell+1,y0+head,cell-2,bedH-head-2,()=>{
+          const yoff=potLift(sl); ctx.save(); ctx.translate(0,-yoff);
+          if(kind==='pot') bucketPot(sl.x,sl.y,sl.ppm); else soilMound(sl.x,sl.y,sl.ppm);
+          drawPlantAt(p,null,sl,now); ctx.restore();
+        });
+        const secs=G.timeLeft?G.timeLeft(p):0;
+        const lab=secs>=86400?Math.max(1,Math.round(secs/86400))+'d':secs>=3600?Math.max(1,Math.round(secs/3600))+'h':Math.max(1,Math.round(secs/60))+'m';
+        pill(x,Math.min(y0+bedH-11,soil+14),lab,'rgba(10,20,14,.92)','#e9ffd6',11);
+      });
+    }
+    bedsFresh();
+    function drawGarageShelf(y,x0,x1){
+      ctx.fillStyle='#3e454c'; for(let x=x0+14;x<x1-8;x+=72){ ctx.fillRect(x,y+6,4,16); ctx.fillRect(x+22,y+6,4,16); ctx.fillStyle='#2a3036'; ctx.fillRect(x-2,y+20,30,3); ctx.fillStyle='#3e454c'; }
+      const g=ctx.createLinearGradient(0,y-8,0,y+3); g.addColorStop(0,'#e4b57e'); g.addColorStop(.5,'#a56b3c'); g.addColorStop(1,'#6b4124');
+      ctx.fillStyle=g; ctx.fillRect(x0,y-1,x1-x0,8); ctx.fillStyle='#4a2e1a'; ctx.fillRect(x0,y+6,x1-x0,3);
+    }
+    function drawIndoorRack(y,x0,x1){
+      ctx.fillStyle='#2a3036'; const step=Math.max(48,(x1-x0)/per); for(let x=x0+8;x<x1-6;x+=step) ctx.fillRect(x,y+4,3,18);
+      ctx.fillStyle='#8d959e'; ctx.fillRect(x0,y-1,x1-x0,6); ctx.fillStyle='#e4eaf0'; ctx.fillRect(x0,y-1,x1-x0,2); ctx.fillStyle='#525a64'; ctx.fillRect(x0,y+5,x1-x0,3);
+    }
+    function hangLight(y0,bandH){
+      const im=bedIM['light-'+spot]||bedIM['light-garage']; if(!im||!im.naturalWidth) return;
+      // One wide bar for the room. The sprite's housing is the lower half; cables run up to the ceiling.
+      const srcY=Math.round(im.naturalHeight*.5), srcH=im.naturalHeight-srcY;
+      const fh=Math.max(20,bandH-14), fw=Math.min(bedR-bedL-12, fh*im.naturalWidth/srcH), cx=(bedL+bedR)/2, top=y0+10;
+      const x0=cx-fw/2, xL=x0+fw*(16/im.naturalWidth), xR=x0+fw*(238/im.naturalWidth);
+      ctx.strokeStyle='rgba(198,204,210,.95)'; ctx.lineWidth=2.25; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(xL,y0+1); ctx.lineTo(xL,top+2); ctx.moveTo(xR,y0+1); ctx.lineTo(xR,top+2); ctx.stroke();
+      ctx.drawImage(im,0,srcY,im.naturalWidth,srcH,x0,top,fw,fh);
+    }
+  }
+  function mockFrame(dt){
+    const M=mockSpec(); if(!M) return; if(M.k==='beds'){ bedsFrame(dt,M); return; } if(M.k==='room'){ roomFrame(dt,M); return; }
+    t+=dt; const now=t, st=G.st; if(!st) return;
+    cam.x=0; cam.y=0; cam.z=1;
+    const zone=M.spot==='land'?'field':M.spot==='gh'?'gh':'garage';
+    const plots=st.plots.filter(p=>p.zone===zone&&p.owned);
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+    if(zone==='garage'){ const g=ctx.createRadialGradient(W/2,H*.4,20,W/2,H*.5,Math.max(W,H)); g.addColorStop(0,'#2c3a33'); g.addColorStop(1,'#111a16'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); }
+    else { ctx.fillStyle='#3f6d22'; ctx.fillRect(0,0,W,H); const gr=grass(); if(gr) ctx.drawImage(gr,0,0,W,H); }
+    if(!plots.length) return;
+    const cols=zone==='gh'?6:5, rows=Math.ceil(plots.length/cols);
+    const cls=zone==='field'?'out':zone==='gh'?'gh':'in', kind=zone==='garage'?'pot':'soil';
+    const hM=cls==='out'?1.9:cls==='gh'?1.15:1.1;
+    const placed=[];
+    plots.forEach((p,i)=>{
+      const c=i%cols, r=Math.floor(i/cols); let x,y,ppm;
+      if(M.k==='grid'){
+        const cw=W/cols, ch=H/rows, drop=kind==='pot'?.35:0;
+        ppm=Math.min(cw*.82, (ch-8)/(hM+drop));
+        x=(c+.5)*cw; y=(r+1)*ch-2;
+      } else {
+        const dx=W/(cols+rows), dy=H/(cols+rows), drop=kind==='pot'?.35:0;
+        x=rows*dx+(c-r)*dx; y=(c+r+1)*dy;
+        ppm=Math.min(dx*.9, dy*.78/(hM+drop));
+      }
+      p.prog=.9; p.water=1; p.food=1; p.pest=null;
+      placed.push({p,sl:{x,y,ppm,sp:(M.k==='grid'?W/cols:W/(cols+rows))/ppm,cls,kind},c,r});
+    });
+    for(const o of placed){
+      const sl=o.sl, yoff=potLift(sl);
+      ctx.save(); ctx.translate(0,-yoff);
+      if(sl.kind==='pot') bucketPot(sl.x,sl.y,sl.ppm); else soilMound(sl.x,sl.y,sl.ppm);
+      drawPlantAt(o.p,null,sl,now); ctx.restore();
+    }
+    const k0=placed[0].sl.ppm, by={};
+    placed.forEach(o=>(by[o.r]=by[o.r]||[]).push(o));
+    if(zone==='garage'){
+      for(const r in by){ const row=by[r].sort((a,b)=>a.sl.x-b.sl.x), a=row[0].sl, b=row[row.length-1].sl;
+        growLight({x:a.x,y:a.y-a.ppm*(hM+.15)},{x:b.x,y:b.y-b.ppm*(hM+.15)},a.ppm);
+        art('p_clipfan',b.x,b.y,.42,b.ppm,true); }
+      art('p_pedfan',placed[0].sl.x,H-2,.7,k0); art('p_press',W-8,H*.45,.45,k0);
+    } else if(zone==='field'){
+      if(ok('b_tank')){ const im=IM.b_tank, h=Math.min(H*.16,k0*1.6), w=h*im.naturalWidth/im.naturalHeight; ctx.drawImage(im,2,H-h-2,w,h); }
+      ctx.strokeStyle='rgba(245,247,248,.95)'; ctx.lineWidth=Math.max(2,k0*.045);
+      (by[0]||[]).forEach(o=>{ const s=o.sl; ctx.beginPath(); ctx.moveTo(s.x-k0*.25,s.y); ctx.quadraticCurveTo(s.x,s.y-k0*1.15,s.x+k0*.25,s.y); ctx.stroke(); });
+    } else {
+      art('p_swamp',W-4,H-2,1.05,Math.min(k0,46));
+      const top=by[0]||[]; if(top.length>1){ const a=top[0].sl, b=top[top.length-1].sl;
+        ctx.fillStyle='rgba(22,30,26,.5)'; ctx.fillRect(Math.min(a.x,b.x),0,Math.abs(b.x-a.x),k0*.4);
+        growLight({x:a.x,y:k0*.2},{x:b.x,y:k0*.2},k0); }
+    }
+  }
   function frame(dt){
+    if(mockSpec()){ mockFrame(dt); return; }
     t+=dt; const now=t, st=G.st; if(!st) return; if(!SC.garage.slots) rebuild();
     if(G.st.loc!==loc) setLoc(G.st.loc);
     stepPan(dt);
