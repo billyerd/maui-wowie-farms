@@ -149,7 +149,7 @@ window.UI = (function(){
     const q=G.curQuest(), g=$('#goal');
     if(q){ const r=q.r.cash?fmt(q.r.cash):q.r.gems?q.r.gems+' gems':q.r.hints+' hint'+(q.r.hints>1?'s':''); const who=G.F.storyGoals&&q.who?q.who:null;
       const h=`${who?portraitImg(who,'gport'):'<span class="gport" style="display:grid;place-items:center;background:#24402c;border-radius:50%">🎯</span>'}<i class="gdot"></i><div class="gtx"><div class="gt">${st.questDone?'Goal complete! Tap to claim':(who?esc(who)+' · ':'')+'Goal '+(st.quest+1)+'/'+G.QUESTS.length}</div>${esc(q.t)} <span class="gr">${r}</span></div>`;
-      if(g._h!==h){ const first=g._h==null; g._h=h; g.innerHTML=h; if(!first) goalPeek(4500); } g.classList.toggle('done',st.questDone); }
+      if(g._h!==h){ const first=g._h==null; g._h=h; g.innerHTML=h; if(!first) goalPeek(4500); } g.classList.toggle('done',st.questDone); g.setAttribute('aria-label', who||'Goal'); }
     else if(g._h!==''){ g._h=''; g.innerHTML=''; }
     // story glow. The tutorial card points on its own, so the two hands don't fight.
     const tutOn=window.Tutorial&&Tutorial.active&&Tutorial.active();
