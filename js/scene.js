@@ -1001,7 +1001,8 @@ window.R=(function(){
       bedsFresh();
       if(spot==='garage') drawGarageShelf(soil,0,W);
       else if(spot==='indoor') drawIndoorRack(soil,0,W);
-      // Greenhouse plants sit on the photo's dirt floor. The metal poles and topper are in that photo.
+      else if(r===0) drawFrontSoil(soil,y0+bedH,bedL,bedR);
+      // Lower greenhouse rows sit on the photo's dirt. The first row is in front of the farm view, so it gets the same dark soil strip.
       const glow=ctx.createLinearGradient(0,y0+lightH-2,0,soil+6);
       glow.addColorStop(0,spot==='gh'?'rgba(255,236,190,.20)':'rgba(255,246,220,.34)');
       glow.addColorStop(1,'rgba(255,246,220,0)');
@@ -1026,6 +1027,16 @@ window.R=(function(){
     scrim.addColorStop(0,'rgba(0,0,0,0)'); scrim.addColorStop(1,'rgba(0,0,0,.28)');
     ctx.fillStyle=scrim; ctx.fillRect(0,gearTop,W,barTop-gearTop);
     drawGear(spot,gearTop+4,barTop-4);
+    function drawFrontSoil(soil,bedBot,x0,x1){
+      const top=soil-12, bot=Math.min(bedBot+10, soil+28), h=bot-top;
+      ctx.fillStyle='rgba(0,0,0,.32)'; ctx.beginPath(); ctx.roundRect(x0+2,top+3,x1-x0-4,h,5); ctx.fill();
+      const g=ctx.createLinearGradient(0,top,0,bot);
+      g.addColorStop(0,'#5c3b24'); g.addColorStop(.22,'#3a2416'); g.addColorStop(1,'#24160e');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.roundRect(x0,top,x1-x0,h,5); ctx.fill();
+      ctx.fillStyle='#6d4b32'; ctx.fillRect(x0+2,top+1,x1-x0-4,3);
+      ctx.fillStyle='rgba(90,58,34,.4)';
+      for(let x=x0+7;x<x1-6;x+=10) ctx.fillRect(x,top+7+(x%6),2,2);
+    }
     function drawGarageShelf(y,x0,x1){
       ctx.fillStyle='#3e454c'; for(let x=x0+14;x<x1-8;x+=72){ ctx.fillRect(x,y+6,4,16); ctx.fillRect(x+22,y+6,4,16); ctx.fillStyle='#2a3036'; ctx.fillRect(x-2,y+20,30,3); ctx.fillStyle='#3e454c'; }
       const g=ctx.createLinearGradient(0,y-8,0,y+3); g.addColorStop(0,'#e4b57e'); g.addColorStop(.5,'#a56b3c'); g.addColorStop(1,'#6b4124');
