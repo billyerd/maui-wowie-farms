@@ -219,7 +219,7 @@ window.UI = (function(){
     try{ render(true); }
     catch(err){ console.error(err); const body=$('#sheetBody'), foot=$('#sheetFoot'); if(body) body._h=''; if(foot) foot._h=''; $('#sheetTitle').textContent='Farm'; $('#sheetSub').innerHTML=''; $('#sheetTabs').innerHTML=''; body.innerHTML='<div class="empty">This page hit a problem in this save. The rest of the farm is still here.</div>'; foot.innerHTML=''; }
     $('#sheet').classList.remove('hidden'); document.body.classList.add('sheet-open'); Sound.play('open'); }
-  function close(){ panel=null; $('#sheet').classList.add('hidden'); document.body.classList.remove('sheet-open'); }
+  function close(){ panel=null; $('#sheet').classList.add('hidden'); document.body.classList.remove('sheet-open','web-open'); }
   // One bad picture must not blank the sheet. Mount a canvas (Safari paints that; a data URL often stays empty).
   function mountStrainArt(im){
     const id=im&&im.dataset&&im.dataset.cu;
@@ -244,7 +244,7 @@ window.UI = (function(){
     if(body._h!==o.body||reset){ body._h=o.body; body.innerHTML=o.body; paintStrainImgs(body); syncVol(body); }
     const f=o.foot||''; if($('#sheetFoot')._h!==f){ $('#sheetFoot')._h=f; $('#sheetFoot').innerHTML=f; }
     if(!reset) body.scrollTop=top; else body.scrollTop=0;
-    const lc=document.getElementById('labScene'); if(lc) drawLab(lc); drawCosPrev(body); { const pt=document.getElementById('passTrack'); if(pt&&!pt._init){ pt._init=1; const nx=pt.querySelector('.pt-col.next')||pt.querySelector('.pt-col.un:last-child'); if(nx) pt.scrollLeft=Math.max(0,nx.offsetLeft-60); } } body.classList.toggle('fit-web', !!document.getElementById('webFit')); if(document.getElementById('webFit')){ try{ webInit(); }catch(err){ console.error(err); } } body.querySelectorAll('canvas.pcard').forEach(c=>{ const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); try{ R.plantCard(x,JSON.parse(c.dataset.pc)); }catch(e){} });
+    const lc=document.getElementById('labScene'); if(lc) drawLab(lc); drawCosPrev(body); { const pt=document.getElementById('passTrack'); if(pt&&!pt._init){ pt._init=1; const nx=pt.querySelector('.pt-col.next')||pt.querySelector('.pt-col.un:last-child'); if(nx) pt.scrollLeft=Math.max(0,nx.offsetLeft-60); } } const webOn=!!document.getElementById('webFit'); body.classList.toggle('fit-web', webOn); document.body.classList.toggle('web-open', webOn); if(webOn){ try{ webInit(); }catch(err){ console.error(err); } } body.querySelectorAll('canvas.pcard').forEach(c=>{ const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); try{ R.plantCard(x,JSON.parse(c.dataset.pc)); }catch(e){} });
   }
   // Pheno Room / Breeding Pheno Room vignette at the top of the breeding sheet: the current hunt grows out on the bench, mothers stand on the right
   function drawLab(c){ const st=G.st, x=c.getContext('2d'), W=c.width, H=c.height, lab=st.breedLab, hunt=st.hunt; x.clearRect(0,0,W,H);
@@ -483,7 +483,7 @@ window.UI = (function(){
     if(grid&&grid.querySelectorAll) grid.querySelectorAll('[data-web]').forEach(b=>{ if(b.classList) b.classList.toggle('on', b.dataset.web===WEB.sel); });
     if(tiers&&tiers.querySelectorAll) tiers.querySelectorAll('[data-tier]').forEach(b=>{ const g=+b.dataset.tier; if(b.classList){ b.classList.toggle('on', g===(WEB.tier||0)); b.classList.toggle('hot', hot.has(g)); } }); }
   function webLayout(){ if(!WG) return; const grid=document.getElementById('strainWeb'); if(!grid) return; const box=innerBox(grid);
-    if(box.w<40||box.h<40){ if(!grid._wait){ grid._wait=1; const raf=typeof requestAnimationFrame==='function'?requestAnimationFrame:null; if(raf) raf(()=>{ grid._wait=0; webLayout(); }); } return; }
+    if(box.w<40||box.h<40){ if(!grid._wait){ grid._wait=1; const raf=typeof requestAnimationFrame==='function'?requestAnimationFrame:null; if(raf) raf(()=>webLayout()); } return; } grid._wait=0;
     const nodes=webNodes(WEB.tier||0), fit=pack(nodes.length, box.w, box.h);
     const sig=(WEB.tier||0)+'|'+box.w+'x'+box.h+'|'+nodes.length+'|'+discKey()+'|'+(fit?fit.cols+'x'+fit.node+(fit.labels?'L':''):'x');
     if(grid._sig===sig){ webMark(); return; }

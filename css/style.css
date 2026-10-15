@@ -412,6 +412,7 @@ input.savefile{display:block;margin:6px 0 8px;max-width:100%;font-size:13px;colo
 @keyframes adw{to{transform:translateX(-40px)}}
 #adOverlay .adbar{height:6px;border-radius:3px;background:rgba(255,255,255,.15);margin:12px 0 10px;overflow:hidden}#adOverlay .adbar i{display:block;height:100%;width:0;background:#ffd35a}
 #adOverlay .adrow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:800}
+body.web-open .sheet-card{height:calc(100% - 4px)}
 #sheetBody.fit-web{overflow:hidden;display:flex;flex-direction:column;touch-action:manipulation}
 #webFit{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px}
 .web-prog{flex:none;font-size:12px;font-weight:800;color:#d7ecdf;line-height:1.2}
