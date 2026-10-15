@@ -462,9 +462,7 @@ window.UI = (function(){
     x.globalAlpha=1;
     x.setTransform(d*c.z,0,0,d*c.z,d*(W/2-c.x*c.z),d*(H/2-c.y*c.z));
     const cols=new Map(); WG.nodes.forEach(n=>{ const col=cols.get(n.g)||{g:n.g,x:n.x,minY:1e9,maxY:-1e9}; col.minY=Math.min(col.minY,n.y); col.maxY=Math.max(col.maxY,n.y); cols.set(n.g,col); });
-    cols.forEach(col=>{ const top=col.minY-96, h=col.maxY+64-top; x.fillStyle='rgba(255,255,255,.04)'; x.beginPath(); x.roundRect(col.x-88,top,176,h,26); x.fill(); x.strokeStyle='rgba(255,214,120,.16)'; x.lineWidth=2; x.stroke();
-      const label=col.g===0?'Starters':'Gen '+(col.g+1); x.font='800 13px system-ui'; x.textAlign='center'; x.textBaseline='middle'; const tw=x.measureText(label).width+18;
-      x.fillStyle='rgba(8,18,12,.86)'; x.beginPath(); x.roundRect(col.x-tw/2,col.minY-84,tw,24,12); x.fill(); x.fillStyle='#ffd98a'; x.fillText(label,col.x,col.minY-72); });
+    cols.forEach(col=>{ const top=col.minY-52, h=col.maxY+58-top; x.fillStyle='rgba(255,255,255,.04)'; x.beginPath(); x.roundRect(col.x-88,top,176,h,26); x.fill(); x.strokeStyle='rgba(255,214,120,.16)'; x.lineWidth=2; x.stroke(); });
     const hl=new Set(), hle=new Set(); if(WEB.sel){ const up=id=>{ if(hl.has(id)) return; hl.add(id); WG.edges.forEach((e,i)=>{ if(e.b===id&&edgeVisible(e,WG)){ hle.add(i); up(e.a); } }); }; up(WEB.sel); WG.edges.forEach((e,i)=>{ if(e.a===WEB.sel&&edgeVisible(e,WG)){ hle.add(i); hl.add(e.b); } }); }
     const geom=(A,B)=>{ const ra=A.kind==='p'?30:44, rb=B.kind==='p'?30:44, x1=A.x+ra, y1=A.y, x2=B.x-rb, y2=B.y, pull=Math.max(56,Math.min(96,(x2-x1)*.42)); return [{x:x1,y:y1},{x:x1+pull,y:y1},{x:x2-pull,y:y2},{x:x2,y:y2}]; };
     const stroke=(p)=>{ x.beginPath(); x.moveTo(p[0].x,p[0].y); x.bezierCurveTo(p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y); x.stroke(); };
@@ -491,7 +489,13 @@ window.UI = (function(){
       let lab=n.kind==='p'?n.name+' (pollen)':stt==='mystery'?'???':n.s.name; x.font='700 12px system-ui'; x.textAlign='center'; x.textBaseline='top';
       while(lab.length>4&&x.measureText(lab).width>148) lab=lab.slice(0,-2)+'…';
       const tw=x.measureText(lab).width; x.fillStyle='rgba(6,14,10,.8)'; x.beginPath(); x.roundRect(n.x-tw/2-7,n.y+r+5,tw+14,18,9); x.fill(); x.fillStyle=stt==='locked'?'#b7c4bc':'#f3fff6'; x.fillText(lab,n.x,n.y+r+7); x.globalAlpha=1; });
-    x.setTransform(d,0,0,d,0,0); const vig=x.createRadialGradient(W/2,H*.46,Math.min(W,H)*.22,W/2,H/2,Math.max(W,H)*.75); vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(4,10,7,.45)'); x.fillStyle=vig; x.fillRect(0,0,W,H); x.setTransform(1,0,0,1,0,0); }
+    x.setTransform(d,0,0,d,0,0);
+    const vig=x.createRadialGradient(W/2,H*.46,Math.min(W,H)*.22,W/2,H/2,Math.max(W,H)*.75); vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(4,10,7,.45)'); x.fillStyle=vig; x.fillRect(0,0,W,H);
+    x.fillStyle='rgba(6,16,12,.78)'; x.fillRect(0,0,W,36);
+    x.font='800 13px system-ui'; x.textAlign='center'; x.textBaseline='middle';
+    cols.forEach(col=>{ const sx=W/2+(col.x-c.x)*c.z; if(sx<-50||sx>W+50) return; const label=col.g===0?'Starters':'Gen '+(col.g+1); const tw=x.measureText(label).width+16;
+      x.fillStyle='rgba(255,214,120,.16)'; x.beginPath(); x.roundRect(sx-tw/2,7,tw,22,11); x.fill(); x.fillStyle='#ffd98a'; x.fillText(label,sx,18); });
+    x.setTransform(1,0,0,1,0,0); }
   function webCard(){ const el=document.getElementById('webCard'); if(!el) return; const id=WEB.sel; if(!id){ el.innerHTML='<p class="wc-hint">Tap a strain to see its family. Drag to pan, pinch or scroll to zoom.</p>'; return; }
     const n=WG.nodes.get(id), st=G.st; if(n.kind==='p'){ const kids=WG.edges.filter(e=>e.a===id&&edgeVisible(e,WG)).map(e=>WG.nodes.get(e.b).s.name); el.innerHTML=`<h4>${esc(n.name)} <span class="tag">Pollen</span></h4><p>A parent line you can use as pollen in the Pheno Room.</p><p><b>Known children:</b> ${kids.length?esc(kids.join(', ')):'none found yet'}</p>`; return; }
     const s=n.s, stt=webState(n), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[id], k=st.keepers&&st.keepers[id], r=st.hintRev[id]||0;

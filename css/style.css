@@ -414,7 +414,7 @@ input.savefile{display:block;margin:6px 0 8px;max-width:100%;font-size:13px;colo
 #webWrap{position:relative;border-radius:18px;overflow:hidden;border:1px solid rgba(255,210,120,.28);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 10px 24px rgba(0,0,0,.28)}
 #strainWeb{display:block;width:100%;height:min(58vh,560px);touch-action:none;cursor:grab;background:#07140e}
 #webCard .btn{min-height:44px;height:auto}
-.web-legend{position:absolute;left:8px;top:8px;display:flex;gap:8px;font-size:12px;font-weight:800;color:#cfe;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:10px}
+.web-legend{position:absolute;left:8px;right:8px;bottom:8px;display:flex;flex-wrap:wrap;gap:8px;font-size:12px;font-weight:800;color:#cfe;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:10px}
 .web-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px}
 #webCard{margin-top:8px}#webCard .wc-top{display:flex;gap:10px;align-items:center}#webCard .wc-top img{width:56px;height:56px;border-radius:12px}#webCard p{margin:4px 0;font-size:12px}.wc-hint{color:var(--mut)}
 .prod.cos.on{border-color:#5ad06a;box-shadow:0 0 0 2px rgba(90,208,106,.5) inset}
