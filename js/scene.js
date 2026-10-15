@@ -983,15 +983,15 @@ window.R=(function(){
     // Upgrades sit in the side aisles and (greenhouse) the open view, so the tray row is gone.
     const lit=spot!=='gh', ceilH=lit?50:0;
     const bedsTop=spot==='gh'?Math.round(H*0.16):tab+ceilH, bedsH=Math.max(40,barTop-bedsTop);
-    const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
-    // Indoor stays at a 40px cell: eight columns leave about 34px for each side aisle.
-    const aisle=spot==='indoor'?34:spot==='gh'?44:46;
+    // Indoor is 8 rows of 5 so the plants can be wider than a 40px cell. Garage stays 5x5, greenhouse 6x6.
+    const nBeds=spot==='indoor'?8:spot==='gh'?6:5, per=spot==='indoor'?5:spot==='gh'?6:5;
+    const aisle=spot==='gh'?44:46;
     const bedL=aisle, bedR=W-aisle;
     const bedH=bedsH/nBeds, cell=(bedR-bedL)/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
     const head=spot==='gh'?6:2;
-    const snaps=[75,72,64,60,56,50,48,40];
+    const snaps=[96,90,84,80,75,72,64,60,56,50,48,40];
     const widthMax=Math.floor((cell-8)/0.70);
     const plantH=(spot==='gh'
       ? snaps.find(s=>s<=Math.min(bedH-head-26, widthMax))
@@ -1040,7 +1040,7 @@ window.R=(function(){
       ctx.fillStyle=g; ctx.fillRect(x0,y-1,x1-x0,8); ctx.fillStyle='#4a2e1a'; ctx.fillRect(x0,y+6,x1-x0,3);
     }
     function drawIndoorRack(y,x0,x1){
-      ctx.fillStyle='#2a3036'; const step=Math.max(48,(x1-x0)/8); for(let x=x0+8;x<x1-6;x+=step) ctx.fillRect(x,y+4,3,18);
+      ctx.fillStyle='#2a3036'; const step=Math.max(48,(x1-x0)/per); for(let x=x0+8;x<x1-6;x+=step) ctx.fillRect(x,y+4,3,18);
       ctx.fillStyle='#8d959e'; ctx.fillRect(x0,y-1,x1-x0,6); ctx.fillStyle='#e4eaf0'; ctx.fillRect(x0,y-1,x1-x0,2); ctx.fillStyle='#525a64'; ctx.fillRect(x0,y+5,x1-x0,3);
     }
     function hangLight(y0,bandH){
@@ -1124,7 +1124,8 @@ window.R=(function(){
     function placeGear(){
       const maxW=aisle-4, L=aisle/2, R=W-aisle/2, gear=[];
       const put=(key,side,row,h,upg,mode,where)=>{
-        const rec=sceneProp(key,side==='right'?R:L,rowFeet(row),h,{upg,maxW,post:mode==='post',side,where});
+        const cap=Math.max(28,bedH-18);
+        const rec=sceneProp(key,side==='right'?R:L,rowFeet(row),Math.min(h,cap),{upg,maxW,post:mode==='post',side,where});
         if(rec) gear.push(rec);
       };
       if(spot==='garage'){
@@ -1149,10 +1150,10 @@ window.R=(function(){
         put('ph','left',0,56,'phkit','post','left wall, top rack post');
         put('rack','left',1,90,'dryroom','shelf','left side, second rack');
         put('tent','left',2,64,'veg','shelf','left side, third rack');
-        put('res','left',4,40,'fert','shelf','left side, bottom rack');
+        put('res','left',nBeds-1,40,'fert','shelf','left side, bottom rack');
         put('fan','right',0,56,'hvac','post','right wall, top rack post');
         put('temp','right',1,40,'timer','post','right wall, second rack post');
-        put('dehu','right',4,56,'hvac','shelf','right side, bottom rack');
+        put('dehu','right',nBeds-1,56,'hvac','shelf','right side, bottom rack');
       }
       window.__bedGear=gear;
     }

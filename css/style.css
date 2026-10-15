@@ -615,3 +615,4 @@ html.mock-cam #roomTabs{position:fixed;top:0;left:0;right:0;z-index:40;height:36
 html.mock-cam #roomTabs button{flex:1;min-width:0;border-radius:8px;background:rgba(255,255,255,.08);color:#e7f3ea;font:800 11px/1.05 system-ui,sans-serif;white-space:nowrap}
 html.mock-cam #roomTabs button.on{background:linear-gradient(#ffd96a,#f2b632);color:#2a1d00}
 html.mock-cam.mock-beds #toolbar{display:flex!important}
+html.mock-cam.mock-beds #toolbar .tools{display:none!important}
