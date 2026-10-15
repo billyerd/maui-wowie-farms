@@ -709,10 +709,27 @@ window.G = (function(){
   // Legendary recipes only take when the strain parents are stable lines (F4+) in the Breeding Pheno Room; pollen-only legendaries
   // need any two stable lines you own. Seed-shop / store strains are commercial lines and count as stable (F6).
   const LINE={stable:4,max:6};
-  function lineGen(id){ return st.lines&&st.lines[id]?st.lines[id].gen:LINE.max; }
-  function lineName(id){ const g=lineGen(id); return st.lines&&st.lines[id]&&st.lines[id].heir?'Heirloom (F6)':g>=LINE.max?'IBL (F6)':'F'+g+(g>=LINE.stable?' stable':' unstable'); }
-  function lineMult(id){ if(!(st.lines&&st.lines[id])) return 1; const g=lineGen(id); return st.lines[id].heir?HEIR.mult:g>=LINE.max?1.06:g>=LINE.stable?1.03:.86+.04*g; }
-  function stableLines(){ return Object.entries(st.lines||{}).filter(([k,v])=>v.gen>=LINE.stable).map(([k])=>k); }
+  // Old saves stored a generation as a number, as {g:n}, or as null. A missing line is a commercial stable (F6).
+  // A present but unreadable record is an unfinished F1, never a free IBL.
+  function clampGen(n){ n=Math.round(+n); if(!isFinite(n)||n<1) return 1; return Math.min(LINE.max, n); }
+  function lineBag(){ const bag=st&&st.lines; return bag&&typeof bag==='object'&&!Array.isArray(bag)?bag:null; }
+  function lineRecord(v, present){
+    if(typeof v==='number'&&isFinite(v)) return {gen:clampGen(v)};
+    if(v&&typeof v==='object'&&!Array.isArray(v)){
+      const raw=typeof v.gen==='number'&&isFinite(v.gen)?v.gen:(typeof v.g==='number'&&isFinite(v.g)?v.g:1);
+      const rec=Object.assign({},v); rec.gen=clampGen(raw); return rec;
+    }
+    return present?{gen:1}:null;
+  }
+  function linePresent(id){ const bag=lineBag(); return !!(bag&&Object.prototype.hasOwnProperty.call(bag,id)); }
+  function lineOf(id){ return linePresent(id)?lineRecord(lineBag()[id],true):null; }
+  function eachLine(){ const bag=lineBag(); if(!bag) return []; return Object.keys(bag).map(k=>[k,lineRecord(bag[k],true)]); }
+  function healLines(map){ const src=map&&typeof map==='object'&&!Array.isArray(map)?map:{}; const out={}; Object.keys(src).forEach(k=>{ if(typeof k==='string'&&k) out[k]=lineRecord(src[k],true); }); return out; }
+  function healKeepers(map){ const src=map&&typeof map==='object'&&!Array.isArray(map)?map:{}; const out={}; Object.keys(src).forEach(k=>{ const v=src[k]; if(v&&typeof v==='object'&&!Array.isArray(v)) out[k]=v; }); return out; }
+  function lineGen(id){ const rec=lineOf(id); return rec?rec.gen:LINE.max; }
+  function lineName(id){ const rec=lineOf(id), g=rec?rec.gen:LINE.max; return rec&&rec.heir?'Heirloom (F6)':g>=LINE.max?'IBL (F6)':'F'+g+(g>=LINE.stable?' stable':' unstable'); }
+  function lineMult(id){ const rec=lineOf(id); if(!rec) return 1; const g=rec.gen; return rec.heir?HEIR.mult:g>=LINE.max?1.06:g>=LINE.stable?1.03:.86+.04*g; }
+  function stableLines(){ return eachLine().filter(([,v])=>v.gen>=LINE.stable).map(([k])=>k); }
 
   // ---------- F6 end-game tier: heirloom certification + the Seed Vault ----------
   // An F6 (IBL) line can be certified as a Kauai Heirloom: one at a time, 24 real hours in the seed bank (Breeding Pheno Room needed).
@@ -720,9 +737,9 @@ window.G = (function(){
   const HEIR={sec:86400, cost:[25000,0], mult:1.12};
   const VAULT=[{n:1,name:'Seed Keeper',r:{gems:60,legPacks:1}},{n:3,name:'Heirloom Breeder',r:{gems:120,legPacks:1,hints:3}},{n:6,name:'Island Seed Bank',r:{gems:250,legPacks:2}},
     {n:12,name:'Master of Lines',r:{gems:400,legPacks:3}},{n:18,name:'Kauai Legend',r:{gems:800,legPacks:5}}];
-  function heirCount(){ return Object.values(st.lines||{}).filter(v=>v.heir).length; }
+  function heirCount(){ return eachLine().filter(([,v])=>v.heir).length; }
   function heirCost(id){ return Math.round(HEIR.cost[0]*Math.max(1,strain(id).tier)); }
-  function canCertify(id){ const L=st.lines&&st.lines[id]; return !!(L&&L.gen>=LINE.max&&!L.heir&&st.breedLab&&!st.cert); }
+  function canCertify(id){ const L=lineOf(id); return !!(L&&L.gen>=LINE.max&&!L.heir&&st.breedLab&&!st.cert); }
   function startCertify(id){ if(!canCertify(id)){ emit('toast',{t:st.cert?'The seed bank is already certifying a line':'Only F6 (IBL) lines can be certified, in the Breeding Pheno Room',k:'bad'}); return false; }
     if(!spend(heirCost(id))) return false; st.cert={id,t:0,dur:HEIR.sec}; emit('certstart',id); save(); return true; }
   function tickCert(dt){ const C=st.cert; if(!C) return; C.t+=dt; if(C.t<C.dur) return; st.cert=null; const L=st.lines[C.id]; if(L){ L.heir=Date.now(); } bump('heirlooms'); emit('heirloom',{id:C.id,n:heirCount()}); checkVault(); }
@@ -1081,6 +1098,8 @@ window.G = (function(){
     const asMap=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:{};
     ['orders','cust','dryer','cuts','craft'].forEach(k=>{ st[k]=asList(st[k]); });
     ['goods','clones','keepers','lines','tried','recipes','harv','upkeepWarn','hintRev','cutSeeds','seeds','workers','upg','boosts','fest','lb','sets','manaSpent'].forEach(k=>{ st[k]=asMap(st[k]); });
+    st.lines=healLines(st.lines);
+    st.keepers=healKeepers(st.keepers);
     if(Array.isArray(raw.discovered)){ st.discovered={}; raw.discovered.forEach(id=>{ if(typeof id==='string') st.discovered[id]=true; }); }
     else st.discovered=asMap(st.discovered);
     if(typeof st.cash!=='number'||!isFinite(st.cash)) st.cash=0;
@@ -1230,8 +1249,8 @@ window.G = (function(){
     if(k==='breed') st.breed.t=st.breed.dur; else if(k==='hunt') st.hunt.t=st.hunt.dur; else if(k==='cert') st.cert.t=st.cert.dur; else if(k==='cut') st.cuts[i].t=st.cuts[i].dur; else if(k==='dry') st.dryer[i].t=st.dryer[i].dur; else if(k==='craft') st.craft[i].T=st.craft[i].dur;
     tickBreed(0); tickCraft(0); tickDryer(0); emit('rushed',t); save(); return true; }
   // breeding completion (strain web tracker) + a rough plan estimate for the pacing report
-  function breedProgress(){ const M=S.filter(s=>s.mystery), d=M.filter(s=>st.discovered[s.id]).length, L=Object.values(st.lines||{}), stab=L.filter(v=>v.gen>=LINE.stable).length, ibl=L.filter(v=>v.gen>=LINE.max).length, heir=L.filter(v=>v.heir).length;
-    return {mystery:M.length, found:d, all:S.length, known:Object.keys(st.discovered).length, lines:L.length, stable:stab, ibl, heir, pct:Math.round(100*(d+stab+heir)/(3*M.length))}; }
+  function breedProgress(){ const M=S.filter(s=>s&&s.mystery), disc=st.discovered&&typeof st.discovered==='object'&&!Array.isArray(st.discovered)?st.discovered:{}, d=M.filter(s=>disc[s.id]).length, L=eachLine(), stab=L.filter(([,v])=>v.gen>=LINE.stable).length, ibl=L.filter(([,v])=>v.gen>=LINE.max).length, heir=L.filter(([,v])=>v.heir).length;
+    return {mystery:M.length, found:d, all:S.length, known:Object.keys(disc).length, lines:L.length, stable:stab, ibl, heir, pct:M.length?Math.round(100*(d+stab+heir)/(3*M.length)):0}; }
   function breedPlanEstimate(o){ o=Object.assign({sessionsPerDay:4,labLv:1},o||{}); // real days, assuming the Breeding Pheno Room, ~4 check-ins a day and the lab upgrades bought over time
     const lab=.6, pol=Math.pow(.85,2), tis=Math.pow(.8,2), gap=24*3600/o.sessionsPerDay/2; let sec=0, n=0;
     for(const s of S.filter(s=>s.mystery)){ const t=Math.min(4,s.tier); sec+=CROSS_T[t]*lab*pol+gap+s.game.growSec*.5; // cross + grow its seeds (overlapped with other work)
