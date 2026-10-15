@@ -224,8 +224,8 @@ window.R=(function(){
       cam.y=vh>=sc.h?cam.fitY:Math.max(-m,Math.min(sc.h+m-vh,cam.y)); return; }
     const zmin=Math.min(Math.min(W/sc.w,H/sc.h)*.9,cam.fitZ||1e9); cam.z=Math.max(zmin,Math.min(4,cam.z));
     const vw=W/cam.z, vh=H/cam.z, m=120; cam.x=vw>sc.w+2*m?(sc.w-vw)/2:Math.max(-m,Math.min(sc.w+m-vw,cam.x)); cam.y=vh>sc.h+2*m?(sc.h-vh)/2:Math.max(-m-60,Math.min(sc.h+m-vh,cam.y)); }
-  function pan(dx,dy){ cam.x-=dx/cam.z; cam.y-=dy/cam.z; clamp(); }
-  function zoomAt(sx,sy,f){ const wx=sx/cam.z+cam.x, wy=sy/cam.z+cam.y; cam.z*=f; clamp(); cam.x=wx-sx/cam.z; cam.y=wy-sy/cam.z; clamp(); }
+  function pan(){ /* stacked beds fill the screen; nothing to pan */ }
+  function zoomAt(){ /* stacked beds stay fitted; nothing to zoom */ }
   const toS=(x,y)=>({x:(x-cam.x)*cam.z, y:(y-cam.y)*cam.z});
   function setLoc(l){ if(!SC[l]) return; cams[loc]={...cam}; loc=l; if(cams[l]){ cam={...cams[l]}; clamp(); } else fit(); fx.length=0; actors.length=0; }
 
@@ -448,9 +448,7 @@ window.R=(function(){
         if(hit){ const side=hit.x<f.x?-1:1; out.push({x:f.x+side*f.rx*.75,y:f.front},{x:f.x-side*f.rx*.2,y:f.front+6}); } }
       out.push(b); }
     return out; }
-  function sendWorker(w,target){ const tw=worldOf(target); if(!tw||actors.filter(a=>a.role==='trip').length>=(hq()?5:2)) return; const d=DOOR[loc], s=slotOf.get(target&&target.id); const dst=s?floorOf(s):{x:tw.x,y:tw.y};
-    const pool=w==='farmhand'||/^mgr/.test(w)?PEOPLE.farmhand:PEOPLE.walker; const a=spawn({role:'trip',img:pool[aid%pool.length],x:d.x,y:d.y,fade:1});
-    walkTo(a,route(d,dst).slice(1),a=>{ a.state='work'; setTimeout(()=>{ if(!actors.includes(a)) return; walkTo(a,route({x:a.x,y:a.y},d).slice(1),a=>{ a.fade=0; a.dead=a.t+.6; }); },1400); }); }
+  function sendWorker(){ /* helpers stay off the beds; finished work shows as one portrait summary */ }
   const CUSTF=['npc_sundress','npc_tourist'], CUSTM=['npc_tank','npc_aloha'], CUSTN={'Auntie Rose':'npc_sundress','Uncle Bo':'npc_elder','Surfer Jake':'npc_tank','Tourist Brenda':'npc_tourist','Chef Kekoa':'npc_aloha','Dr. Akana':'npc_aloha','Leilani':'npc_sundress','Pua':'npc_sundress','Hoku':'npc_tourist','Coach Mahina':'npc_tourist','Kimo':'npc_tank','Makoa':'npc_aloha','Nalu':'npc_tank','Kalani':'npc_elder'};
   const custSprite=c=>CUSTN[c.who]||(hash(c.id)&1?CUSTF:CUSTM)[hash(c.id)%2];
   const PATH=[{x:300,y:1300},{x:560,y:1300},{x:820,y:1318},{x:1080,y:1312},{x:1350,y:1300}];
@@ -833,8 +831,164 @@ window.R=(function(){
       upan={t:0,d:1.5,to,from:{z:z0,x:cx-W/2/z0-W*.08/z0,y:cy-H/2/z0-H*.06/z0}}; Object.assign(cam,upan.from); }
     if(!upan) return; upan.t+=dt; const k=Math.min(1,upan.t/upan.d), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2, F=upan.from, T=upan.to;
     cam.z=F.z+(T.z-F.z)*e; const fcx=F.x+W/2/F.z, fcy=F.y+H/2/F.z, tcx=T.x+W/2/T.z, tcy=T.y+H/2/T.z, cx=fcx+(tcx-fcx)*e, cy=fcy+(tcy-fcy)*e; cam.x=cx-W/2/cam.z; cam.y=cy-H/2/cam.z; if(k>=1){ Object.assign(cam,T); upan=null; } }
+  // Stacked beds: one screen, no scroll. Garage 5x5 pots, Greenhouse 6x6 dirt, Indoor Facility tries 5x8 then 8x5.
+  const BGSRC={garage:'assets/new-art/backgrounds/garage.jpg',gh:'assets/new-art/backgrounds/greenhouse.jpg',facility:'assets/new-art/backgrounds/indoor-facility.jpg',benches:'assets/new-art/backgrounds/indoor-facility.jpg'};
+  const bgIm={}; let ledIm=null, bedLay=null;
+  function ensureRoomArt(){ for(const k in BGSRC){ if(bgIm[k]) continue; const im=new Image(); im.src=BGSRC[k]; bgIm[k]=im; } if(!ledIm){ ledIm=new Image(); ledIm.src='assets/new-art/sprites/led-bar-light.png'; } }
+  function roomNow(){ try{ return G.currentRoom(); }catch(e){ return 'garage'; } }
+  function shownEl(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); if(r.width<8||r.height<8) return null; const s=getComputedStyle(e); if(s.display==='none'||s.visibility==='hidden') return null; return r; }
+  function bedBand(room){
+    let top=100;
+    for(const id of ['hud','clock','goal','eventChip','orderBoard','locTabs']){ const r=shownEl(id); if(r) top=Math.max(top, r.bottom+6); }
+    if(room==='gh') top=Math.max(top, H*0.16);
+    let bot=H-8;
+    for(const id of ['toolbar','qaFab','seedBag','scoutBtn','upgBtn']){ const r=shownEl(id); if(r&&r.top>H*0.35) bot=Math.min(bot, r.top-8); }
+    return {top, bot, left:8, right:Math.max(56,W-8), w:Math.max(48,W-16), h:Math.max(48,bot-top)};
+  }
+  function gridScore(band, cols, rows){
+    const gap=4, cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(rows-1))/rows, plantH=cellH-30;
+    return {ok:cellW>=40&&cellH>=44&&plantH>=36, cols, rows, cellW, cellH, gap};
+  }
+  function gridFor(room, band){
+    if(room==='garage') return Object.assign(gridScore(band,5,5),{n:25,zone:'garage'});
+    if(room==='gh') return Object.assign(gridScore(band,6,6),{n:36,zone:'gh'});
+    if(room==='benches') return Object.assign(gridScore(band,8,4),{n:32,zone:'in'});
+    const a=gridScore(band,5,8), b=gridScore(band,8,5);
+    const pick=a.ok?a:(b.ok?b:(a.cellW>=40&&a.cellH>=40?a:b.cellW*b.cellH>a.cellW*a.cellH?b:a));
+    return Object.assign(pick,{n:40,zone:'field'});
+  }
+  function drawCover(im){
+    if(!im||!im.complete||!im.naturalWidth){ ctx.fillStyle='#143026'; ctx.fillRect(0,0,W,H); return; }
+    const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), dw=im.naturalWidth*s, dh=im.naturalHeight*s;
+    ctx.drawImage(im,(W-dw)/2,(H-dh)/2,dw,dh);
+  }
+  function drawPotPx(cx, rim, cw){
+    const w=Math.min(cw*0.7, 46), h=12;
+    ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(cx+1,rim+h+2,w*0.55,4,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#1c1e22'; ctx.beginPath(); ctx.roundRect(cx-w*0.72,rim+h*0.35,w*1.44,h*0.7,3); ctx.fill();
+    const g=ctx.createLinearGradient(cx-w/2,0,cx+w/2,0); g.addColorStop(0,'#16171a'); g.addColorStop(.4,'#3c3e44'); g.addColorStop(1,'#111214');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(cx-w/2,rim-h); ctx.lineTo(cx-w*0.4,rim); ctx.lineTo(cx+w*0.4,rim); ctx.lineTo(cx+w/2,rim-h); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#4a3524'; ctx.beginPath(); ctx.ellipse(cx,rim-h*.15,w*0.46,w*0.1,0,0,TAU); ctx.fill();
+  }
+  function drawDirtPx(cx, rim, cw){
+    const w=Math.max(28,cw*0.88);
+    ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(cx+1,rim+5,w*0.48,6,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#6b4428'; ctx.beginPath(); ctx.ellipse(cx,rim,w*0.46,7,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#3d2814'; ctx.beginPath(); ctx.ellipse(cx,rim-1,w*0.32,4.5,0,0,TAU); ctx.fill();
+  }
+  function bedCard(x,y,w,h,title,sub){
+    ctx.fillStyle='rgba(10,22,16,.9)'; rr(x,y,w,h,16); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font='800 16px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(title,x+w/2,y+28);
+    ctx.fillStyle='#d7eadc'; ctx.font='13px system-ui,sans-serif'; ctx.fillText(sub,x+w/2,y+52);
+  }
+  function stepScreenBits(dt){
+    for(const f of fx){ f.t+=dt; f.vy+=(f.k==='fall'?20:160)*dt; f.x+=f.vx*dt; f.y+=f.vy*dt; const a=Math.max(0,1-f.t/f.life); ctx.globalAlpha=a; ctx.fillStyle=f.c; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,TAU); ctx.fill(); }
+    ctx.globalAlpha=1; for(let i=fx.length-1;i>=0;i--) if(fx[i].t>fx[i].life) fx.splice(i,1);
+    ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(const f of floats){ f.t+=dt; const a=Math.max(0,1-f.t/f.life); ctx.globalAlpha=a; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=4; ctx.strokeText(f.text,f.x,f.y-f.t*18); ctx.fillStyle=f.color; ctx.fillText(f.text,f.x,f.y-f.t*18); }
+    ctx.globalAlpha=1; for(let i=floats.length-1;i>=0;i--) if(floats[i].t>floats[i].life) floats.splice(i,1);
+    for(const c of coins){ c.t+=dt; if(c.t<0) continue; const k=Math.min(1,c.t/.7); ctx.globalAlpha=k>.82?Math.max(0,(1-k)/.18):1; ctx.fillStyle=c.gem?'#7af0ff':'#ffd23a'; ctx.beginPath(); ctx.arc(c.x+(c.tx-c.x)*k,c.y+(c.ty-c.y)*k,6,0,TAU); ctx.fill(); }
+    ctx.globalAlpha=1; for(let i=coins.length-1;i>=0;i--) if(coins[i].t>.7) coins.splice(i,1);
+  }
+  function drawBeds(dt, now){
+    ensureRoomArt(); const st=G.st; if(!st) return false;
+    cam.x=0; cam.y=0; cam.z=1; loc=st.loc;
+    const room=roomNow();
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+    drawCover(bgIm[room]||bgIm.facility); ctx.fillStyle='rgba(4,8,6,.22)'; ctx.fillRect(0,0,W,H);
+    tags=[]; qbub=[]; geckoS=null; mentorS=null;
+    const lit=room==='garage'||room==='facility'||room==='benches';
+    let band=bedBand(room);
+    const gutter=48;
+    if(lit) band=Object.assign({},band,{top:band.top+gutter,h:Math.max(48,band.h-gutter)});
+    const g=gridFor(room,band);
+    const cells=[]; let build=null;
+    if(room==='gh'&&!st.ghBuilt){
+      const bw=Math.min(300,W-32), bh=132, bx=(W-bw)/2, by=Math.max(band.top, H*0.28);
+      bedCard(bx,by,bw,bh,'Greenhouse','Daylight, dirt beds, no lights');
+      const label=st.land?(G.gate('gh')?'Build · '+G.fmt(G.GH_BUILD.cost):'Level '+G.GH_BUILD.level):'Buy the land first';
+      ctx.fillStyle=st.land&&G.gate('gh')?'#e6b325':'#3d5244'; rr(bx+24,by+74,bw-48,44,12); ctx.fill();
+      ctx.fillStyle=st.land&&G.gate('gh')?'#2a1c00':'#d7eadc'; ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,W/2,by+96);
+      build={x:bx+24,y:by+74,w:bw-48,h:44,act:st.land?{type:'ghbuild'}:{type:'land'}};
+    } else if(room==='facility'&&!st.land){
+      const bw=Math.min(300,W-32), bh=120, bx=(W-bw)/2, by=band.top+12;
+      bedCard(bx,by,bw,bh,'Indoor Facility','40 plots on the old family land');
+      build={x:bx+24,y:by+68,w:bw-48,h:40,act:{type:'land'}};
+      ctx.fillStyle='#e6b325'; rr(build.x,build.y,build.w,build.h,12); ctx.fill();
+      ctx.fillStyle='#2a1c00'; ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Open the land',W/2,build.y+20);
+    } else {
+      const plots=st.plots.filter(p=>p.zone===g.zone).sort((a,b)=>a.idx-b.idx);
+      const cls=room==='gh'?'gh':room==='facility'?'out':'in';
+      const probe={cls,sp:10,ppm:1}; const mature=Math.max(.4,plantSize('Hybrid',1,probe).h);
+      let marked=false;
+      const kind=g.zone==='garage'?'garage':g.zone==='field'?'field':g.zone==='gh'?'gh':'bench';
+      for(let i=0;i<g.n;i++){
+        const col=i%g.cols, row=(i/g.cols)|0;
+        const x=band.left+col*(g.cellW+g.gap), y=band.top+row*(g.cellH+g.gap);
+        const p=plots[i]||null; const pot=room==='garage'||room==='benches';
+        const potH=pot?14:8; const rim=y+g.cellH-18-potH;
+        const plantH=Math.max(20,rim-y-4); const ppm=plantH/mature; const sp=Math.max(.25,(g.cellW-10)/(ppm*1.2));
+        const sl={x:x+g.cellW/2,y:pot?rim-2:rim,cls,sp,ppm,kind:pot?'pot':'soil'};
+        let expand=null;
+        if(p&&!p.owned&&!marked&&G.nextStep(kind)){ expand=kind; marked=true; }
+        cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:!!(p&&p.owned),expand,sl,pot,rim});
+        if(p) slotOf.set(p.id,sl);
+      }
+      if(lit){
+        const ly=band.top-gutter+6, lw=Math.min(168,band.w*0.46), lx=(W-lw)/2;
+        const glow=ctx.createRadialGradient(W/2,ly+18,6,W/2,ly+36,Math.min(220,band.w*0.55));
+        glow.addColorStop(0,'rgba(255,236,190,.34)'); glow.addColorStop(1,'rgba(255,236,190,0)');
+        ctx.fillStyle=glow; ctx.fillRect(band.left,ly,band.w,78);
+        if(ledIm&&ledIm.complete&&ledIm.naturalWidth) ctx.drawImage(ledIm,lx,ly,lw,26);
+        const ge=st.gecko&&st.gecko.on;
+        if(ge&&ge.loc===st.loc){ const gx=band.left+24, gy=ly+16; geckoS={x:gx,y:gy,r:22};
+          ctx.fillStyle='rgba(255,214,90,.95)'; ctx.beginPath(); ctx.arc(gx,gy,18,0,TAU); ctx.fill();
+          ctx.font='18px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🦎',gx,gy+1); }
+      }
+      const care=[];
+      for(const c of cells){ if(!c.owned||!c.p||!c.p.strain||c.p.prog>=1) continue; if(c.p.pest||G.isThirsty(c.p)||G.isHungry(c.p)) care.push(c); }
+      const group=care.length>8;
+      for(const c of cells){
+        if(!c.p) continue;
+        const cx=c.sl.x;
+        if(c.owned){ if(c.pot) drawPotPx(cx,c.rim,c.w); else drawDirtPx(cx,c.rim,c.w); }
+        else { ctx.globalAlpha=.35; if(c.pot) drawPotPx(cx,c.rim,c.w); else drawDirtPx(cx,c.rim,c.w); ctx.globalAlpha=1; }
+        if(c.owned&&c.p.strain){ drawPlantAt(c.p,null,c.sl,now); }
+        if(c.owned&&!c.p.strain){
+          ctx.fillStyle='#2f9d4a'; ctx.beginPath(); ctx.arc(cx,c.rim-16,11,0,TAU); ctx.fill();
+          ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(cx-5,c.rim-16); ctx.lineTo(cx+5,c.rim-16); ctx.moveTo(cx,c.rim-21); ctx.lineTo(cx,c.rim-11); ctx.stroke();
+        }
+        if(!c.owned&&c.expand){ ctx.fillStyle='rgba(255,214,90,.95)'; ctx.font='700 11px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('+',cx,c.y+c.h/2); }
+        if(sel&&c.p&&sel.id===c.p.id){ ctx.strokeStyle='rgba(255,217,106,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(cx,c.rim+2,Math.min(18,c.w*0.28),7,0,0,TAU); ctx.stroke(); }
+      }
+      for(const c of cells){
+        if(!c.owned||!c.p||!c.p.strain) continue;
+        const label=c.p.prog>=1?'Ripe':G.dur(G.timeLeft(c.p));
+        pill(c.sl.x,c.y+c.h-9,label,'rgba(10,20,14,.92)','#e9ffd6',11);
+      }
+      if(group){
+        let pe=0,wa=0,fo=0; for(const c of care){ if(c.p.pest) pe++; else if(G.isThirsty(c.p)) wa++; else if(G.isHungry(c.p)) fo++; }
+        const bits=[]; if(pe) bits.push(pe+' pests'); if(wa) bits.push(wa+' thirsty'); if(fo) bits.push(fo+' hungry');
+        if(bits.length) pill(W/2,band.top-14,bits.join(' · '),'rgba(12,22,16,.9)','#fff',12);
+      } else {
+        for(const c of care){
+          const ic=c.p.pest?ICON[c.p.pest]:G.isThirsty(c.p)?ICON.water:ICON.food;
+          const a=c.p.pest?'treat':G.isThirsty(c.p)?'water':'feed';
+          const bx=Math.min(c.x+c.w-14,c.x+14), by=c.y+14;
+          badge(bx,by,ic,11); qbub.push({x:bx,y:by,act:{type:'qa',a,p:c.p}});
+        }
+      }
+      const id=window.Tutorial&&Tutorial.active&&Tutorial.active()&&Tutorial.plot&&Tutorial.plot();
+      if(id){ const c=cells.find(q=>q.p&&q.p.id===id&&q.owned); if(c){ const b=Math.abs(Math.sin(now*4))*8; ctx.font='32px sans-serif'; ctx.textAlign='center'; ctx.fillText('👆',c.sl.x,c.y+c.h*0.42+b); } }
+    }
+    bedLay={room,cells,build,band};
+    stepScreenBits(dt);
+    st.plots.forEach(p=>{ if(p._pop>0) p._pop=Math.max(0,p._pop-dt); if(p._shake>0) p._shake=Math.max(0,p._shake-dt); });
+    return true;
+  }
   function frame(dt){
     t+=dt; const now=t, st=G.st; if(!st) return; if(!SC.garage.slots) rebuild();
+    try{ if(drawBeds(dt,now)) return; }catch(e){ if(!frame._bedErr){ frame._bedErr=1; console.error(e); } }
     if(G.st.loc!==loc) setLoc(G.st.loc);
     stepPan(dt);
     drawBase(); // static backdrop comes from the cached blit only (a stray second drawWorldBase() here re-painted the full room art every frame)
@@ -1201,6 +1355,16 @@ window.R=(function(){
       setTimeout(()=>{ if(!actors.includes(a)) return; coinsTo({x:a.x,y:a.y-ppmAt(a.y)},'cashPill',o.tip?8:5); floater({x:a.x,y:a.y+.15*ppmAt(a.y)},'+'+G.fmt(o.v)+(o.tip?' +'+G.fmt(o.tip)+' tip':''),'#ffe27a',22); },650); } }
   // ---------------- picking ----------------
   function pick(sx,sy){
+    if(bedLay){
+      if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r+4) return {type:'gecko'};
+      let bq=null, bd=22; for(const b of qbub){ const d=Math.hypot(sx-b.x,sy-b.y); if(d<bd){ bd=d; bq=b; } } if(bq) return bq.act;
+      if(bedLay.build&&sx>=bedLay.build.x&&sx<=bedLay.build.x+bedLay.build.w&&sy>=bedLay.build.y&&sy<=bedLay.build.y+bedLay.build.h) return bedLay.build.act;
+      for(let i=bedLay.cells.length-1;i>=0;i--){ const c=bedLay.cells[i]; if(sx<c.x||sx>c.x+c.w||sy<c.y||sy>c.y+c.h) continue;
+        if(c.expand) return {type:'expand',kind:c.expand};
+        if(c.owned&&c.p){ sel=c.p; return {type:'plot',p:c.p}; }
+        return null; }
+      return null;
+    }
     if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r) return {type:'gecko'};
     if(mentorS&&Math.hypot(sx-mentorS.x,sy-mentorS.y)<mentorS.r+4) return {type:'mentor'};
     { let bq=null, bd=22; for(const b of qbub){ const d=Math.hypot(sx-b.x,sy-b.y); if(d<bd){ bd=d; bq=b; } } if(bq) return bq.act; }
@@ -1218,6 +1382,7 @@ window.R=(function(){
   function screenOf(p){ const sl=slotOf.get(p.id); if(!sl||p.loc!==loc) return null; return toS(sl.x,sl.y); }
   // Screen box of an owned pot, including the plant, the bucket, and the pointing finger under it.
   function plotRect(p){
+    if(bedLay&&p){ const c=bedLay.cells.find(q=>q.p&&q.p.id===p.id&&q.owned); if(c){ const cv=document.getElementById('game'), cr=cv?cv.getBoundingClientRect():{left:0,top:0}; return {left:c.x+cr.left,top:c.y+cr.top,right:c.x+c.w+cr.left,bottom:c.y+c.h+cr.top}; } if(p.zone!=={garage:'garage',gh:'gh',facility:'field',benches:'in'}[bedLay.room]) return null; }
     if(!p||p.loc!==loc||!p.owned) return null;
     const sl=slotOf.get(p.id); if(!sl) return null;
     const ppm=sl.ppm||40, z=cam.z||1, lift=potLift(sl);
@@ -1245,5 +1410,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,build:!!bedLay.build},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();

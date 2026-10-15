@@ -91,16 +91,20 @@ window.UI = (function(){
     el.classList.remove('hidden'); Sound.play('open'); }
   function locTabs(){
     const st=G.st, el=$('#locTabs'); if(!el) return;
-    if(el.children.length!==G.LOCS.length+1) el.innerHTML=G.LOCS.map(l=>`<button class="loctab" data-loc="${l}"><span class="li"></span><span class="lt"><b>${G.LOC_NAME[l]}</b><small></small><div class="bar thin"><i></i></div></span><em class="badge"></em></button>`).join('')+`<button class="loctab stand" data-stand="1"><span class="li"><img src="art/stand_icon.webp" alt=""></span><span class="lt"><b>Farm Stand</b><small></small></span><em class="badge"></em></button>`;
-    G.LOCS.forEach((l,i)=>{ const btn=el.children[i]; { const bn=btn.querySelector('b'); if(bn.textContent!==G.LOC_NAME[l]) bn.textContent=G.LOC_NAME[l]; } const open=G.locOpen(l), ripe=open?G.ripeIn(l):0; let sub='', p=0;
-      if(open){ const tot=st.plots.filter(q=>q.loc===l&&q.owned).length, grow=st.plots.filter(q=>q.loc===l&&q.owned&&q.strain).length; sub=grow+'/'+tot+' growing'; if(st.upkeepWarn[l]>0) sub='⚠ upkeep short'; }
-      else if(l==='farm'){ const r=landReq(); p=(Math.min(1,r[0].p)+Math.min(1,r[1].p))/2; sub=st.level<G.LAND_LEVEL?'Lv '+G.LAND_LEVEL+' · '+fmt(G.LAND_COST):fmt(Math.min(st.cash,G.LAND_COST))+' / '+fmt(G.LAND_COST); }
-      else { const ck=G.indoorChecklist(); const n=ck.filter(c=>c.ok).length; p=n/ck.length; sub=n+'/'+ck.length+' checklist'; }
-      const cls='loctab'+(st.loc===l?' on':'')+(open?'':' locked'); if(btn.className!==cls) btn.className=cls;
-      const set=(sel,v)=>{ const e=btn.querySelector(sel); if(e.textContent!==v) e.textContent=v; };
-      set('.li',open?LOCI[l]:'🔒'); set('small',sub); set('.badge',ripe?String(ripe):'');
-      const br=btn.querySelector('.bar'); br.style.display=open?'none':''; const w=Math.max(0,Math.min(1,p))*100+'%'; if(br.firstChild.style.width!==w) br.firstChild.style.width=w; });
-    { const sb=el.lastElementChild, n=G.invCount?0:0; const cls='loctab stand'+(panel==='stand'&&!$('#sheet').classList.contains('hidden')?' on':''); if(sb.className!==cls) sb.className=cls; const q=sb.querySelector('small'), v=(st.cust&&st.cust.length?st.cust.length+' waiting':'Sell your buds'); if(q.textContent!==v) q.textContent=v; }
+    const rooms=['garage','gh','facility']; if(st.inBuilt) rooms.push('benches');
+    const cur=G.currentRoom();
+    if(el.dataset.rooms!==rooms.join(',')){ el.dataset.rooms=rooms.join(',');
+      el.innerHTML=rooms.map(r=>`<button class="loctab" data-room="${r}"><span class="li"></span><span class="lt"><b></b><small></small></span><em class="badge"></em></button>`).join(''); }
+    const label={garage:G.LOC_NAME.garage,gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
+    const ico={garage:'🏠',gh:'🌿',facility:'🏭',benches:'💡'};
+    rooms.forEach((r,i)=>{ const btn=el.children[i]; const open=r==='gh'?!!st.land:r==='benches'?!!st.inBuilt:r==='facility'?!!st.land:true;
+      const ripe=G.roomRipe(r); const z=G.roomZone(r);
+      const tot=st.plots.filter(q=>q.zone===z&&q.owned).length, grow=st.plots.filter(q=>q.zone===z&&q.owned&&q.strain).length;
+      let sub=open?(r==='gh'&&!st.ghBuilt?'Tap to build':grow+'/'+tot):'Locked';
+      const cls='loctab'+(cur===r?' on':'')+(open?'':' locked')+(r==='benches'?' chip':''); if(btn.className!==cls) btn.className=cls;
+      const bn=btn.querySelector('b'); if(bn.textContent!==label[r]) bn.textContent=label[r];
+      const set=(sel,v)=>{ const e=btn.querySelector(sel); if(e&&e.textContent!==v) e.textContent=v; };
+      set('.li',open?ico[r]:'🔒'); set('small',sub); set('.badge',ripe?String(ripe):''); });
     const tb=$('#toolbar'); if(tb){ const b=(tb.offsetHeight+10)+'px'; if(document.documentElement.style.getPropertyValue('--toastb')!==b) document.documentElement.style.setProperty('--toastb',b); }
   }
   function hud(dt){
@@ -119,10 +123,11 @@ window.UI = (function(){
     $('#clock').classList.toggle('warn',st.upkeepWarn[st.loc]>0);
     const wet=G.invCount('wet'), sellable=G.invCount('dry')+G.invCount('cured')+G.goodsCount();
     $('#procBadge').textContent=wet?G.num(wet):''; const qr=G.questsReady()+(G.st.questDone?1:0); $('#qBadge').textContent=qr||'';
-    const mk=sellable+(st.level>=G.GATE.orders?st.orders.filter(o=>G.orderHave(o)>=o.n).length:0); $('#mktBadge').textContent=mk?G.num(mk):'';
+    const ords=Array.isArray(st.orders)?st.orders:[];
+    const mk=sellable+(st.level>=G.GATE.orders?ords.filter(o=>o&&G.orderHave(o)>=o.n).length:0); $('#mktBadge').textContent=mk?G.num(mk):'';
     const chips=[]; const b=st.gecko&&st.gecko.boost; if(b&&b.t>0) chips.push(`🦎 ${b.k==='grow'?'2x growth':'+50% prices'} · ${sec(b.t)}`);
     if(st.event.id){ const E=st.event.id==='season'?G.seasonEv():G.EVENTS[st.event.id]; chips.push(`${E.name} · ${E.desc} · ${sec(st.event.t)}`); }
-    else if(st.market.hot&&st.market.hotT>0) chips.push(`Tourist rush · ${G.strain(st.market.hot).name.split(' ')[0]} 2x · ${sec(st.market.hotT)}`);
+    else if(st.market&&st.market.hot&&st.market.hotT>0){ const hs=G.strain(st.market.hot); if(hs) chips.push(`Tourist rush · ${hs.name.split(' ')[0]} 2x · ${sec(st.market.hotT)}`); }
     const fs=G.festState(); if(fs&&!fs.claimed) chips.push(`🌺 ${fs.f.name} · ${fs.prog}/${fs.f.goal}`);
     const ec=$('#eventChip'); const ct=chips.join('  |  '); if(ct){ if(ec.textContent!==ct) ec.textContent=ct; ec.classList.remove('hidden'); } else ec.classList.add('hidden');
     { let bh=$('#boostHud'); if(!bh){ bh=document.createElement('div'); bh.id='boostHud'; document.body.appendChild(bh); bh.addEventListener('click',e=>{ const t=e.target.closest('[data-go]'); if(t) open('shop',t.dataset.go); }); }
@@ -141,17 +146,20 @@ window.UI = (function(){
     const gq=!tutOn&&q&&!st.questDone&&st.quest<7?{plant:'#seedBag',dry:'[data-panel=process]',sell:'[data-panel=market]',gcap:'[data-panel=upgrades]',feed:null}[q.id]:null;
     $$('.guide').forEach(e=>{ if(!gq||!e.matches(gq)) e.classList.remove('guide'); }); if(gq){ const e=$(gq); if(e) e.classList.add('guide'); }
     // water/feed all gating
-    const wa=$('#waterAll'), fa=$('#feedAll'); wa.classList.toggle('locked',G.lv('water')<1); if(fa) fa.classList.remove('locked');
+    const wa=$('#waterAll'), fa=$('#feedAll'); if(wa){ wa.classList.toggle('locked',G.lv('water')<1); const sm=wa.querySelector('small'); if(sm) sm.textContent=G.lv('water')<1?'Needs garden hose':'Water all'; } if(fa) fa.classList.remove('locked');
     locTabs(); seedBag(); orderBoard();
   }
   // ---------- location tabs ----------
-  function tapLoc(l){ const st=G.st; Sound.play('tap');
-    if(G.locOpen(l)){ if(st.loc!==l){ G.setLoc(l); hidePop(); } return; }
-    if(l==='farm') landModal(); else indoorModal(); }
+  function tapRoom(r){ Sound.play('tap'); hidePop();
+    if(r==='garage'){ G.setRoom('garage'); return; }
+    if(r==='facility'){ if(!G.st.land) landModal(); else G.setRoom('facility'); return; }
+    if(r==='gh'){ if(!G.st.land) landModal(); else G.setRoom('gh'); return; }
+    if(r==='benches'){ if(!G.st.inBuilt) indoorModal(); else G.setRoom('benches'); } }
+  function tapLoc(l){ if(l==='indoor') tapRoom('benches'); else if(l==='farm') tapRoom('facility'); else tapRoom('garage'); }
   function reqList(L){ return `<div class="reqs">${L.map(c=>`<div class="req ${c.ok?'ok':''}"><span>${c.ok?'✅':'⬜'}</span><div class="grow"><b>${esc(c.t)}</b>${c.p!=null&&!c.ok?bar(c.p,'thin'):''}${c.v&&!c.ok?`<small>${esc(c.v)}</small>`:''}</div></div>`).join('')}</div>`; }
   function landModal(){ const L=landReq(); const ready=L.every(c=>c.ok);
-    modal(`<img src="art/island-bg.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Buy the family land</h3><p>Uncle Ikaika is selling the old terraces on the hill. The land opens the farm: outdoor terraces now, a greenhouse next. Your garage keeps producing the whole time.</p>${reqList(L)}`,
-      [{label:'Later',cls:'sec',v:0},{label:ready?'Buy for '+fmt(G.LAND_COST):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buyLand()){ G.setLoc('farm'); } }); }
+    modal(`<img src="assets/new-art/backgrounds/indoor-facility.jpg" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor Facility</h3><p>Uncle Ikaika is selling the old family land. Buying it opens the Indoor Facility: 40 plots, and your plants from the old land stay put. The garage keeps producing the whole time. The greenhouse is its own daylight room.</p>${reqList(L)}`,
+      [{label:'Later',cls:'sec',v:0},{label:ready?'Buy for '+fmt(G.LAND_COST):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buyLand()){ G.setRoom('facility'); } }); }
   function indoorModal(){ const ck=G.indoorChecklist(); const st=G.st;
     const ready=ck.slice(0,5).every(c=>c.ok);
     const acts=[{label:'Later',cls:'sec',v:0}];
@@ -179,21 +187,28 @@ window.UI = (function(){
   function showPop(p,sx,sy){ popPlot=p; const pop=$('#pop'); renderPop(); pop.style.left=Math.max(120,Math.min(innerWidth-120,sx))+'px'; pop.style.top=Math.max(170,sy-10)+'px'; pop.classList.remove('hidden'); }
   function clockAt(sec){ const d=new Date(Date.now()+sec*1000); return d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+(sec>20*3600?' '+d.toLocaleDateString([], {weekday:'short'}):''); }
   function renderPop(){
-    const p=popPlot; if(!p||!p.strain){ hidePop(); return; } const s=G.strain(p.strain), left=G.timeLeft(p), cc=G.cycleCost(p);
-    $('#pop').innerHTML=`<h5>${esc(s.name)} <small style="color:var(--mut)">${esc(G.ZONE[p.zone].name)}</small></h5>
-      <div class="l"><span>Ready in</span><b>${p.prog>=1?'Ripe now!':sec(left)+' · ~'+clockAt(left)}</b></div>${bar(p.prog)}
-      <div class="l"><span>Water</span><b>${Math.round(p.water*100)}%</b></div>${bar(p.water,'blue')}
-      <div class="l"><span>Feed</span><b>${p.food>0?'Fed (+15% speed, +20% yield)':G.isHungry(p)?'<span class="down">Needs one free feed (20% slower, no yield bonus)</span>':'One free feed at halfway'}</b></div>
-      <div class="l"><span>Health</span><b>${p.pest==='mold'?'<span class="down">Mold! Treat now</span>':p.pest==='pests'?'<span class="down">Pests! Treat now</span>':'Healthy'}</b></div>
-      <div class="l"><span>Training</span><b>${p.pruned?'Pruned (+12%)':G.canPrune(p)?'<span class="up">Ready to prune</span>':p.prog<.15?'Too young to prune':'Not pruned'}${p.trellis?' · Trellis (+8%)':''}${p.train==='top'?' · Topped (+15%)':p.train==='lst'?' · LST (+8%)':''}</b></div>
-      <div class="l"><span>Expected grade</span><b>${gradeBadge(G.gradeOf(G.plotScore(p)))}</b></div>
-      <div class="l"><span>Upkeep this cycle</span><b>${fmt(cc.total)}</b></div>${G.st.upkeepWarn[p.loc]>0?'<div class="l"><span class="down">Cash too low for upkeep: growing at 30%</span></div>':''}
-      <div class="acts">${G.canTrain(p)?`<button class="btn sm green" data-pa="top">Top (+15%, 10% slower)</button><button class="btn sm green" data-pa="lst">Tie down / LST (+8%, +3% quality)</button>`:''}${G.canPrune(p)?`<button class="btn sm green" data-pa="prune">Prune (+12%)</button>`:''}${G.canTrellis(p)?`<button class="btn sm" data-pa="trellis">Trellis ${fmt(G.trellisCost(p))} (+8%)</button>`:''}${p.pest?`<button class="btn sm pink" data-pa="treat">Treat ${fmt(G.treatCost(p))}</button>`:''}<button class="btn sm" data-pa="water">${ico('drop')}Water</button><button class="btn sm gold" data-pa="feed" ${p.food>0||!G.isHungry(p)?'disabled':''}>${ico('feed')}${p.food>0?'Fed':G.isHungry(p)?'Feed':'Feed at halfway'}</button></div>`;
+    const p=popPlot; if(!p||!p.strain){ hidePop(); return; } const s=G.strain(p.strain); if(!s){ hidePop(); return; } const left=G.timeLeft(p);
+    const bits=[];
+    if(p.pest) bits.push(`<div class="l"><span>Health</span><b class="down">${p.pest==='mold'?'Mold':'Pests'}</b></div>`);
+    if(G.isThirsty(p)||p.water<1) bits.push(`<div class="l"><span>Water</span><b>${Math.round(p.water*100)}%</b></div>${bar(p.water,'blue')}`);
+    if(G.isHungry(p)||p.food>0) bits.push(`<div class="l"><span>Feed</span><b>${p.food>0?'Fed':G.isHungry(p)?'Needs one free feed':'Halfway feed'}</b></div>`);
+    const acts=[];
+    if(p.pest) acts.push(`<button class="btn sm pink" data-pa="treat">Treat ${fmt(G.treatCost(p))}</button>`);
+    if(G.isThirsty(p)) acts.push(`<button class="btn sm" data-pa="water">${ico('drop')}Water</button>`);
+    if(G.isHungry(p)&&!(p.food>0)) acts.push(`<button class="btn sm gold" data-pa="feed">${ico('feed')}Feed</button>`);
+    if(p.prog>=1) acts.push(`<button class="btn sm gold" data-pa="harvest">Harvest</button>`);
+    $('#pop').innerHTML=`<h5>${esc(s.name)} <small style="color:var(--mut)">${esc((G.ZONE[p.zone]&&G.ZONE[p.zone].name)||'')}</small></h5>
+      <div class="l"><span>Ready in</span><b>${p.prog>=1?'Ripe now!':sec(left)}</b></div>${bar(p.prog)}
+      ${bits.join('')||'<p>This plant is fine. No water, feed, or pest care right now.</p>'}
+      ${acts.length?'<div class="acts">'+acts.join('')+'</div>':''}`;
   }
   function hidePop(keepSel){ popPlot=null; if(!keepSel) lastSel=null; $('#pop').classList.add('hidden'); }
   // ---------- panels ----------
   const PANELS={};
-  function open(name,t){ panel=name; tab=t||null; hidePop(); render(true); $('#sheet').classList.remove('hidden'); document.body.classList.add('sheet-open'); Sound.play('open'); }
+  function open(name,t){ panel=name; tab=t||null; hidePop();
+    try{ render(true); }
+    catch(err){ console.error(err); $('#sheetTitle').textContent='Farm'; $('#sheetSub').innerHTML=''; $('#sheetTabs').innerHTML=''; $('#sheetBody').innerHTML='<div class="empty">This page hit a problem in this save. The rest of the farm is still here.</div>'; $('#sheetFoot').innerHTML=''; }
+    $('#sheet').classList.remove('hidden'); document.body.classList.add('sheet-open'); Sound.play('open'); }
   function close(){ panel=null; $('#sheet').classList.add('hidden'); document.body.classList.remove('sheet-open'); }
   function render(reset){
     if(!panel) return; const P=PANELS[panel]; const body=$('#sheetBody'); const top=body.scrollTop;
@@ -237,7 +252,7 @@ window.UI = (function(){
 
   function syncVol(root){ root.querySelectorAll('input[data-vol]').forEach(i=>{ const v=G.st.settings[i.dataset.vol]; i.value=v==null?70:v; }); root.querySelectorAll('[data-volv]').forEach(b=>{ const v=G.st.settings[b.dataset.volv]; b.textContent=(v==null?70:v)+'%'; }); }
   const cu=(s,sz,hidden)=>`<img class="thumb" data-cu="${s.id}" data-sz="${sz||96}" data-h="${hidden?1:0}" alt="">`;
-  const row=(s,mid,right,sel,hidden)=>`<div class="row ${sel?'sel':''}">${cu(s,96,hidden)}<div class="grow"><h4>${hidden?'???':esc(s.name)} ${tag(s)}</h4>${mid}</div>${right||''}</div>`;
+  const row=(s,mid,right,sel,hidden)=>s?`<div class="row ${sel?'sel':''}">${cu(s,96,hidden)}<div class="grow"><h4>${hidden?'???':esc(s.name)} ${tag(s)}</h4>${mid}</div>${right||''}</div>`:`<div class="row"><div class="grow"><h4>Retired strain</h4>${mid||''}</div>${right||''}</div>`;
   const pips=(l,m)=>`<span style="letter-spacing:2px;color:var(--acc)">${'●'.repeat(l)}<span style="color:rgba(255,255,255,.2)">${'●'.repeat(Math.max(0,m-l))}</span></span>`;
 
   // Seeds
@@ -288,7 +303,7 @@ window.UI = (function(){
     const rt=G.repTier(), R0=G.REP[rt], R1=G.REP[rt+1];
     const repLine=st.level>=G.GATE.orders?`<div class="row" style="display:block"><h4>Reputation: ${esc(R0.n)} ${R0.b?`<span class="chip">+${Math.round(R0.b*100)}% prices</span>`:''}</h4>${R1?`${bar((st.rep-R0.at)/(R1.at-R0.at),'amber')}<p>${Math.floor(st.rep)} / ${R1.at} to ${esc(R1.n)}: better buyers (${esc(G.BUYERS[Math.min(4,rt+1)].n)}) and +${Math.round(R1.b*100)}% prices</p>`:'<p>Top tier reached. Island royalty!</p>'}</div>`:'';
     if(tab==='sell'){
-      if(st.market.hot){ const s=G.strain(st.market.hot); body+=`<div class="testbanner" style="color:#ffe28a">Tourist rush! ${esc(s.name)} sells for 2x for ${sec(st.market.hotT)}</div>`; }
+      if(st.market.hot){ const s=G.strain(st.market.hot); if(s) body+=`<div class="testbanner" style="color:#ffe28a">Tourist rush! ${esc(s.name)} sells for 2x for ${sec(st.market.hotT)}</div>`; }
       const lots=[]; for(const stg of ['cured','dry','wet']) for(const [k,n] of Object.entries(st.inv[stg])) lots.push([stg,k,n]);
       if(!lots.length&&!G.goodsCount()) body+='<div class="empty">Nothing to sell yet. Harvest, dry and cure your buds first.</div>';
       lots.forEach(([stg,k,n])=>{ const {id,g,q}=G.unkey(k), s=G.strain(id), p=G.price(id,g,stg,q), f=st.market.f[id]; total+=p*n;
@@ -298,7 +313,7 @@ window.UI = (function(){
       foot=`<button class="btn gold wide" data-a="sellall" ${!total?'disabled':''}>${ico('coin')}Sell everything · ${fmt(total)}</button>`;
     } else if(tab==='orders'){
       body+=`<div class="note">Contracts from local buyers. Deliver dried or cured buds before the timer runs out for bonus cash, XP and reputation. Better reputation brings better buyers.</div>`;
-      body+=st.orders.length?st.orders.map(o=>{ const s=G.strain(o.s), have=G.orderHave(o), ok=have>=o.n; return row(s,`<p><b>${esc(o.who)}</b> wants <b>${o.n}</b> ${esc(s.name)} (dried or cured)</p>${bar(Math.min(1,have/o.n))}<div class="stats"><span>${have}/${o.n} in stock</span><span>⏱ ${sec(o.t-o.T)}</span><span>+${o.rep} rep</span></div>`,`<button class="btn sm ${ok?'gold':'sec'}" data-a="order" data-id="${o.id}" ${ok?'':'disabled'}>${fmt(G.orderValue(o))}</button>`); }).join(''):'<div class="empty">No orders right now. New ones arrive every minute or so.</div>';
+      body+=(Array.isArray(st.orders)&&st.orders.length)?st.orders.map(o=>{ const s=o&&G.strain(o.s), have=G.orderHave(o), ok=have>=o.n; return row(s,`<p><b>${esc(o.who)}</b> wants <b>${o.n}</b> ${esc(s?s.name:'a strain')} (dried or cured)</p>${bar(Math.min(1,have/o.n))}<div class="stats"><span>${have}/${o.n} in stock</span><span>⏱ ${sec(o.t-o.T)}</span><span>+${o.rep} rep</span></div>`,`<button class="btn sm ${ok?'gold':'sec'}" data-a="order" data-id="${o.id}" ${ok?'':'disabled'}>${fmt(G.orderValue(o))}</button>`); }).join(''):'<div class="empty">No orders right now. New ones arrive every minute or so.</div>';
       body+=repLine;
     } else {
       body+=`<div class="note">Walk-in customers at the farm stand. Match their taste for a 30-70% tip. They leave after a few minutes.</div>`;
@@ -320,26 +335,30 @@ window.UI = (function(){
   function upkeepBox(l){ const U=G.upkeepRates()[l]; const parts=Object.entries(U.parts).filter(([k,v])=>v>.005);
     return `<div class="row" style="display:block"><h4>Upkeep now: ${fmt(U.total)}/hour ${G.st.upkeepWarn[l]>0?'<span class="tag" style="background:#ff8a5c">Cash short: growth slowed to 30%</span>':''}</h4>${parts.length?`<dl class="kv">${parts.map(([k,v])=>`<dt>${esc(G.UPK_NAME[k]||k)}</dt><dd>${fmt(v)}/h</dd>`).join('')}</dl>`:'<p>Nothing growing here right now.</p>'}<p>Charged while plants grow. If cash runs out you never go into debt: plants just grow slower until you can pay.</p></div>`; }
   PANELS.upgrades=()=>{
-    const st=G.st; tab=tab||st.loc; let body='';
-    const tabs=[['garage',G.LOC_NAME.garage],['farm','Farm'],['indoor','Indoor'],['lines','Water + feed'],['hands','Helpers']];
+    const st=G.st; const cur=G.currentRoom(); tab=tab||(cur==='benches'?'facility':cur==='facility'?'facility':cur==='gh'?'gh':'garage'); if(tab==='farm') tab='facility'; if(tab==='indoor') tab='facility'; let body='';
+    const tabs=[['garage',G.LOC_NAME.garage],['gh','Greenhouse'],['facility','Indoor Facility'],['lines','Water + feed'],['hands','Helpers']];
     if(tab==='garage'){ const g=G.GARAGE[st.garage];
-      body+=`<div class="section-t">Grow space · ${G.capOf('garage')}/25 plants (hard max)</div><div class="note">Now: <b>${esc(g.name)}</b>. New grow tables, buckets and lights fill the floor next to the Kahuna K4 truck as you buy them.</div>`+stepCard('garage','Garage')+upkeepBox('garage');
+      body+=`<div class="section-t">Grow space · ${G.capOf('garage')}/25 plants</div><div class="note">Now: <b>${esc(g.name)}</b>. Beds stay in the room. Gear you buy shows up here, not on the floor.</div>`+stepCard('garage','Garage')+upkeepBox('garage');
       body+=`<div class="section-t">Garage gear</div>`+['light','fan','oscfan','dehu','timer','phkit','trays'].map(k=>upRow(k)).join('');
-      body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the family land it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':`<div class="row"><div class="grow"><b>Indoor Breeding Pheno Room</b><p>Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the indoor facility.</p></div><button class="btn sm gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button></div>`); }
-    else if(tab==='farm'){
-      if(!st.land){ const L=landReq(); body+=`<div class="note">Buy the family land to open the farm.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy land · ${fmt(G.LAND_COST)}</button>`; }
-      else { body+=`<div class="section-t">Terraces · ${G.capOf('field')}/40 plants</div>`+stepCard('field','Terraces');
-        body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):`<div class="row"><div class="grow"><h4>Build the greenhouse</h4><p>Glass house with 3 raised beds to start (expand bay by bay to 12). Cheap to run but weather still matters.</p></div><button class="btn sm gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||!G.gate('gh')?'disabled':''}>${G.gate('gh')?fmt(G.GH_BUILD.cost):ico('lock')+'Lv '+G.GH_BUILD.level}</button></div>`);
-        body+=upkeepBox('farm')+`<div class="section-t">Farm gear</div>`+['beds','shade','lightdep','cooler','catch','supp','shutters'].map(k=>upRow(k)).join(''); } }
-    else if(tab==='indoor'){
-      if(!st.inBuilt){ body+=`<div class="note">The indoor facility is the big late-game step. Finish the checklist:</div>`+reqList(G.indoorChecklist());
-        if(!st.permit) body+=`<button class="btn wide" data-a="permit" ${st.level<G.INDOOR.permitLevel||st.cash<G.INDOOR.permitCost?'disabled':''}>${st.level<G.INDOOR.permitLevel?ico('lock')+'Permit at Lv '+G.INDOOR.permitLevel:'Buy County Agricultural Permit · '+fmt(G.INDOOR.permitCost)}</button>`;
-        if(st.permit&&!st.found) body+=`<button class="btn wide" data-a="found" style="margin-top:8px" ${st.level<G.INDOOR.foundLevel||st.cash<G.INDOOR.foundCost?'disabled':''}>${st.level<G.INDOOR.foundLevel?ico('lock')+'Foundation at Lv '+G.INDOOR.foundLevel:'Pour the foundation · '+fmt(G.INDOOR.foundCost)}</button>`;
-        body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build indoor facility · ${fmt(G.INDOOR.build)}</button>`; }
-      else { body+=`<div class="section-t">Benches · ${G.capOf('in')}/32 pots</div>`+stepCard('bench','Benches')+upkeepBox('indoor')+`<div class="section-t">Facility gear</div>`+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); } }
-    else if(tab==='lines'){ body+=`<div class="note">The hose unlocks <b>Water all</b>. Each plant needs one free feed at halfway. <b>Feed all</b> does that for this room and does not need a purchase.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
-    else { body+=`<div class="note">Each helper has a one-time hire price. Training after that is free, and hired helpers take no wages. Crew you already hired stay on the farm.</div>`+Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
-    return {title:'Upgrades',sub:'Every upgrade is earnable in game.',tabs,body};
+      body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the Indoor Facility it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':`<div class="row"><div class="grow"><b>Indoor Breeding Pheno Room</b><p>Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the sealed benches.</p></div><button class="btn sm gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button></div>`); }
+    else if(tab==='gh'){
+      if(!st.land){ const L=landReq(); body+=`<div class="note">The greenhouse sits on the family land. Buy the Indoor Facility first.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
+      else { body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):`<div class="row">${window.UpgIcons?`<img class="upico" alt="" src="assets/new-art/sprites/hoop-house.png">`:''}<div class="grow"><h4>Build the greenhouse</h4><p>Steel poles and a plastic topper over dirt beds. Weather still matters. No grow lights.</p></div><button class="btn sm gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||!G.gate('gh')?'disabled':''}>${G.gate('gh')?fmt(G.GH_BUILD.cost):ico('lock')+'Lv '+G.GH_BUILD.level}</button></div>`);
+        body+=upkeepBox('farm')+`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); } }
+    else if(tab==='facility'){
+      if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. Your plants carry over when you buy it.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
+      else { body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div>`+stepCard('field','Plots')+upkeepBox('farm');
+        body+=`<div class="section-t">Facility gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
+        body+=`<div class="section-t">Sealed benches</div>`;
+        if(!st.inBuilt){ body+=`<div class="note">A later sealed room with its own pots. Finish the checklist when you are ready. Plants already in that room stay on their benches.</div>`+reqList(G.indoorChecklist());
+          if(!st.permit) body+=`<button class="btn wide" data-a="permit" ${st.level<G.INDOOR.permitLevel||st.cash<G.INDOOR.permitCost?'disabled':''}>${st.level<G.INDOOR.permitLevel?ico('lock')+'Permit at Lv '+G.INDOOR.permitLevel:'Buy County Agricultural Permit · '+fmt(G.INDOOR.permitCost)}</button>`;
+          if(st.permit&&!st.found) body+=`<button class="btn wide" data-a="found" style="margin-top:8px" ${st.level<G.INDOOR.foundLevel||st.cash<G.INDOOR.foundCost?'disabled':''}>${st.level<G.INDOOR.foundLevel?ico('lock')+'Foundation at Lv '+G.INDOOR.foundLevel:'Pour the foundation · '+fmt(G.INDOOR.foundCost)}</button>`;
+          body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build sealed benches · ${fmt(G.INDOOR.build)}</button>`; }
+        else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches')+upkeepBox('indoor')+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); }
+    }
+    else if(tab==='lines'){ body+=`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
+    else { body+=`<div class="note">Helpers do not walk the rooms. When they finish work you get one short note, not a popup per plant. Each hire is once, with no wages.</div>`+Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
+    return {title:'Upgrades',sub:'Gear lives on these cards. Rooms stay clear.',tabs,body};
   };
   // Pheno Room: pheno-hunting mystery
   const parse=v=>!v?null:v.startsWith('s:')?{type:'s',id:v.slice(2)}:{type:'c',name:v.slice(2)};
@@ -391,7 +410,7 @@ window.UI = (function(){
     const g=id=>{ if(gen.has(id)) return gen.get(id); gen.set(id,0); const P=par.get(id)||[]; const v=P.length?1+Math.max(...P.map(g)):0; gen.set(id,v); return v; }; nodes.forEach((n,id)=>n.g=g(id));
     // roots with no children and no parents go in a separate "starter" column; order each column by the mean y of parents
     const cols=[]; nodes.forEach(n=>{ (cols[n.g]=cols[n.g]||[]).push(n); });
-    const order=n=>n.kind==='p'?1:0; cols.forEach((c,gi)=>{ c.sort((a,b)=>{ if(gi>0){ const ma=avgY(a), mb=avgY(b); if(ma!==mb) return ma-mb; } return order(a)-order(b)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||(a.s?a.s.name:a.name).localeCompare(b.s?b.s.name:b.name); }); c.forEach((n,i)=>{ n.x=gi*230; n.y=(i-(c.length-1)/2)*92; }); });
+    const order=n=>n.kind==='p'?1:0; cols.forEach((c,gi)=>{ c.sort((a,b)=>{ if(gi>0){ const ma=avgY(a), mb=avgY(b); if(ma!==mb) return ma-mb; } return order(a)-order(b)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||(a.s?a.s.name:a.name).localeCompare(b.s?b.s.name:b.name); }); c.forEach((n,i)=>{ n.x=gi*168; n.y=(i-(c.length-1)/2)*72; }); });
     function avgY(n){ const P=par.get(n.id)||[]; if(!P.length) return 0; return P.reduce((t,p)=>t+(nodes.get(p).y||0),0)/P.length; }
     return {nodes,edges,par}; }
   function webState(n){ const st=G.st; if(n.kind==='p') return 'pollen'; const s=n.s; if(st.discovered[s.id]) return 'known'; if(window.PREMIUM_STRAINS&&PREMIUM_STRAINS[s.id]) return 'locked'; if(s.mystery) return (st.hintRev[s.id]||0)>0?'hinted':'mystery'; return 'locked'; }
@@ -407,7 +426,7 @@ window.UI = (function(){
     const hl=new Set(), hle=new Set(); if(WEB.sel){ const up=id=>{ if(hl.has(id)) return; hl.add(id); WG.edges.forEach((e,i)=>{ if(e.b===id&&edgeVisible(e,WG)){ hle.add(i); up(e.a); } }); }; up(WEB.sel); WG.edges.forEach((e,i)=>{ if(e.a===WEB.sel&&edgeVisible(e,WG)){ hle.add(i); hl.add(e.b); } }); }
     WG.edges.forEach((e,i)=>{ const A=WG.nodes.get(e.a), B=WG.nodes.get(e.b), vis=edgeVisible(e,WG), on=hle.has(i); if(!vis&&!on) return;
       x.strokeStyle=on?'#ffd35a':WEB.sel?'rgba(160,220,170,.12)':'rgba(160,220,170,.38)'; x.lineWidth=on?3.2:1.6; x.setLineDash(webState(B)==='hinted'?[6,5]:[]);
-      x.beginPath(); x.moveTo(A.x+30,A.y); x.bezierCurveTo(A.x+120,A.y,B.x-120,B.y,B.x-30,B.y); x.stroke(); x.setLineDash([]);
+      x.beginPath(); x.moveTo(A.x+28,A.y); x.bezierCurveTo(A.x+78,A.y,B.x-78,B.y,B.x-28,B.y); x.stroke(); x.setLineDash([]);
       if(on){ x.fillStyle='#ffd35a'; x.beginPath(); x.moveTo(B.x-30,B.y); x.lineTo(B.x-40,B.y-5); x.lineTo(B.x-40,B.y+5); x.fill(); } });
     WG.nodes.forEach(n=>{ const stt=webState(n), dim=WEB.sel&&!hl.has(n.id), r=n.kind==='p'?20:30; x.globalAlpha=dim?.35:1;
       if(n.kind==='p'){ x.fillStyle='#2a3a2e'; x.strokeStyle='#9fd76a'; x.lineWidth=2; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.fill(); x.stroke(); x.fillStyle='#d8f0c0'; for(let k=0;k<6;k++){ const a=k*TAU/6; x.beginPath(); x.arc(n.x+Math.cos(a)*8,n.y+Math.sin(a)*8,3.2,0,TAU); x.fill(); } x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x,n.y,4,0,TAU); x.fill(); }
@@ -428,7 +447,7 @@ window.UI = (function(){
     el.innerHTML=`<div class="wc-top"><img src="${R.closeup(s,96,stt==='mystery'||stt==='hinted')}" alt=""><div><h4>${stt==='mystery'?'??? mystery pheno':esc(s.name)} ${tag(s)}</h4><p>${esc(s.type)}${stt==='known'&&s.thc?' · '+s.thc+'% THC':''} · ${esc(s.rarity)}</p></div></div>
       <p><b>Parents:</b> ${pars}</p><p><b>How to get:</b> ${esc(how.join(' · '))}</p><p><b>Line:</b> ${G.st.lines&&G.st.lines[id]?esc(G.lineName(id)):s.mystery&&stt!=='known'?'not bred yet':'commercial stable line'}${s.tier>=4?' · Legendary recipe: parents must be stable lines (F'+G.LINE.stable+'+) in the Breeding Pheno Room':''}</p><p><b>Kept mother:</b> ${k?`Pheno ${esc(k.k)} · ${esc(k.terp)} · yield ${Math.round((k.y-1)*100)}%, quality +${Math.round(k.q*100)}%`:'none'}</p>
       ${stt==='known'?`<button class="btn sm sec" data-a="strain" data-id="${id}">Open strain page</button>`:''}`; }
-  function webInit(){ const cv=document.getElementById('strainWeb'); if(!cv||cv._init) { webDraw(); return; } cv._init=1; WG=webGraph(); if(!WEB.cam){ let mx=0; WG.nodes.forEach(n=>mx=Math.max(mx,n.x)); let f=null; WG.nodes.forEach(n=>{ if(!f&&n.s&&G.st.discovered[n.id]&&n.g>0) f=n; }); f=f||[...WG.nodes.values()][0]; WEB.cam={x:f.x,y:f.y,z:1}; }
+  function webInit(){ const cv=document.getElementById('strainWeb'); if(!cv||cv._init) { webDraw(); return; } cv._init=1; WG=webGraph(); if(!WEB.cam){ let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9; WG.nodes.forEach(n=>{ minX=Math.min(minX,n.x-36); maxX=Math.max(maxX,n.x+36); minY=Math.min(minY,n.y-36); maxY=Math.max(maxY,n.y+48); }); const Wv=cv.clientWidth||320, Hv=cv.clientHeight||360; const z=Math.max(.28,Math.min(1.05,(Wv-16)/Math.max(1,maxX-minX),(Hv-16)/Math.max(1,maxY-minY))); WEB.cam={x:(minX+maxX)/2,y:(minY+maxY)/2,z}; }
     const pts=new Map(); let moved=0, pinch=null;
     const toW=(px,py)=>{ const c=WEB.cam, W=cv.clientWidth, H=cv.clientHeight; return {x:c.x+(px-W/2)/c.z, y:c.y+(py-H/2)/c.z}; };
     const zoomAt=(px,py,f)=>{ const c=WEB.cam, a=toW(px,py); c.z=Math.max(.25,Math.min(3,c.z*f)); const b=toW(px,py); c.x+=a.x-b.x; c.y+=a.y-b.y; };
@@ -717,11 +736,11 @@ window.UI = (function(){
       case 'upg': if(G.buyUpg(d.k)){ Sound.play('buy'); toast(G.UPG[d.k].name+' upgraded!','good'); } break;
       case 'hire': if(G.hire(d.k)){ Sound.play('buy'); const who=G.WORKERS[d.k].name.split(',')[0]; toast(G.wk(d.k)===1?who+' joined the farm. One-time hire, no wages.':who+' trained. Still no wages.','good'); } break;
       case 'step': if(G.buyStep(d.k)){ Sound.play('buy'); } break;
-      case 'land': if(G.buyLand()){ G.setLoc('farm'); close(); } break;
-      case 'ghbuild': if(G.buildGH()){ close(); G.setLoc('farm'); } break;
+      case 'land': if(G.buyLand()){ G.setRoom('facility'); close(); } break;
+      case 'ghbuild': if(G.buildGH()){ close(); G.setRoom('gh'); } break;
       case 'permit': G.buyPermit(); break;
       case 'found': if(G.buyFoundation()){ Sound.play('buy'); Haptics.medium(); } break;
-      case 'buildin': if(G.buildIndoor()){ close(); G.setLoc('indoor'); } break;
+      case 'buildin': if(G.buildIndoor()){ close(); G.setRoom('benches'); } break;
       case 'clone': if(G.buyClone(d.n)){ Sound.play('buy'); toast(d.n+' clone added','good'); } break;
       case 'hint': G.useHint(d.id); break;
       case 'hunt': { const id=huntSel.v||($('[data-sel="H"]')||{}).value; if(id&&G.startHunt(id)){ Sound.play('plant'); toast('Pheno hunt started','good'); } break; }
@@ -794,7 +813,10 @@ window.UI = (function(){
     $('#seedBag').onclick=e=>{ e.stopPropagation(); Sound.play('tap'); seedPick(); };
     $('#seedPick').onclick=e=>{ e.stopPropagation(); const b=e.target.closest('[data-pick]'); if(!b) return; $('#seedPick').classList.add('hidden'); if(b.dataset.pick==='__shop'){ open('seeds'); return; } G.st.selSeed=b.dataset.pick; setTool('seed'); seedBag(); Sound.play('tap'); toast('Tap empty buckets or beds to plant '+G.strain(b.dataset.pick).name); };
     document.addEventListener('pointerdown',e=>{ if(!e.target.closest('#seedPick,#seedBag')) $('#seedPick').classList.add('hidden'); });
-    $('#locTabs').addEventListener('click',e=>{ if(e.target.closest('[data-stand]')){ Sound.play('tap'); open('stand'); return; } const b=e.target.closest('[data-loc]'); if(b) tapLoc(b.dataset.loc); });
+    $('#locTabs').addEventListener('click',e=>{ const b=e.target.closest('[data-room]'); if(b) tapRoom(b.dataset.room); });
+    const qa=$('#qaMain'), qm=$('#qaMenu');
+    if(qa&&qm){ qa.onclick=e=>{ e.stopPropagation(); const closed=qm.classList.toggle('hidden'); qa.classList.toggle('open', !closed); qa.setAttribute('aria-expanded', closed?'false':'true'); Sound.play('tap'); };
+      document.addEventListener('pointerdown',e=>{ if(e.target.closest('#qaFab')) return; qm.classList.add('hidden'); qa.classList.remove('open'); qa.setAttribute('aria-expanded','false'); }); }
     $('#shopBtn').onclick=()=>open('shop'); $('#multBadge').onclick=()=>open('quests','season'); $('#gemPill').onclick=()=>open('shop'); $('#settingsBtn').onclick=()=>open('settings');
     $('#sheetClose').onclick=close; $('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') close(); });
     $('#sheetTabs').addEventListener('click',e=>{ const b=e.target.closest('button[data-tab]'); if(b){ tab=b.dataset.tab; render(true); Sound.play('tap'); } });
@@ -807,9 +829,10 @@ window.UI = (function(){
     $('#goal').onclick=()=>{ const g=$('#goal'); if(!g.classList.contains('open')){ goalPeek(5000); return; } if(G.st.questDone){ if(G.claimQuest()) Sound.play('level'); } else open('quests','story'); };
     document.addEventListener('click',e=>{ const b=e.target.closest('[data-buylab]'); if(!b) return; if(!G.buyLab()) toast(G.st.inBuilt?'Not enough cash':'Build the indoor facility first','bad'); else render(true); });
     $('#scoutBtn').onclick=()=>{ const on=!R.lens.on; R.setLens(on,innerWidth/2,innerHeight*.45); $('#scoutBtn').classList.toggle('on',on); hidePop(); toast(on?'Inspect: drag the lens over plants. Tap to remove any eggs or spores you find.':'Scouting off'); };
-    $('#harvestAll').onclick=()=>{ let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog>=1&&G.harvest(p)) n++; }); if(!n) toast('Nothing ripe here yet'); };
-    $('#waterAll').onclick=()=>{ if(G.lv('water')<1){ toast('Water all needs a garden hose','bad'); open('upgrades','lines'); return; } let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&p.strain&&p.prog<1&&p.water<.95){ G.water(p); n++; } }); if(!n) toast('Everything here is watered'); };
-    $('#feedAll').onclick=()=>{ let n=0; G.st.plots.forEach(p=>{ if(p.loc===G.st.loc&&G.isHungry(p)&&G.feed(p,true)) n++; }); toast(n?'Fed '+n+' plants':'Nobody needs a feed yet'); };
+    const foldQa=()=>{ const m=$('#qaMenu'), b=$('#qaMain'); if(m) m.classList.add('hidden'); if(b){ b.classList.remove('open'); b.setAttribute('aria-expanded','false'); } };
+    $('#harvestAll').onclick=()=>{ let n=0; G.plotsHere().forEach(p=>{ if(p.owned&&p.strain&&p.prog>=1&&G.harvest(p)) n++; }); if(!n) toast('Nothing ripe here yet'); foldQa(); };
+    $('#waterAll').onclick=()=>{ if(G.lv('water')<1){ toast('Water all needs a garden hose','bad'); open('upgrades','lines'); return; } let n=0; G.plotsHere().forEach(p=>{ if(p.owned&&p.strain&&p.prog<1&&p.water<.95){ G.water(p); n++; } }); if(!n) toast('Everything here is watered'); foldQa(); };
+    $('#feedAll').onclick=()=>{ let n=0; G.plotsHere().forEach(p=>{ if(p.owned&&G.isHungry(p)&&G.feed(p,true)) n++; }); toast(n?'Fed '+n+' plants':'Nobody needs a feed yet'); foldQa(); };
     window.Payments.setConfirmUI(p=>modal(`${art(p.art)}<h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p>${oddsForProduct(p)}<div class="big-n">${window.Payments.formatUSD(p.priceUSD)}</div><div class="testbanner">TEST MODE: you will not be charged. This grants the item locally.</div>`,[{label:'Cancel',cls:'sec',v:false},{label:'Buy (test)',cls:'pink',v:true}]));
   }
   let acc=0;

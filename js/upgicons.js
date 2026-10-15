@@ -64,6 +64,16 @@ window.UpgIcons=(function(){
     x.fillStyle=rg(64,52,90,[[0,B[0]],[1,B[1]]]); rr(0,0,S,S,26); x.fill(); x.fillStyle='rgba(255,255,255,.08)'; rr(4,4,S-8,S*.42,22); x.fill();
     x.save(); x.shadowColor='rgba(0,0,0,.35)'; x.shadowBlur=6; x.shadowOffsetY=3; (D[key]||D._)(); x.restore();
     x.strokeStyle='rgba(255,255,255,.18)'; x.lineWidth=2; rr(1,1,S-2,S-2,25); x.stroke(); return c.toDataURL('image/png'); }
-  function url(key,loc){ const k=key+'|'+loc; return cache[k]||(cache[k]=paint(key,loc)); }
+  const PNG={
+    oscfan:'assets/new-art/sprites/clip-fan.png', timer:'assets/new-art/sprites/temp-meter.png', trays:'assets/new-art/sprites/boxes.png',
+    light:'assets/new-art/sprites/led-bar-light.png', led:'assets/new-art/sprites/led-bar-light.png', phkit:'assets/new-art/sprites/ph-meter.png',
+    fan:'assets/new-art/sprites/inline-fan.png', dehu:'assets/new-art/sprites/dehumidifier.png', hvac:'assets/new-art/sprites/dehumidifier.png',
+    press:'assets/new-art/sprites/rosin-press.png', shade:'assets/new-art/sprites/shade-cloth.png', cooler:'assets/new-art/sprites/swamp-cooler.png',
+    shutters:'assets/new-art/sprites/hoop-house.png', catch:'assets/new-art/sprites/water-barrel.png', fert:'assets/new-art/sprites/reservoir.png',
+    veg:'assets/new-art/sprites/grow-tent.png', dryroom:'assets/new-art/sprites/drying-rack.png', dryer:'assets/new-art/sprites/drying-rack.png',
+    beds:'assets/new-art/sprites/boxes.png', step_garage:'assets/new-art/sprites/grow-tent.png', step_field:'assets/new-art/sprites/boxes.png',
+    step_gh:'assets/new-art/sprites/hoop-house.png', step_bench:'assets/new-art/sprites/grow-tent.png', co2:'assets/new-art/sprites/reservoir.png'
+  };
+  function url(key,loc){ if(PNG[key]) return PNG[key]; const k=key+'|'+loc; return cache[k]||(cache[k]=paint(key,loc)); }
   return {url,keys:()=>Object.keys(D).filter(k=>k!=='_'),has:k=>!!D[k]};
 })();

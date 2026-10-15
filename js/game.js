@@ -169,7 +169,7 @@ window.G = (function(){
     const s={
       v:2, econ:2, cash:ECON.startCash, gems:20, xp:0, level:1, lifetime:0, runEarn:0, rebirths:0, mana:0, manaSpent:{},
       garage:1, land:false,   // 4 starting buckets (QC econ report)
- field:0, ghBuilt:false, gh:0, permit:false, inBuilt:false, bench:0, loc:'garage',
+ field:0, ghBuilt:false, gh:0, permit:false, inBuilt:false, bench:0, loc:'garage', room:'garage',
       plots:freshPlots(), seeds:{'northern-lights':4}, selSeed:'northern-lights',
       inv:{wet:{},dry:{},cured:{}}, dryer:[], upg:{}, workers:{}, discovered:{}, clones:{},
       market:{f:{},hist:{},hot:null,hotT:-150,next:0}, weather:{type:'sunny',t:0,dur:90,rainbow:0},
@@ -666,13 +666,13 @@ window.G = (function(){
   function manage(k,offline){ for(let i=0;i<3;i++){ const q=manage1(k,offline); if(!q||!(ZONE[q.zone].dens<1)) break; } }
   function manage1(k,offline){
     const loc=MGR_LOC[k], P=st.plots.filter(p=>(loc==='all'||p.loc===loc)&&p.owned);
-    const sick=P.find(p=>p.pest&&st.cash>treatCost(p)*3); if(sick){ treat(sick,true); emit('worker',{w:k,p:sick}); return sick; }
-    const rp=P.find(p=>p.strain&&p.prog>=1); if(rp){ harvest(rp); emit('worker',{w:k,p:rp}); return rp; }
+    const sick=P.find(p=>p.pest&&st.cash>treatCost(p)*3); if(sick){ treat(sick,true); noteCrew(k); emit('worker',{w:k,p:sick}); return sick; }
+    const rp=P.find(p=>p.strain&&p.prog>=1); if(rp){ harvest(rp); noteCrew(k); emit('worker',{w:k,p:rp}); return rp; }
     const e=P.find(p=>!p.strain&&p.last&&st.discovered[p.last]);
-    if(e){ const s=strain(e.last); if(!(st.seeds[e.last]>0)&&st.cash>seedPrice(s)*3){ st.cash-=seedPrice(s); st.seeds[e.last]=(st.seeds[e.last]||0)+1; } if(plant(e,e.last)){ emit('worker',{w:k,p:e}); return e; } }
-    const d=P.find(p=>p.strain&&p.prog<1&&p.water<.3); if(d){ water(d); emit('worker',{w:k,p:d}); return d; }
-    if(k!=='farmhand'){ const tn=P.find(canTrain); if(tn){ train(tn,'lst',true); emit('worker',{w:k,p:tn}); return tn; } const pr=P.find(canPrune); if(pr){ prune(pr,true); emit('worker',{w:k,p:pr}); return pr; } const tr=P.find(p=>canTrellis(p)&&st.cash>trellisCost(p)*5); if(tr&&trellis(tr,true)){ emit('worker',{w:k,p:tr}); return tr; } }
-    const h=P.find(isHungry); if(h){ feed(h,true); emit('worker',{w:k,p:h}); return h; }
+    if(e){ const s=strain(e.last); if(!(st.seeds[e.last]>0)&&st.cash>seedPrice(s)*3){ st.cash-=seedPrice(s); st.seeds[e.last]=(st.seeds[e.last]||0)+1; } if(plant(e,e.last)){ noteCrew(k); emit('worker',{w:k,p:e}); return e; } }
+    const d=P.find(p=>p.strain&&p.prog<1&&p.water<.3); if(d){ water(d); noteCrew(k); emit('worker',{w:k,p:d}); return d; }
+    if(k!=='farmhand'){ const tn=P.find(canTrain); if(tn){ train(tn,'lst',true); noteCrew(k); emit('worker',{w:k,p:tn}); return tn; } const pr=P.find(canPrune); if(pr){ prune(pr,true); noteCrew(k); emit('worker',{w:k,p:pr}); return pr; } const tr=P.find(p=>canTrellis(p)&&st.cash>trellisCost(p)*5); if(tr&&trellis(tr,true)){ noteCrew(k); emit('worker',{w:k,p:tr}); return tr; } }
+    const h=P.find(isHungry); if(h){ feed(h,true); noteCrew(k); emit('worker',{w:k,p:h}); return h; }
   }
   function tickAuto(dt,offline){
     if(lv('water')>=3){ auto.w+=dt; if(auto.w>=20){ auto.w=0; st.plots.forEach(p=>{ if(p.strain&&p.prog<1&&p.water<.4){ p.water=1; if(!offline&&p.loc===st.loc) emit('sprinkle',p);} }); } }
@@ -680,11 +680,11 @@ window.G = (function(){
     if(lv('nutes')>=2){ auto.f+=dt; if(auto.f>=8){ auto.f=0; st.plots.forEach(p=>{ if(isHungry(p)) feed(p,true); }); } }
     const cs=crewSpeed();
     if(st.mgrSlot) st.workers.mgrX=2; for(const k of ['farmhand','mgrG','mgrF','mgrI','mgrX']) if(wk(k)){ auto[k]+=dt; const per=6/(wk(k)*cs); let guard=0; while(auto[k]>=per&&guard++<40){ auto[k]-=per; manage(k,offline); } }
-    if(wk('runner')||st.vip){ auto.r+=dt; if(auto.r>=(wk('runner')?5/(wk('runner')*cs):6)){ auto.r=0; if(invCount('wet')&&loadDryer()) emit('worker',{w:'runner'}); } }
+    if(wk('runner')||st.vip){ auto.r+=dt; if(auto.r>=(wk('runner')?5/(wk('runner')*cs):6)){ auto.r=0; if(invCount('wet')&&loadDryer()){ noteCrew('runner'); emit('worker',{w:'runner'}); } } }
     if(wk('merchant')||st.vip){ auto.m+=dt; if(auto.m>=(wk('merchant')?8/(wk('merchant')*cs):10)){ auto.m=0;
       const reserved=new Set(st.orders.map(o=>o.s));
       const v=sellAll((id,stg)=>stg!=='wet'&&!reserved.has(id)&&(st.market.f[id]>=1||st.market.hot===id||(stg==='dry'&&!lv('cure')&&st.market.f[id]>=.9)));
-      let gv=0; for(const k of Object.keys(st.goods)) if(st.market.f[k.split('|')[1]]>=.95) gv+=sellGood(k); if(v+gv>0) emit('worker',{w:'merchant',v:v+gv}); } }
+      let gv=0; for(const k of Object.keys(st.goods||{})) if(st.market.f[k.split('|')[1]]>=.95) gv+=sellGood(k); if(v+gv>0){ noteCrew('merchant'); emit('worker',{w:'merchant',v:v+gv}); } } }
   }
   // ---------- breeding: pheno hunting mystery ----------
   // Recipes are never shown up front. Players cross any two parents they own; a documented cross reveals the strain.
@@ -1074,6 +1074,15 @@ window.G = (function(){
     if(!st.market||typeof st.market!=='object'||Array.isArray(st.market)) st.market={f:{},hist:{},hot:null,hotT:-150,next:0};
     if(!st.market.f||typeof st.market.f!=='object') st.market.f={};
     if(!st.market.hist||typeof st.market.hist!=='object') st.market.hist={};
+    if(st.market.hot!=null&&typeof st.market.hot!=='string') st.market.hot=null;
+    // Old saves sometimes stored lists as objects, nulls, or id arrays. Coerce them so a panel
+    // can open instead of throwing and looking like a dead menu button.
+    const asList=v=>Array.isArray(v)?v.filter(x=>x&&typeof x==='object'):(v&&typeof v==='object'?Object.values(v).filter(x=>x&&typeof x==='object'):[]);
+    const asMap=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:{};
+    ['orders','cust','dryer','cuts','craft'].forEach(k=>{ st[k]=asList(st[k]); });
+    ['goods','clones','keepers','lines','tried','recipes','harv','upkeepWarn','hintRev','cutSeeds','seeds','workers','upg','boosts','fest','lb','sets','manaSpent'].forEach(k=>{ st[k]=asMap(st[k]); });
+    if(Array.isArray(raw.discovered)){ st.discovered={}; raw.discovered.forEach(id=>{ if(typeof id==='string') st.discovered[id]=true; }); }
+    else st.discovered=asMap(st.discovered);
     if(typeof st.cash!=='number'||!isFinite(st.cash)) st.cash=0;
     if(typeof st.gems!=='number'||!isFinite(st.gems)) st.gems=0;
     if(typeof st.level!=='number'||!isFinite(st.level)||st.level<1) st.level=1;
@@ -1142,7 +1151,7 @@ window.G = (function(){
       // v2 saves from before real-time: keep the same in-game day/hour, then let the wall clock drive it
       if(raw&&(!raw.tv||raw.t0==null)){ const old=raw.time||0, days=old/480; st.t0=(raw.lastSave||Date.now())-days*DAY_LEN*1000; st.tv=2; }
       if(st.land&&!st.phenoRoom) st.phenoRoom=true;
-      migrateGarage(st); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
+      migrateGarage(st); migrateRoom(st); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
       if(st.inBuilt) st.found=true;
       if(st.upg&&st.upg.sign==null&&st.upg.stand){ st.upg.sign=st.upg.stand; st.upg.stand=Math.min(3,st.upg.stand); }
       // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)
@@ -1299,8 +1308,57 @@ window.G = (function(){
     emit('toast',{t:'Tester: garage, land, greenhouse, indoor, lab, and crafting are open. '+f.name+' is on.',k:'good long'});
     save(); return true;
   }
-  function setLoc(l){ if(!LOCS.includes(l)) return; st.loc=l; emit('loc',l); }
+  // Player-facing rooms. Indoor Facility is the old family land (zone field, 40 plots).
+  // Greenhouse is the outdoor glass house (zone gh). Sealed benches stay the late indoor zone
+  // so an old indoor save is not dropped; they are a chip inside the facility, not a fourth home tab.
+  const ROOM_ZONE={garage:'garage',facility:'field',gh:'gh',benches:'in'};
+  const ROOM_NAME={garage:'Garage',facility:'Indoor Facility',gh:'Greenhouse',benches:'Benches'};
+  function roomZone(r){ return ROOM_ZONE[r]||'garage'; }
+  function migrateRoom(s){
+    if(!s) return;
+    if(s.room==='benches'&&!s.inBuilt) s.room=s.land?'facility':'garage';
+    if(s.room==='garage'||s.room==='gh'||s.room==='facility'||s.room==='benches') return;
+    if(s.loc==='indoor'&&s.inBuilt) s.room='benches';
+    else if(s.loc==='farm') s.room='facility';
+    else s.room='garage';
+  }
+  function currentRoom(){
+    if(!st) return 'garage';
+    if(st.room==='benches'&&st.inBuilt) return 'benches';
+    if(st.room==='gh') return 'gh';
+    if(st.room==='facility') return 'facility';
+    if(st.room==='garage') return 'garage';
+    if(st.loc==='indoor'&&st.inBuilt) return 'benches';
+    if(st.loc==='farm') return 'facility';
+    return 'garage';
+  }
+  function roomOpen(r){
+    if(r==='garage') return true;
+    if(r==='facility') return !!st.land;
+    if(r==='gh') return !!st.ghBuilt;
+    if(r==='benches') return !!st.inBuilt;
+    return false;
+  }
+  function setRoom(r){
+    if(r!=='garage'&&r!=='gh'&&r!=='facility'&&r!=='benches') return;
+    if(r==='benches'&&!st.inBuilt) return;
+    st.room=r;
+    const l=r==='benches'?'indoor':r==='garage'?'garage':'farm';
+    st.loc=l;
+    emit('loc',l);
+    emit('room',r);
+  }
+  function setLoc(l){
+    if(l==='garage') return setRoom('garage');
+    if(l==='indoor') return setRoom('benches');
+    if(l==='farm') return setRoom('facility');
+  }
+  function plotsHere(){ const z=roomZone(currentRoom()); return st.plots.filter(p=>p.zone===z); }
   function ripeIn(l){ return st.plots.filter(p=>p.loc===l&&p.strain&&p.prog>=1).length; }
+  function roomRipe(r){ const z=roomZone(r); return st.plots.filter(p=>p.zone===z&&p.strain&&p.prog>=1).length; }
+  const crewLog=[];
+  function noteCrew(w){ if(w){ crewLog.push(w); if(crewLog.length>120) crewLog.shift(); } }
+  function drainCrew(){ const a=crewLog.slice(); crewLog.length=0; return a; }
 
   return {
     get st(){return st}, F, S, BY, strain, UPG, WORKERS, WEATHER, QUESTS, ZONE, UPK_NAME, LOCS, LOC_NAME, TIERN, STAGE_MULT, DAY_LEN, GARAGE, FIELD, GH, GH_BUILD, BENCH, INDOOR, LAND_COST, LAND_LEVEL,
@@ -1315,7 +1373,7 @@ window.G = (function(){
     recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
-    tick, simulate, save, load, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
+    tick, simulate, save, load, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,
     devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll, devGrantCash, devGrantGems,
   };
 })();

@@ -45,12 +45,15 @@
 <div id="seedPick" class="hidden" role="dialog" aria-label="Pick a seed"></div>
 <nav id="locTabs" aria-label="Locations"></nav>
 
-<div id="toolbar">
-  <div class="tools">
-    <button class="qbtn" id="harvestAll"><span class="ico ico-scythe"></span><small>Harvest all</small></button>
-    <button class="qbtn" id="waterAll"><span class="ico ico-drop"></span><small>Water all</small></button>
-    <button class="qbtn" id="feedAll"><span class="ico ico-feed"></span><small>Feed all</small></button>
+<div id="qaFab">
+  <div id="qaMenu" class="qa-menu hidden">
+    <button type="button" class="qbtn qa-act" id="harvestAll"><span class="ico ico-scythe"></span><small>Harvest all</small></button>
+    <button type="button" class="qbtn qa-act" id="waterAll"><span class="ico ico-drop"></span><small>Water all</small></button>
+    <button type="button" class="qbtn qa-act" id="feedAll"><span class="ico ico-feed"></span><small>Feed all</small></button>
   </div>
+  <button type="button" class="qa-main" id="qaMain" aria-label="Harvest, water, and feed" aria-expanded="false"><span class="qa-arrow"></span></button>
+</div>
+<div id="toolbar">
   <nav class="menu" id="menu">
     <button data-panel="seeds"><span class="ico ico-seed"></span><small>Seeds</small></button>
     <button data-panel="process"><span class="ico ico-jar"></span><small>Dry &amp; Cure</small><em class="badge" id="procBadge"></em></button>
