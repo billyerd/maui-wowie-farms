@@ -163,7 +163,7 @@
   try{ const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App; if(A){ A.addListener('pause',pause); A.addListener('resume',resume); A.addListener('appStateChange',s=>{ s.isActive?resume():pause(); }); } }catch(e){}
   const CREW_FACE={mgrG:'Kai',farmhand:'Kai',mgrF:'Malia',mgrI:'Nick',mgrX:'Kai',runner:'Kai',merchant:'Malia'};
   function crewLine(jobs){ const n={}; jobs.forEach(w=>{ n[w]=(n[w]||0)+1; }); return Object.entries(n).map(([w,c])=>{ const d=G.WORKERS[w]; const name=d?d.name.split(',')[0]:'Crew'; return name+' finished '+c+' job'+(c===1?'':'s'); }).join('. '); }
-  function showCrew(jobs){ if(!jobs||!jobs.length) return; const face=CREW_FACE[jobs[0]]||'Kai'; UI.modal(`<div class="dlg">${portraitImg(face,'dport')}<div><b>${face}</b><p>${crewLine(jobs)}.</p></div></div>`,[{label:'Nice',cls:'gold'}]); }
+  function showCrew(jobs){ if(!jobs||!jobs.length) return; const face=CREW_FACE[jobs[0]]||'Kai'; UI.modal(`<div class="dlg">${portraitImg(face,'dport')}<div><b>${face}</b><p>${crewLine(jobs)}.</p></div></div>`,[{label:'OK',cls:'gold'}]); }
   function showAway(r,el,cap){
     const jobs=G.drainCrew();
     if((!r||(r.harvests===0&&r.sold===0&&Math.abs(r.cash)<1&&el<600))&&!jobs.length) return;

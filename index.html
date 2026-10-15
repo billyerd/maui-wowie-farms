@@ -20,11 +20,17 @@
 
 <div id="hud">
   <div class="hud-left">
+    <div class="lvl" id="lvlBox" aria-label="Level 1">
+      <svg class="lvl-ring" viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="lvl-track" cx="22" cy="22" r="18"></circle>
+        <circle class="lvl-fill" id="xpRing" cx="22" cy="22" r="18" transform="rotate(-90 22 22)" stroke-dasharray="0 113.097"></circle>
+      </svg>
+      <span id="lvl">1</span>
+    </div>
     <div class="pill cash" id="cashPill"><span class="ico ico-coin"></span><b id="cash">$0</b></div>
     <button class="pill gems" id="gemPill" aria-label="Gems, open shop"><span class="ico ico-gem"></span><b id="gems">0</b><i class="plus">+</i></button>
   </div>
   <div class="hud-mid">
-    <div class="lvl" id="lvlBox"><div class="lvl-ring"><span id="lvl">1</span></div><div class="xpbar"><i id="xpfill"></i></div></div>
     <div class="mult" id="multBadge" title="Earnings multiplier">x1.0</div>
   </div>
   <div class="hud-right">
