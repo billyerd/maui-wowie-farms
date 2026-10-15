@@ -714,10 +714,21 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
   .hud-mid{flex-basis:auto;order:0}
 }
 @media (max-width:520px){ #multBadge{display:none!important} }
-#clock{top:calc(var(--sat) + 60px)!important}
-.goal{top:calc(var(--sat) + 58px)!important}
-#eventChip{top:calc(var(--sat) + 86px)!important}
-#locTabs{top:calc(var(--sat) + 116px)!important}
+/* Unko Kuli sits in the top bar, left of the level circle, so the room can start higher. */
+#hud{z-index:12}
+#hud .goal{position:relative;top:auto!important;left:auto!important;right:auto!important;width:44px;height:44px;min-width:44px;min-height:44px;max-width:44px!important;margin:0;padding:0!important;border:0;border-radius:50%!important;flex:none;display:grid;place-items:center;overflow:visible;background:transparent;box-shadow:none;z-index:2}
+#hud .goal:empty{display:none}
+#hud .goal .gport{width:44px!important;height:44px!important;border:2px solid #ffd96a;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+#hud .goal .gtx{position:absolute;left:0;top:50px;width:min(280px,74vw);margin:0;padding:8px 10px;border-radius:14px;background:rgba(10,22,17,.94);border:1px solid var(--line);box-shadow:0 8px 22px rgba(0,0,0,.45);opacity:0;pointer-events:none;white-space:normal}
+#hud .goal.open{max-width:44px!important}
+#hud .goal.open .gtx{opacity:1;pointer-events:auto}
+#hud .goal .gdot{left:28px;top:0}
+#hud .goal.done{animation:pulse 1.2s infinite}
+#locTabs{top:calc(var(--sat) + 54px)!important;right:140px!important}
+#clock{top:calc(var(--sat) + 60px)!important;right:8px!important;max-width:128px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (orientation:portrait){
+  #eventChip{top:auto!important;bottom:calc(var(--sab) + 142px)!important;left:0;right:0}
+}
 .modal-card p.notice{color:var(--txt);font-weight:800;font-size:16px;line-height:1.45;margin:10px 6px 4px}
 .modal-card p.notice.good{color:#c8ffd4}
 .modal-card p.notice.bad{color:#ffd2c2}
