@@ -48,8 +48,6 @@ b{font-weight:800}
 .pill .ico{width:26px;height:26px}
 .pill.cash b{color:#fff3c4;min-width:52px;font-variant-numeric:tabular-nums}
 .pill.gems b{color:#d8f6ff;font-variant-numeric:tabular-nums}
-.pill .plus{font-style:normal;font-weight:900;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
-  background:var(--acc2);color:#fff;font-size:15px;margin-left:2px}
 .pill.bump{animation:bump .35s}
 @keyframes bump{40%{transform:scale(1.12)}}
 .lvl{position:relative;width:44px;height:44px;min-width:44px;min-height:44px;flex:none;display:grid;place-items:center;padding:0;border:0;border-radius:50%;
@@ -308,8 +306,7 @@ input.savefile{display:block;margin:6px 0 8px;max-width:100%;font-size:13px;colo
   .pill{height:36px;font-size:15px;padding:0 9px 0 5px;gap:4px}
   .pill .ico{width:22px;height:22px}
   .pill.cash b{min-width:0}
-  .pill .plus{width:18px;height:18px;font-size:13px}
-  .shopbtn{height:36px;padding:0 12px 0 8px;font-size:14px;gap:4px}
+  .shopbtn{height:40px;min-height:40px;min-width:40px;padding:0 12px 0 8px;font-size:14px;gap:4px}
   .shopbtn span:last-child{display:inline}
   .shopbtn .ico{width:18px;height:18px}
   .iconbtn{width:36px;height:36px}
@@ -695,8 +692,9 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 @keyframes upPulse{0%,100%{box-shadow:0 0 0 1px rgba(95,224,138,.28),0 8px 16px rgba(0,0,0,.22)}50%{box-shadow:0 0 0 1px rgba(210,255,180,.75),0 0 16px rgba(95,224,138,.38)}}
 @keyframes upFlash{0%{box-shadow:0 0 0 2px #fff6c4,0 0 24px rgba(255,220,120,.9)}100%{box-shadow:0 0 0 1px rgba(255,207,74,.45),0 0 16px rgba(255,207,74,.2)}}
 
-/* Level ring in the top bar, left of gold. One row on a phone. */
+/* Level ring in the top bar, left of gold. One row on a phone. Shop stays a 40px target. */
 #hud .lvl,#hud .lvl-ring{width:44px!important;height:44px!important;min-width:44px;min-height:44px}
+#hud .shopbtn{height:40px;min-height:40px;min-width:40px}
 @media (orientation:portrait){
   #hud{flex-wrap:nowrap}
   .hud-mid{flex-basis:auto;order:0}
