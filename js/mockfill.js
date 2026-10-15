@@ -5,10 +5,13 @@
   document.documentElement.classList.add('mock-cam');
   if(mock==='beds') document.documentElement.classList.add('mock-beds');
   window.__paused=true;
-  const spot=q.get('spot')||(mock==='room'||mock==='beds'?'land':'garage'), zone=spot==='land'?'field':spot==='gh'?'gh':'garage';
+  const raw=q.get('spot')||(mock==='room'?'land':mock==='beds'?'garage':'garage');
+  const spot=mock==='beds'?(raw==='gh'||raw==='greenhouse'?'gh':raw==='indoor'||raw==='land'||raw==='in'?'indoor':'garage'):raw;
+  const zone=mock==='beds'?(spot==='indoor'?'field':spot==='gh'?'gh':'garage'):(spot==='land'?'field':spot==='gh'?'gh':'garage');
   if(mock==='room'||mock==='beds'){
     const nav=document.createElement('nav'); nav.id='roomTabs';
-    [['garage','Garage'],['land','Land'],['gh','Greenhouse']].forEach(([id,label])=>{
+    const tabs=mock==='beds'?[['garage','Garage'],['gh','Greenhouse'],['indoor','Indoor Facility']]:[['garage','Garage'],['land','Land'],['gh','Greenhouse']];
+    tabs.forEach(([id,label])=>{
       const b=document.createElement('button'); b.type='button'; b.textContent=label; if(id===spot) b.className='on';
       b.onclick=()=>{ location.search='?mock='+mock+'&spot='+id; }; nav.appendChild(b);
     });

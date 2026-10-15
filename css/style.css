@@ -611,7 +611,7 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn{display:none}
 @media (orientation:portrait){ #devdock{width:min(340px,calc(100vw - 16px))} }
 /* Phone camera mockups only. The play chrome stays off so the plots can fill the screen. */
 html.mock-cam #splash,html.mock-cam #ageGate,html.mock-cam #consentGate,html.mock-cam #playBtn,html.mock-cam #hud,html.mock-cam #toolbar,html.mock-cam #locTabs,html.mock-cam #goal,html.mock-cam #clock,html.mock-cam #seedBag,html.mock-cam #scoutBtn,html.mock-cam #upgBtn,html.mock-cam #orderBoard,html.mock-cam #modal,html.mock-cam #tutc,html.mock-cam #eventChip{display:none!important}
-html.mock-cam #roomTabs{position:fixed;top:0;left:0;right:0;z-index:40;height:34px;display:flex;gap:4px;padding:3px 6px;box-sizing:border-box;background:#102018}
-html.mock-cam #roomTabs button{flex:1;border-radius:8px;background:rgba(255,255,255,.08);color:#e7f3ea;font:800 12px/1 system-ui,sans-serif}
+html.mock-cam #roomTabs{position:fixed;top:0;left:0;right:0;z-index:40;height:36px;display:flex;gap:4px;padding:3px 4px;box-sizing:border-box;background:#102018}
+html.mock-cam #roomTabs button{flex:1;min-width:0;border-radius:8px;background:rgba(255,255,255,.08);color:#e7f3ea;font:800 11px/1.05 system-ui,sans-serif;white-space:nowrap}
 html.mock-cam #roomTabs button.on{background:linear-gradient(#ffd96a,#f2b632);color:#2a1d00}
 html.mock-cam.mock-beds #toolbar{display:flex!important}
