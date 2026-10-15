@@ -4,7 +4,7 @@ window.UI = (function(){
   const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
   const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const T=()=>window.GAME_CONFIG.title;
-  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null, saveUi=null, importDraft='', exportPack=null, helpUi=false;
+  let tool='hand', panel=null, tab=null, lastPointer=0, popPlot=null, saveUi=null, importDraft='', exportPack=null, helpUi=false, boughtKey=null, boughtTimer=0;
   const labA={v:null}, labB={v:null}, huntSel={v:null};
   const fmt=n=>G.fmt(n), sec=s=>G.dur(s);
   const tag=s=>`<span class="tag t-${s.rarity}">${s.rarity}</span>${s.island?'<span class="tag" style="background:#0f8f8a;color:#eafffd">Island</span>':''}${s.hemp?'<span class="tag" style="background:#6a8a3a;color:#f2ffe0">CBD</span>':''}${G.EVENT_ONLY[s.id]==='premium'?'<span class="tag" style="background:#ffd35a;color:#3a2500">Exclusive</span>':G.EVENT_ONLY[s.id]?'<span class="tag" style="background:#c05ad0;color:#fff">Festival</span>':''}`;
@@ -254,6 +254,15 @@ window.UI = (function(){
   const cu=(s,sz,hidden)=>`<img class="thumb" data-cu="${s.id}" data-sz="${sz||96}" data-h="${hidden?1:0}" alt="">`;
   const row=(s,mid,right,sel,hidden)=>s?`<div class="row ${sel?'sel':''}">${cu(s,96,hidden)}<div class="grow"><h4>${hidden?'???':esc(s.name)} ${tag(s)}</h4>${mid}</div>${right||''}</div>`:`<div class="row"><div class="grow"><h4>Retired strain</h4>${mid||''}</div>${right||''}</div>`;
   const pips=(l,m)=>`<span style="letter-spacing:2px;color:var(--acc)">${'●'.repeat(l)}<span style="color:rgba(255,255,255,.2)">${'●'.repeat(Math.max(0,m-l))}</span></span>`;
+  const upips=(l,m)=>{ let s='<span class="upips">'; for(let i=0;i<m;i++) s+=`<i class="${i<l?'on':''}"></i>`; return s+'</span>'; };
+  function flashBuy(k){ boughtKey=k; clearTimeout(boughtTimer); boughtTimer=setTimeout(()=>{ boughtKey=null; if(panel) render(); },720); }
+  function ucard(o){ return `<div class="ucard th-${o.theme} ${o.state}${boughtKey===o.key?' flash':''}" data-uk="${esc(o.key)}"><div class="uplate">${o.img||''}</div><div class="ugrow"><h4>${o.title}</h4>${o.pips||''}<p>${o.desc}</p></div><div class="uact">${o.action}</div></div>`; }
+  function upBanner(room){
+    const M={garage:['assets/new-art/backgrounds/garage.jpg','Garage','One hanging light over stacked pots.'],gh:['assets/new-art/backgrounds/greenhouse.jpg','Greenhouse','Daylight, dirt beds, no grow lights.'],facility:['assets/new-art/backgrounds/indoor-facility.jpg','Indoor Facility','Forty plots under one ceiling light.']};
+    if(M[room]) return `<div class="ubanner" style="background-image:url('${M[room][0]}')"><div><b>${M[room][1]}</b><span>${M[room][2]}</span></div></div>`;
+    if(room==='lines') return `<div class="ubanner soft"><img alt="" src="assets/new-art/sprites/water-barrel.png"><div><b>Water + feed</b><span>The hose unlocks Water all. Feed all stays free.</span></div></div>`;
+    return `<div class="ubanner soft">${portraitImg('Kai','wport','bust')}<div><b>Helpers</b><span>One note when the crew finishes. They stay off the map.</span></div></div>`;
+  }
 
   // Seeds
   PANELS.seeds=()=>{
@@ -324,28 +333,39 @@ window.UI = (function(){
   // Upgrades / build
   function upRow(k,isW){
     const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l), price=c<=0?(isW&&l>0?'Train':'Free'):fmt(c);
-    let lock=''; if(isW&&!G.workerOk(k)) lock=G.st.level<d.level?ico('lock')+'Lv '+d.level:'Needs location'; else if(!isW&&!G.upgNeedOk(d)) lock='Needs location'; else if(!isW&&d.lvl&&G.st.level<d.lvl) lock=ico('lock')+'Lv '+d.lvl;
-    const name=d.steps?`${esc(d.name)}: <span style="color:var(--acc)">${esc(d.steps[l])}</span>`:esc(d.name);
-    const desc=d.steps?(done?esc(d.descs[l]):`Next: <b>${esc(d.steps[l+1])}</b> · ${esc(d.descs[l+1])}`):esc(d.desc);
+    let lock=''; if(isW&&!G.workerOk(k)) lock=G.st.level<d.level?ico('lock')+' Lv '+d.level:'Needs location'; else if(!isW&&!G.upgNeedOk(d)) lock='Needs location'; else if(!isW&&d.lvl&&G.st.level<d.lvl) lock=ico('lock')+' Lv '+d.lvl;
+    const stepName=d.steps?d.steps[Math.min(l,(d.steps.length||1)-1)]:'';
+    const name=d.steps?`${esc(d.name)} <em>${esc(stepName)}</em>`:esc(d.name);
+    const desc=d.steps?(done?esc(d.descs[Math.min(l,d.descs.length-1)]):`Next: <b>${esc(d.steps[l+1])}</b> · ${esc(d.descs[l+1])}`):esc(d.desc);
     const who=isW&&window.CHARACTERS?Object.keys(window.CHARACTERS).find(n=>n!=='Unko Kuli'&&d.name.startsWith(n)):null;
-    return `<div class="row">${who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'')}<div class="grow"><h4>${name} ${max>1?pips(l,max):''}</h4><p>${desc}</p></div>${done?'<span class="chip">'+(max>1?'MAX':'Owned')+'</span>':`<button class="btn sm ${isW?'pink':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${(c>0&&G.st.cash<c)||lock?'disabled':''}>${lock||price}</button>`}</div>`;
+    const theme=isW?'hands':d.loc==='farm'?'farm':d.loc==='indoor'?'indoor':d.loc==='garage'?'garage':'all';
+    const state=done?'owned':lock?'locked':(c>0&&G.st.cash<c)?'short':'canbuy';
+    const img=who?portraitImg(who,'wport','bust'):(window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url(k,d.loc||'all')}">`:'');
+    const action=done?`<span class="uchip">${max>1?'MAX':'Owned'}</span>`:`<button class="btn ${isW?'pink':state==='canbuy'?'gold':''}" data-a="${isW?'hire':'upg'}" data-k="${k}" ${(c>0&&G.st.cash<c)||lock?'disabled':''}>${lock||price}</button>`;
+    return ucard({key:k,theme,state,img,title:name,desc,pips:max>1?upips(l,max):'',action});
   }
-  function stepCard(kind,label){ const n=G.nextStep(kind); if(!n) return `<div class="row"><div class="grow"><h4>${label}: all space bought</h4></div><span class="chip">MAX</span></div>`;
-    return `<div class="row">${window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('step_'+kind,'step')}">`:''}<div class="grow"><h4>${esc(n.name)}</h4><p>${esc(n.desc||('+'+n.add+' plant spaces'))}</p></div><button class="btn sm gold" data-a="step" data-k="${kind}" ${G.st.cash<n.cost?'disabled':''}>${fmt(n.cost)}</button></div>`; }
+  function stepCard(kind,label){ const n=G.nextStep(kind); const img=window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('step_'+kind,'step')}">`:'';
+    if(!n) return ucard({key:'step_'+kind,theme:'step',state:'owned',img,title:esc(label)+': all space bought',desc:'This room is at its plant cap.',action:'<span class="uchip">MAX</span>'});
+    const state=G.st.cash<n.cost?'short':'canbuy';
+    return ucard({key:'step_'+kind,theme:'step',state,img,title:esc(n.name),desc:esc(n.desc||('+'+n.add+' plant spaces')),action:`<button class="btn gold" data-a="step" data-k="${kind}" ${state==='short'?'disabled':''}>${fmt(n.cost)}</button>`}); }
   function upkeepBox(l){ const U=G.upkeepRates()[l]; const parts=Object.entries(U.parts).filter(([k,v])=>v>.005);
-    return `<div class="row" style="display:block"><h4>Upkeep now: ${fmt(U.total)}/hour ${G.st.upkeepWarn[l]>0?'<span class="tag" style="background:#ff8a5c">Cash short: growth slowed to 30%</span>':''}</h4>${parts.length?`<dl class="kv">${parts.map(([k,v])=>`<dt>${esc(G.UPK_NAME[k]||k)}</dt><dd>${fmt(v)}/h</dd>`).join('')}</dl>`:'<p>Nothing growing here right now.</p>'}<p>Charged while plants grow. If cash runs out you never go into debt: plants just grow slower until you can pay.</p></div>`; }
+    return `<div class="upkeep"><h4>Upkeep now: ${fmt(U.total)}/hour ${G.st.upkeepWarn[l]>0?'<span class="tag" style="background:#ff8a5c">Cash short: growth slowed to 30%</span>':''}</h4>${parts.length?`<dl class="kv">${parts.map(([k,v])=>`<dt>${esc(G.UPK_NAME[k]||k)}</dt><dd>${fmt(v)}/h</dd>`).join('')}</dl>`:'<p>Nothing growing here right now.</p>'}<p>Charged while plants grow. If cash runs out you never go into debt: plants just grow slower until you can pay.</p></div>`; }
   PANELS.upgrades=()=>{
     const st=G.st; const cur=G.currentRoom(); tab=tab||(cur==='benches'?'facility':cur==='facility'?'facility':cur==='gh'?'gh':'garage'); if(tab==='farm') tab='facility'; if(tab==='indoor') tab='facility'; let body='';
     const tabs=[['garage','Garage'],['gh','Greenhouse'],['facility','Indoor Facility'],['lines','Water + feed'],['hands','Helpers']];
     if(tab==='garage'){ const g=G.GARAGE[st.garage];
-      body+=`<div class="section-t">Grow space · ${G.capOf('garage')}/25 plants</div><div class="note">Now: <b>${esc(g.name)}</b>. Beds stay in the room. Gear you buy shows up here, not on the floor.</div>`+stepCard('garage','Garage')+upkeepBox('garage');
+      body+=upBanner('garage')+`<div class="section-t">Grow space · ${G.capOf('garage')}/25 plants</div><div class="note">Now: <b>${esc(g.name)}</b>. Beds stay in the room. Gear you buy shows up here, not on the floor.</div>`+stepCard('garage','Garage')+upkeepBox('garage');
       body+=`<div class="section-t">Garage gear</div>`+['light','fan','oscfan','dehu','timer','phkit','trays'].map(k=>upRow(k)).join('');
-      body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the Indoor Facility it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':`<div class="row"><div class="grow"><b>Indoor Breeding Pheno Room</b><p>Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the sealed benches.</p></div><button class="btn sm gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button></div>`); }
+      const labImg=window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('labPollen','garage')}">`:'';
+      body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the Indoor Facility it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':ucard({key:'lab',theme:'indoor',state:G.st.inBuilt&&G.st.cash>=G.LAB.cost?'canbuy':'locked',img:labImg,title:'Indoor Breeding Pheno Room',desc:'Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the sealed benches.',action:`<button class="btn gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button>`})); }
     else if(tab==='gh'){
+      body+=upBanner('gh');
       if(!st.land){ const L=landReq(); body+=`<div class="note">The greenhouse sits on the family land. Buy the Indoor Facility first.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
-      else { body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):`<div class="row">${window.UpgIcons?`<img class="upico" alt="" src="assets/new-art/sprites/hoop-house.png">`:''}<div class="grow"><h4>Build the greenhouse</h4><p>Steel poles and a plastic topper over dirt beds. Weather still matters. No grow lights.</p></div><button class="btn sm gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||!G.gate('gh')?'disabled':''}>${G.gate('gh')?fmt(G.GH_BUILD.cost):ico('lock')+'Lv '+G.GH_BUILD.level}</button></div>`);
+      else { const ghImg=`<img class="upico" alt="" src="assets/new-art/sprites/hoop-house.png">`; const ghLock=!G.gate('gh');
+        body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):ucard({key:'ghbuild',theme:'farm',state:ghLock||st.cash<G.GH_BUILD.cost?'locked':'canbuy',img:ghImg,title:'Build the greenhouse',desc:'Steel poles and a plastic topper over dirt beds. Weather still matters. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||ghLock?'disabled':''}>${ghLock?ico('lock')+' Lv '+G.GH_BUILD.level:fmt(G.GH_BUILD.cost)}</button>`}));
         body+=upkeepBox('farm')+`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); } }
     else if(tab==='facility'){
+      body+=upBanner('facility');
       if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. Your plants carry over when you buy it.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
       else { body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div>`+stepCard('field','Plots')+upkeepBox('farm');
         body+=`<div class="section-t">Facility gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
@@ -356,8 +376,8 @@ window.UI = (function(){
           body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build sealed benches · ${fmt(G.INDOOR.build)}</button>`; }
         else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches')+upkeepBox('indoor')+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); }
     }
-    else if(tab==='lines'){ body+=`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
-    else { body+=`<div class="note">Helpers do not walk the rooms. When they finish work you get one short note, not a popup per plant. Each hire is once, with no wages.</div>`+Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
+    else if(tab==='lines'){ body+=upBanner('lines')+`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
+    else { body+=upBanner('hands')+`<div class="note">Helpers do not walk the rooms. When they finish work you get one short note, not a popup per plant. Each hire is once, with no wages.</div>`+Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
     return {title:'Upgrades',sub:'Gear lives on these cards. Rooms stay clear.',tabs,body};
   };
   // Pheno Room: pheno-hunting mystery
@@ -401,6 +421,19 @@ window.UI = (function(){
   };
   // ---------- Strain Web: family tree of parents -> children (pan, pinch-zoom, tap for details, highlighted lineage) ----------
   const TAU=Math.PI*2, WEB={sel:null,cam:null};
+  let webT=0, webRaf=0;
+  function webMotion(){ return !(G.st&&G.st.settings.motion===false); }
+  function webKick(){
+    if(webRaf) return;
+    const step=t=>{
+      const cv=document.getElementById('strainWeb');
+      if(!cv||!cv.isConnected||!document.body.classList.contains('sheet-open')||panel!=='book'){ webRaf=0; return; }
+      webT=(t||0)/1000; webDraw();
+      if(!webMotion()){ webRaf=0; return; }
+      webRaf=requestAnimationFrame(step);
+    };
+    webRaf=requestAnimationFrame(step);
+  }
   function webGraph(){ const st=G.st, S=G.S, nodes=new Map(), edges=[];
     const nameOf=new Map(S.map(s=>[s.name.toLowerCase(),s.id]));
     S.forEach(s=>nodes.set(s.id,{id:s.id,s,kind:'s'}));
@@ -410,7 +443,7 @@ window.UI = (function(){
     const g=id=>{ if(gen.has(id)) return gen.get(id); gen.set(id,0); const P=par.get(id)||[]; const v=P.length?1+Math.max(...P.map(g)):0; gen.set(id,v); return v; }; nodes.forEach((n,id)=>n.g=g(id));
     // roots with no children and no parents go in a separate "starter" column; order each column by the mean y of parents
     const cols=[]; nodes.forEach(n=>{ (cols[n.g]=cols[n.g]||[]).push(n); });
-    const order=n=>n.kind==='p'?1:0; cols.forEach((c,gi)=>{ c.sort((a,b)=>{ if(gi>0){ const ma=avgY(a), mb=avgY(b); if(ma!==mb) return ma-mb; } return order(a)-order(b)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||(a.s?a.s.name:a.name).localeCompare(b.s?b.s.name:b.name); }); c.forEach((n,i)=>{ n.x=gi*176; n.y=(i-(c.length-1)/2)*88; }); });
+    const order=n=>n.kind==='p'?1:0; cols.forEach((c,gi)=>{ c.sort((a,b)=>{ if(gi>0){ const ma=avgY(a), mb=avgY(b); if(ma!==mb) return ma-mb; } return order(a)-order(b)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||(a.s?a.s.name:a.name).localeCompare(b.s?b.s.name:b.name); }); c.forEach((n,i)=>{ n.x=gi*228; n.y=(i-(c.length-1)/2)*118; }); });
     function avgY(n){ const P=par.get(n.id)||[]; if(!P.length) return 0; return P.reduce((t,p)=>t+(nodes.get(p).y||0),0)/P.length; }
     return {nodes,edges,par}; }
   function webState(n){ const st=G.st; if(n.kind==='p') return 'pollen'; const s=n.s; if(st.discovered[s.id]) return 'known'; if(window.PREMIUM_STRAINS&&PREMIUM_STRAINS[s.id]) return 'locked'; if(s.mystery) return (st.hintRev[s.id]||0)>0?'hinted':'mystery'; return 'locked'; }
@@ -419,25 +452,46 @@ window.UI = (function(){
   const webImg=new Map();
   function thumb(n,hid){ const k=n.id+(hid?'h':''); let im=webImg.get(k); if(im) return im; const u=R.closeup(n.s,96,hid); im=new Image(); if(u&&u.toDataURL) im.src=u.toDataURL(); else im.src=u; im.onload=()=>webDraw(); webImg.set(k,im); return im; }
   let WG=null;
-  function webDraw(){ const cv=document.getElementById('strainWeb'); if(!cv||!WG) return; const x=cv.getContext('2d'), d=Math.min(2,devicePixelRatio||1), W=cv.clientWidth, H=cv.clientHeight;
+  function webDraw(){ const cv=document.getElementById('strainWeb'); if(!cv||!WG||!WEB.cam) return; const x=cv.getContext('2d'), d=Math.min(2,devicePixelRatio||1), W=cv.clientWidth, H=cv.clientHeight;
+    if(W<2||H<2) return;
     if(cv.width!==Math.round(W*d)||cv.height!==Math.round(H*d)){ cv.width=Math.round(W*d); cv.height=Math.round(H*d); }
-    const c=WEB.cam; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H); const bg=x.createRadialGradient(W/2,H/2,20,W/2,H/2,Math.max(W,H)); bg.addColorStop(0,'#17301f'); bg.addColorStop(1,'#0a140e'); x.fillStyle=bg; x.fillRect(0,0,W,H);
+    const c=WEB.cam; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H);
+    const bg=x.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#07140e'); bg.addColorStop(.42,'#143422'); bg.addColorStop(1,'#07110c'); x.fillStyle=bg; x.fillRect(0,0,W,H);
+    x.fillStyle='rgba(18,72,38,.34)'; [[.16,.06,100,50],[.52,-.02,150,64],[.88,.08,110,52]].forEach(([px,py,rw,rh])=>{ x.beginPath(); x.ellipse(W*px,H*py+18+Math.sin(webT*.35+px*6)*3,rw,rh,0,0,TAU); x.fill(); });
+    for(let i=0;i<22;i++){ const px=(i*97)%W, py=((i*53+webT*14*(i%2?1:-.35))%H+H)%H; x.globalAlpha=.22+(i%5)*.08; x.fillStyle=i%3?'#ffe7a8':'#d8ffc8'; x.beginPath(); x.arc(px,py,i%4?1:1.7,0,TAU); x.fill(); }
+    x.globalAlpha=1;
     x.setTransform(d*c.z,0,0,d*c.z,d*(W/2-c.x*c.z),d*(H/2-c.y*c.z));
+    const cols=new Map(); WG.nodes.forEach(n=>{ const col=cols.get(n.g)||{g:n.g,x:n.x,minY:1e9,maxY:-1e9}; col.minY=Math.min(col.minY,n.y); col.maxY=Math.max(col.maxY,n.y); cols.set(n.g,col); });
+    cols.forEach(col=>{ const top=col.minY-96, h=col.maxY+64-top; x.fillStyle='rgba(255,255,255,.04)'; x.beginPath(); x.roundRect(col.x-88,top,176,h,26); x.fill(); x.strokeStyle='rgba(255,214,120,.16)'; x.lineWidth=2; x.stroke();
+      const label=col.g===0?'Starters':'Gen '+(col.g+1); x.font='800 13px system-ui'; x.textAlign='center'; x.textBaseline='middle'; const tw=x.measureText(label).width+18;
+      x.fillStyle='rgba(8,18,12,.86)'; x.beginPath(); x.roundRect(col.x-tw/2,col.minY-84,tw,24,12); x.fill(); x.fillStyle='#ffd98a'; x.fillText(label,col.x,col.minY-72); });
     const hl=new Set(), hle=new Set(); if(WEB.sel){ const up=id=>{ if(hl.has(id)) return; hl.add(id); WG.edges.forEach((e,i)=>{ if(e.b===id&&edgeVisible(e,WG)){ hle.add(i); up(e.a); } }); }; up(WEB.sel); WG.edges.forEach((e,i)=>{ if(e.a===WEB.sel&&edgeVisible(e,WG)){ hle.add(i); hl.add(e.b); } }); }
-    WG.edges.forEach((e,i)=>{ const A=WG.nodes.get(e.a), B=WG.nodes.get(e.b), vis=edgeVisible(e,WG), on=hle.has(i); if(!vis&&!on) return;
-      x.strokeStyle=on?'#ffd35a':WEB.sel?'rgba(160,220,170,.12)':'rgba(160,220,170,.38)'; x.lineWidth=on?3.2:1.6; x.setLineDash(webState(B)==='hinted'?[6,5]:[]);
-      x.beginPath(); x.moveTo(A.x+28,A.y); x.bezierCurveTo(A.x+52,A.y,B.x-52,B.y,B.x-28,B.y); x.stroke(); x.setLineDash([]);
-      if(on){ x.fillStyle='#ffd35a'; x.beginPath(); x.moveTo(B.x-30,B.y); x.lineTo(B.x-40,B.y-5); x.lineTo(B.x-40,B.y+5); x.fill(); } });
-    WG.nodes.forEach(n=>{ const stt=webState(n), dim=WEB.sel&&!hl.has(n.id), r=n.kind==='p'?20:30; x.globalAlpha=dim?.35:1;
-      if(n.kind==='p'){ x.fillStyle='#2a3a2e'; x.strokeStyle='#9fd76a'; x.lineWidth=2; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.fill(); x.stroke(); x.fillStyle='#d8f0c0'; for(let k=0;k<6;k++){ const a=k*TAU/6; x.beginPath(); x.arc(n.x+Math.cos(a)*8,n.y+Math.sin(a)*8,3.2,0,TAU); x.fill(); } x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x,n.y,4,0,TAU); x.fill(); }
-      else { const hid=stt==='mystery'||stt==='hinted', im=thumb(n,hid); x.save(); x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.clip(); if(im.complete&&im.naturalWidth) x.drawImage(im,n.x-r,n.y-r,2*r,2*r); else { x.fillStyle='#223'; x.fill(); } if(stt==='locked'){ x.fillStyle='rgba(0,0,0,.55)'; x.fillRect(n.x-r,n.y-r,2*r,2*r); } x.restore();
-        const ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[n.id]; x.strokeStyle=WEB.sel===n.id?'#fff':ex?'#ffd35a':({Common:'#9aa',Uncommon:'#5ad06a',Rare:'#4aa0ff',Epic:'#b07be0',Legendary:'#ffb02a'})[n.s.rarity]||'#9aa'; x.lineWidth=WEB.sel===n.id?4:ex?3.5:2.5; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.stroke();
-        if(stt==='mystery'){ x.fillStyle='#fff'; x.font='900 26px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('?',n.x,n.y+1); }
-        { const Ln=G.st.lines&&G.st.lines[n.id]; if(Ln&&Ln.heir){ x.strokeStyle='#ffd35a'; x.lineWidth=2; x.setLineDash([4,3]); x.beginPath(); x.arc(n.x,n.y,r+6,0,TAU); x.stroke(); x.setLineDash([]); x.font='14px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('🏅',n.x-r*.78,n.y-r*.78); } }
-        if(G.st.keepers&&G.st.keepers[n.id]){ x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x+r*.75,n.y-r*.75,7,0,TAU); x.fill(); x.fillStyle='#3a2500'; x.font='900 9px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('M',n.x+r*.75,n.y-r*.75+.5); }
-        if(ex){ x.fillStyle='#ffd35a'; x.font='900 8px system-ui'; x.textAlign='center'; x.fillText('EXCLUSIVE',n.x,n.y-r-6); } }
-      const lab=n.kind==='p'?n.name+' (pollen)':stt==='mystery'?'???':n.s.name; x.font='700 11px system-ui'; x.textAlign='center'; x.textBaseline='top'; x.fillStyle='rgba(0,0,0,.6)'; const tw=x.measureText(lab).width; x.fillRect(n.x-tw/2-4,n.y+r+3,tw+8,15); x.fillStyle=stt==='locked'?'#9aa':'#eafff2'; x.fillText(lab,n.x,n.y+r+5); x.globalAlpha=1; });
-    x.setTransform(1,0,0,1,0,0); }
+    const geom=(A,B)=>{ const ra=A.kind==='p'?30:44, rb=B.kind==='p'?30:44, x1=A.x+ra, y1=A.y, x2=B.x-rb, y2=B.y, pull=Math.max(56,Math.min(96,(x2-x1)*.42)); return [{x:x1,y:y1},{x:x1+pull,y:y1},{x:x2-pull,y:y2},{x:x2,y:y2}]; };
+    const stroke=(p)=>{ x.beginPath(); x.moveTo(p[0].x,p[0].y); x.bezierCurveTo(p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y); x.stroke(); };
+    const bez=(p,t)=>{ const u=1-t; return {x:u*u*u*p[0].x+3*u*u*t*p[1].x+3*u*t*t*p[2].x+t*t*t*p[3].x, y:u*u*u*p[0].y+3*u*u*t*p[1].y+3*u*t*t*p[2].y+t*t*t*p[3].y}; };
+    x.lineCap='round';
+    WG.edges.forEach((e,i)=>{ const A=WG.nodes.get(e.a), B=WG.nodes.get(e.b), vis=edgeVisible(e,WG), on=hle.has(i); if(!A||!B||(!vis&&!on)) return; const p=geom(A,B);
+      x.setLineDash(webState(B)==='hinted'?[7,6]:[]); x.strokeStyle=on?'rgba(255,211,90,.32)':WEB.sel?'rgba(120,190,140,.07)':'rgba(160,230,176,.2)'; x.lineWidth=on?11:7; stroke(p);
+      x.strokeStyle=on?'#ffe7a2':WEB.sel?'rgba(180,225,190,.3)':'rgba(226,255,232,.78)'; x.lineWidth=on?2.5:1.6; stroke(p); x.setLineDash([]);
+      if(vis&&webMotion()){ const q=bez(p,((webT*.16)+i*.137)%1); x.fillStyle=on?'#fff6d0':'rgba(236,255,228,.92)'; x.beginPath(); x.arc(q.x,q.y,on?3.6:2.2,0,TAU); x.fill(); }
+      if(on){ x.fillStyle='#ffd35a'; x.beginPath(); x.moveTo(p[3].x+2,p[3].y); x.lineTo(p[3].x-11,p[3].y-5.5); x.lineTo(p[3].x-11,p[3].y+5.5); x.fill(); } });
+    const RAR={Common:'#9aa8a0',Uncommon:'#5ad06a',Rare:'#4aa0ff',Epic:'#c08bff',Legendary:'#ffb02a'};
+    WG.nodes.forEach(n=>{ const stt=webState(n), dim=WEB.sel&&!hl.has(n.id), r=n.kind==='p'?24:36; x.globalAlpha=dim?.38:1;
+      if(n.kind==='p'){ x.fillStyle='#1c2c22'; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.fill(); x.strokeStyle='#b6e88a'; x.lineWidth=3; x.stroke(); x.fillStyle='#d8f0c0'; for(let k=0;k<6;k++){ const a=k*TAU/6-webT*.25; x.beginPath(); x.arc(n.x+Math.cos(a)*9,n.y+Math.sin(a)*9,3.1,0,TAU); x.fill(); } x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x,n.y,4.5,0,TAU); x.fill(); }
+      else { const hid=stt==='mystery'||stt==='hinted', im=thumb(n,hid), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[n.id], ring=WEB.sel===n.id?'#fff':ex?'#ffd35a':(RAR[n.s.rarity]||'#9aa8a0');
+        if(stt==='known'){ x.fillStyle=ex?'rgba(255,211,90,.34)':'rgba(120,220,150,.26)'; x.beginPath(); x.arc(n.x,n.y,r+8,0,TAU); x.fill(); }
+        x.save(); x.beginPath(); x.arc(n.x,n.y,r-2,0,TAU); x.clip(); if(im.complete&&im.naturalWidth) x.drawImage(im,n.x-r,n.y-r,2*r,2*r); else { x.fillStyle='#1a2820'; x.fillRect(n.x-r,n.y-r,2*r,2*r); }
+        if(stt==='locked'||hid){ x.fillStyle=stt==='locked'?'rgba(4,8,6,.62)':'rgba(6,10,8,.42)'; x.fillRect(n.x-r,n.y-r,2*r,2*r); } x.restore();
+        x.strokeStyle=(stt==='locked'||stt==='mystery')?'rgba(186,196,190,.5)':ring; x.lineWidth=stt==='known'?4.5:2.6; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.stroke();
+        x.strokeStyle='rgba(255,255,255,.38)'; x.lineWidth=1.6; x.beginPath(); x.arc(n.x,n.y,r-4,-2.5,-.35); x.stroke();
+        if(stt==='mystery'){ x.fillStyle='#f4fff8'; x.font='900 28px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('?',n.x,n.y+1); }
+        const Ln=G.st.lines&&G.st.lines[n.id]; if(Ln&&Ln.heir){ x.strokeStyle='#ffd35a'; x.lineWidth=2; x.setLineDash([4,3]); x.beginPath(); x.arc(n.x,n.y,r+10,0,TAU); x.stroke(); x.setLineDash([]); x.font='14px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('🏅',n.x-r*.7,n.y-r*.7); }
+        if(G.st.keepers&&G.st.keepers[n.id]){ x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x+r*.7,n.y-r*.7,8,0,TAU); x.fill(); x.fillStyle='#3a2500'; x.font='900 10px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('M',n.x+r*.7,n.y-r*.7+.5); }
+        if(ex){ x.fillStyle='#ffd35a'; x.font='900 9px system-ui'; x.textAlign='center'; x.textBaseline='bottom'; x.fillText('EXCLUSIVE',n.x,n.y-r-3); } }
+      let lab=n.kind==='p'?n.name+' (pollen)':stt==='mystery'?'???':n.s.name; x.font='700 12px system-ui'; x.textAlign='center'; x.textBaseline='top';
+      while(lab.length>4&&x.measureText(lab).width>148) lab=lab.slice(0,-2)+'…';
+      const tw=x.measureText(lab).width; x.fillStyle='rgba(6,14,10,.8)'; x.beginPath(); x.roundRect(n.x-tw/2-7,n.y+r+5,tw+14,18,9); x.fill(); x.fillStyle=stt==='locked'?'#b7c4bc':'#f3fff6'; x.fillText(lab,n.x,n.y+r+7); x.globalAlpha=1; });
+    x.setTransform(d,0,0,d,0,0); const vig=x.createRadialGradient(W/2,H*.46,Math.min(W,H)*.22,W/2,H/2,Math.max(W,H)*.75); vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(4,10,7,.45)'); x.fillStyle=vig; x.fillRect(0,0,W,H); x.setTransform(1,0,0,1,0,0); }
   function webCard(){ const el=document.getElementById('webCard'); if(!el) return; const id=WEB.sel; if(!id){ el.innerHTML='<p class="wc-hint">Tap a strain to see its family. Drag to pan, pinch or scroll to zoom.</p>'; return; }
     const n=WG.nodes.get(id), st=G.st; if(n.kind==='p'){ const kids=WG.edges.filter(e=>e.a===id&&edgeVisible(e,WG)).map(e=>WG.nodes.get(e.b).s.name); el.innerHTML=`<h4>${esc(n.name)} <span class="tag">Pollen</span></h4><p>A parent line you can use as pollen in the Pheno Room.</p><p><b>Known children:</b> ${kids.length?esc(kids.join(', ')):'none found yet'}</p>`; return; }
     const s=n.s, stt=webState(n), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[id], k=st.keepers&&st.keepers[id], r=st.hintRev[id]||0;
@@ -446,8 +500,8 @@ window.UI = (function(){
     if(s.mystery) how.push(stt==='known'?'Bred in the Pheno Room':'Cross the right two parents in the Pheno Room'+(r?' (hint: '+r+' parent'+(r>1?'s':'')+' revealed)':'')); else if(!ex) how.push(window.G.festNow&&G.FESTS.some(f=>f.strain===id)?'Island festival reward':'Seed shop from level '+s.game.unlockLevel);
     el.innerHTML=`<div class="wc-top"><img src="${R.closeup(s,96,stt==='mystery'||stt==='hinted')}" alt=""><div><h4>${stt==='mystery'?'??? mystery pheno':esc(s.name)} ${tag(s)}</h4><p>${esc(s.type)}${stt==='known'&&s.thc?' · '+s.thc+'% THC':''} · ${esc(s.rarity)}</p></div></div>
       <p><b>Parents:</b> ${pars}</p><p><b>How to get:</b> ${esc(how.join(' · '))}</p><p><b>Line:</b> ${G.st.lines&&G.st.lines[id]?esc(G.lineName(id)):s.mystery&&stt!=='known'?'not bred yet':'commercial stable line'}${s.tier>=4?' · Legendary recipe: parents must be stable lines (F'+G.LINE.stable+'+) in the Breeding Pheno Room':''}</p><p><b>Kept mother:</b> ${k?`Pheno ${esc(k.k)} · ${esc(k.terp)} · yield ${Math.round((k.y-1)*100)}%, quality +${Math.round(k.q*100)}%`:'none'}</p>
-      ${stt==='known'?`<button class="btn sm sec" data-a="strain" data-id="${id}">Open strain page</button>`:''}`; }
-  function webInit(){ const cv=document.getElementById('strainWeb'); if(!cv||cv._init) { webDraw(); return; } cv._init=1; WG=webGraph(); if(!WEB.cam){ let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9; WG.nodes.forEach(n=>{ minX=Math.min(minX,n.x-36); maxX=Math.max(maxX,n.x+36); minY=Math.min(minY,n.y-36); maxY=Math.max(maxY,n.y+48); }); const Wv=cv.clientWidth||320, Hv=cv.clientHeight||360; const z=Math.max(.28,Math.min(1.05,(Wv-16)/Math.max(1,maxX-minX),(Hv-16)/Math.max(1,maxY-minY))); WEB.cam={x:(minX+maxX)/2,y:(minY+maxY)/2,z}; }
+      ${stt==='known'?`<button class="btn sec" data-a="strain" data-id="${id}">Open strain page</button>`:''}`; }
+  function webInit(){ const cv=document.getElementById('strainWeb'); if(!cv) return; if(cv._init){ webDraw(); webKick(); return; } cv._init=1; WG=webGraph(); if(!WEB.cam){ let minY=1e9,maxY=-1e9,sx=0,n0=0; WG.nodes.forEach(n=>{ if(n.g) return; n0++; sx=n.x; minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); }); const Wv=cv.clientWidth||360, z=.95; WEB.cam={x:n0?(Wv/2-96)/z+sx:0,y:n0?(minY+maxY)/2:0,z}; }
     const pts=new Map(); let moved=0, pinch=null;
     const toW=(px,py)=>{ const c=WEB.cam, W=cv.clientWidth, H=cv.clientHeight; return {x:c.x+(px-W/2)/c.z, y:c.y+(py-H/2)/c.z}; };
     const zoomAt=(px,py,f)=>{ const c=WEB.cam, a=toW(px,py); c.z=Math.max(.25,Math.min(3,c.z*f)); const b=toW(px,py); c.x+=a.x-b.x; c.y+=a.y-b.y; };
@@ -455,15 +509,15 @@ window.UI = (function(){
     cv.addEventListener('pointermove',e=>{ const p=pts.get(e.pointerId); if(!p) return; const dx=e.offsetX-p.x, dy=e.offsetY-p.y; p.x=e.offsetX; p.y=e.offsetY;
       if(pts.size>=2&&pinch){ const [a,b]=[...pts.values()], d=Math.hypot(a.x-b.x,a.y-b.y); zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/Math.max(1,pinch.d)); pinch.d=d; moved=99; }
       else { moved+=Math.abs(dx)+Math.abs(dy); WEB.cam.x-=dx/WEB.cam.z; WEB.cam.y-=dy/WEB.cam.z; } webDraw(); });
-    const up=e=>{ const had=pts.has(e.pointerId); pts.delete(e.pointerId); if(pts.size<2) pinch=null; if(had&&moved<8&&!pts.size){ const w=toW(e.offsetX,e.offsetY); let hit=null; WG.nodes.forEach(n=>{ if(Math.hypot(n.x-w.x,n.y-w.y)<(n.kind==='p'?22:32)) hit=n.id; }); WEB.sel=hit===WEB.sel?null:hit; webDraw(); webCard(); } };
+    const up=e=>{ const had=pts.has(e.pointerId); pts.delete(e.pointerId); if(pts.size<2) pinch=null; if(had&&moved<8&&!pts.size){ const w=toW(e.offsetX,e.offsetY); let hit=null,best=1e9; WG.nodes.forEach(n=>{ const dist=Math.hypot(n.x-w.x,n.y-w.y), need=Math.max(n.kind==='p'?28:40,22/WEB.cam.z); if(dist<need&&dist<best){ best=dist; hit=n.id; } }); WEB.sel=hit===WEB.sel?null:hit; webDraw(); webCard(); } };
     cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
     cv.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(e.offsetX,e.offsetY,Math.exp(-e.deltaY*.0015)); webDraw(); },{passive:false});
-    webDraw(); webCard(); }
+    webDraw(); webCard(); webKick(); }
   window.StrainWeb={select:id=>{ WEB.sel=id; const n=WG&&WG.nodes.get(id); if(n){ WEB.cam.x=n.x; WEB.cam.y=n.y; } webDraw(); webCard(); }, get sel(){ return WEB.sel; }};
   // Strain book
   PANELS.book=()=>{
     const st=G.st, n=Object.keys(st.discovered).length; tab=tab||'web';
-    if(tab==='web') return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · family web`,tabs:[['web','Web'],['list','List']],body:`${(()=>{ const P=G.breedProgress(); return `<div class="row" style="display:block"><h4>Breeding completion · ${P.pct}%</h4>${bar(P.pct/100,'amber')}<p>${P.found}/${P.mystery} mystery phenos bred · ${P.stable}/${P.mystery} lines stabilized to F${G.LINE.stable}+ · ${P.known}/${P.all} strains in your book</p></div>`; })()}<div id="webWrap"><canvas id="strainWeb"></canvas><div class="web-legend"><span><i style="background:#ffd35a"></i>Exclusive</span><span><i style="background:#9fd76a"></i>Pollen</span><span>? mystery</span><span>M kept mother</span></div></div><div id="webCard" class="row" style="display:block"></div>`};
+    if(tab==='web') return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · family web`,tabs:[['web','Web'],['list','List']],body:`${(()=>{ const P=G.breedProgress(); return `<div class="row" style="display:block"><h4>Breeding completion · ${P.pct}%</h4>${bar(P.pct/100,'amber')}<p>${P.found}/${P.mystery} mystery phenos bred · ${P.stable}/${P.mystery} lines stabilized to F${G.LINE.stable}+ · ${P.known}/${P.all} strains in your book</p></div>`; })()}<div id="webWrap"><canvas id="strainWeb"></canvas><div class="web-legend"><span><i style="background:#ffd35a"></i>Exclusive</span><span><i style="background:#9fd76a"></i>Pollen</span><span>? mystery</span><span>M mother</span></div></div><div id="webCard" class="row" style="display:block"></div>`};
     const cards=G.S.slice().sort((a,b)=>a.tier-b.tier||a.name.localeCompare(b.name)).map(s=>{ const d=st.discovered[s.id], hid=!d&&s.mystery;
       return `<button class="card ${d?'':'locked'}" data-a="strain" data-id="${s.id}"><img data-cu="${s.id}" data-sz="120" data-h="${hid?1:0}" alt="" style="width:100%;aspect-ratio:1;border-radius:12px;display:block;${d||hid?'':'filter:brightness(.35) saturate(.2)'}"><div class="nm">${hid?'???':esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span>${st.recipes[s.id]?'<span class="tag" style="font-size:12px;background:#7a4ad0;color:#fff">Recipe</span>':''}</button>`; }).join('');
     return {title:'Strain Book',sub:`${n}/${G.S.length} discovered`,tabs:[['web','Web'],['list','List']],body:`<div class="grid">${cards}</div><div class="note">Strain notes are original game text. Fields marked ESTIMATE were not given a published figure. Close-ups are painted game art tinted from each strain's described look; no photos are shipped.</div>`};
@@ -733,9 +787,9 @@ window.UI = (function(){
       case 'craft': if(G.startCraft(d.t,d.stg,d.k)){ Sound.play('plant'); toast(G.CRAFT[d.t].name+' started','good'); } break;
       case 'order': G.fillOrder(d.id); break;
       case 'serve': G.serveCust(d.id); break;
-      case 'upg': if(G.buyUpg(d.k)){ Sound.play('buy'); toast(G.UPG[d.k].name+' upgraded!','good'); } break;
-      case 'hire': if(G.hire(d.k)){ Sound.play('buy'); const who=G.WORKERS[d.k].name.split(',')[0]; toast(G.wk(d.k)===1?who+' joined the farm. One-time hire, no wages.':who+' trained. Still no wages.','good'); } break;
-      case 'step': if(G.buyStep(d.k)){ Sound.play('buy'); } break;
+      case 'upg': if(G.buyUpg(d.k)){ flashBuy(d.k); Sound.play('buy'); toast(G.UPG[d.k].name+' upgraded!','good'); } break;
+      case 'hire': if(G.hire(d.k)){ flashBuy(d.k); Sound.play('buy'); const who=G.WORKERS[d.k].name.split(',')[0]; toast(G.wk(d.k)===1?who+' joined the farm. One-time hire, no wages.':who+' trained. Still no wages.','good'); } break;
+      case 'step': if(G.buyStep(d.k)){ flashBuy('step_'+d.k); Sound.play('buy'); } break;
       case 'land': if(G.buyLand()){ G.setRoom('facility'); close(); } break;
       case 'ghbuild': if(G.buildGH()){ close(); G.setRoom('gh'); } break;
       case 'permit': G.buyPermit(); break;
