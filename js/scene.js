@@ -836,11 +836,100 @@ window.R=(function(){
   function mockSpec(){
     if(mockSpec.done) return mockSpec.v;
     mockSpec.done=1; const q=new URLSearchParams(location.search), k=q.get('mock');
-    mockSpec.v=(k==='grid'||k==='iso')?{k,spot:q.get('spot')||'garage'}:null; return mockSpec.v;
+    mockSpec.v=(k==='grid'||k==='iso'||k==='room')?{k,spot:q.get('spot')||(k==='room'?'land':'garage')}:null; return mockSpec.v;
   }
-  // Phone mockups (?mock=grid|iso&spot=garage|land|gh). Existing pot, soil, plant, and prop art only.
+  // Side-view grow room (?mock=room&spot=land|garage|gh). Gear stays in its own band.
+  function roomRows(n){ if(n>=40) return [14,13,13]; if(n>=36) return [14,12,10]; if(n>=25) return [9,8,8]; const a=Math.ceil(n/3), b=Math.ceil((n-a)/2); return [a,b,n-a-b]; }
+  function roomClip(x,y,w,h,fn){ ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip(); fn(); ctx.restore(); }
+  function roomFrame(dt,M){
+    t+=dt; const now=t, st=G.st; if(!st) return;
+    cam.x=0; cam.y=0; cam.z=1;
+    const spot=M.spot==='garage'||M.spot==='gh'?M.spot:'land';
+    const zone=spot==='land'?'field':spot==='gh'?'gh':'garage';
+    const plots=st.plots.filter(p=>p.zone===zone&&p.owned);
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+    const tab=34, wall=36, floorH=78, ceilH=46, overH=spot==='garage'?0:34;
+    const x0=wall, x1=W-wall, iw=x1-x0, yFloor=H-floorH, ceilBot=tab+ceilH;
+    const cls=zone==='field'?'out':zone==='gh'?'gh':'in', kind=zone==='garage'?'pot':'soil';
+    const Hm=cls==='out'?2.3:cls==='gh'?1.2:1.25, drop=kind==='pot'?.42:.1;
+    const counts=roomRows(plots.length);
+    const overTop=ceilBot, plantTop=ceilBot+overH, slotH=(yFloor-plantTop)/3;
+    const geos=counts.map(cnt=>{ const cell=iw/Math.max(1,cnt), span=Math.max(36,slotH-8), ppm=span/(Hm+drop); return {cnt,cell,ppm,span}; });
+    if(spot==='garage'){ const g=ctx.createLinearGradient(0,tab,0,H); g.addColorStop(0,'#24302a'); g.addColorStop(1,'#141c18'); ctx.fillStyle=g; ctx.fillRect(0,tab,W,H-tab); }
+    else { const g=ctx.createLinearGradient(0,tab,0,yFloor); g.addColorStop(0,spot==='gh'?'#c5ddc4':'#8ec8ea'); g.addColorStop(.55,spot==='gh'?'#6a9a62':'#5d8a32'); g.addColorStop(1,'#3d5a28'); ctx.fillStyle=g; ctx.fillRect(0,tab,W,yFloor-tab); const gr=grass(); if(gr&&spot==='land'){ ctx.save(); ctx.globalAlpha=.35; ctx.drawImage(gr,0,ceilBot,W,yFloor-ceilBot); ctx.restore(); } }
+    ctx.fillStyle=spot==='garage'?'#1a2220':'#2a2218'; ctx.fillRect(0,yFloor,W,floorH);
+    ctx.fillStyle=spot==='garage'?'#121816':'rgba(20,28,18,.55)'; ctx.fillRect(0,ceilBot,wall,yFloor-ceilBot); ctx.fillRect(x1,ceilBot,wall,yFloor-ceilBot);
+    ctx.fillStyle=spot==='garage'?'#101614':'#1c2418'; ctx.fillRect(0,tab,W,ceilH);
+    if(spot!=='land') roomClip(x0,tab,iw,ceilH,()=>{ growLight({x:x0+6,y:ceilBot-3},{x:x1-6,y:ceilBot-3},16); });
+    if(overH>0){
+      roomClip(x0,overTop,iw,overH,()=>{
+        if(spot==='land'){ const n=8, bw=iw/n; ctx.lineCap='butt';
+          for(let i=0;i<n;i++){ const a=x0+i*bw+bw*.12, b=x0+(i+1)*bw-bw*.12, yb=overTop+overH-1;
+            ctx.strokeStyle='rgba(245,247,248,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(a,yb); ctx.quadraticCurveTo((a+b)/2,overTop+1,b,yb); ctx.stroke(); }
+        } else {
+          ctx.fillStyle='rgba(22,30,26,.72)'; ctx.fillRect(x0,overTop,iw,overH);
+          ctx.strokeStyle='rgba(120,140,128,.35)'; ctx.lineWidth=1; for(let i=0;i<=iw;i+=5){ ctx.beginPath(); ctx.moveTo(x0+i,overTop); ctx.lineTo(x0+i,overTop+overH); ctx.stroke(); }
+        }
+      });
+    }
+    let pi=0;
+    for(let r=0;r<3;r++){
+      const geo=geos[r], row=plots.slice(pi,pi+geo.cnt); pi+=geo.cnt; if(!row.length) continue;
+      const slotY=plantTop+r*slotH, gy=slotY+slotH-2;
+      roomClip(x0,slotY,iw,slotH,()=>{
+        ctx.fillStyle=kind==='pot'?'#2c261e':'#4a3018'; ctx.fillRect(x0,gy-6,iw,6);
+        row.forEach((p,i)=>{
+          const px=x0+(i+.5)*geo.cell; p.prog=.9; p.water=1; p.food=1; p.pest=null;
+          const sl={x:px,y:gy-.09*geo.ppm,ppm:geo.ppm,sp:geo.cell/geo.ppm,cls,kind};
+          const yoff=potLift(sl); ctx.save(); ctx.translate(0,-yoff);
+          if(kind==='pot') bucketPot(sl.x,sl.y,sl.ppm); else soilMound(sl.x,sl.y,sl.ppm);
+          drawPlantAt(p,null,sl,now); ctx.restore();
+        });
+      });
+    }
+    const stack=(x,items)=>{ let y=ceilBot+4; items.forEach(fn=>{ const h=fn(x,y); y+=h; }); };
+    if(spot==='garage'){
+      roomClip(0,ceilBot,wall,yFloor-ceilBot,()=>{
+        stack(wall/2,[
+          (x,y)=>fitArt('p_clipfan',x,y,wall-6),
+          (x,y)=>fitArt('p_pedfan',x,y,wall-6),
+          (x,y)=>fitDehu(x,y,wall-8)
+        ]);
+      });
+      roomClip(x1,ceilBot,wall,yFloor-ceilBot,()=>{
+        stack(x1+wall/2,[
+          (x,y)=>fitMeter(x,y,wall-8,'6.2','pH','#7dffa8'),
+          (x,y)=>fitMeter(x,y,wall-8,'75°','TEMP','#7fd3ff')
+        ]);
+      });
+      roomClip(0,yFloor,W,floorH,()=>{
+        const feet=H-4, h=floorH-12; let x=8;
+        x=fitArtFeet('p_press',x,feet,h)+8;
+        floorBox(x,feet,54,h); floorBox(x+62,feet,54,h);
+      });
+    } else if(spot==='land'){
+      roomClip(0,yFloor,W,floorH,()=>{
+        const feet=H-4, h=floorH-12; let x=6;
+        x=fitArtFeet('b_tank',x,feet,h)+8;
+        floorBox(x,feet,52,h); floorBox(x+60,feet,52,h); floorBox(x+120,feet,52,h);
+      });
+    } else {
+      roomClip(0,ceilBot,wall,yFloor-ceilBot,()=>{ fitArt('p_swamp',wall/2,ceilBot+4,wall-6); });
+      roomClip(x1,ceilBot,wall,yFloor-ceilBot,()=>{ fitMeter(x1+wall/2,ceilBot+4,wall-8,'75°','TEMP','#7fd3ff'); });
+      roomClip(0,yFloor,W,floorH,()=>{
+        const feet=H-4, h=floorH-12; floorBox(8,feet,52,h); floorBox(68,feet,52,h); floorBox(128,feet,52,h);
+      });
+    }
+    function fitArt(name,cx,top,maxW){ const im=IM[name]; if(!ok(name)) return 0; const aspect=im.naturalWidth/im.naturalHeight; let w=maxW, h=w/aspect; art(name,cx,top+h,h,1); return h; }
+    function fitArtFeet(name,left,feet,h){ const im=IM[name]; if(!ok(name)) return left; const w=h*im.naturalWidth/im.naturalHeight; art(name,left+w/2,feet,h,1); return left+w; }
+    function fitDehu(cx,top,maxW){ const h=maxW*1.25; drawProp('dehu',{x:cx,y:top+h},h/.75,.6,.75,(o,s)=>{ const w=.42*s, hh=.64*s; box(-w/2,0,w,hh,.22*s,LG(-w/2,0,w/2,0,['#d4d9dd','#f7f8f9','#c3cacf']),'#e9edf0','#9aa2a8'); ctx.fillStyle='#22272b'; RR(-w*.38,-hh*.9,w*.76,hh*.17,.02*s); ctx.fill(); ctx.fillStyle='#56d8ff'; ctx.font='800 '+(.07*s)+'px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('45%',0,-hh*.8); },0); return h; }
+    function fitMeter(cx,top,maxW,big,lab,col){ const w=maxW, h=w*1.35, x=cx-w/2; ctx.fillStyle='#d7dde1'; ctx.beginPath(); ctx.roundRect(x,top,w,h,5); ctx.fill(); ctx.fillStyle='#0d1712'; ctx.beginPath(); ctx.roundRect(x+3,top+3,w-6,h*.52,3); ctx.fill(); ctx.fillStyle=col; ctx.font='900 '+(h*.26)+'px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(big,cx,top+3+h*.26); ctx.fillStyle='#2b3035'; ctx.font='800 '+(h*.16)+'px system-ui'; ctx.fillText(lab,cx,top+h*.8); return h; }
+    function floorBox(left,feet,w,h){ box(left,feet,w,h*.72,h*.28,'#8a6038','#a87a4a','#6b4728'); }
+  }
+  // Phone mockups (?mock=grid|iso|room&spot=garage|land|gh). Existing pot, soil, plant, and prop art only.
   function mockFrame(dt){
-    const M=mockSpec(); t+=dt; const now=t, st=G.st; if(!st||!M) return;
+    const M=mockSpec(); if(!M) return; if(M.k==='room'){ roomFrame(dt,M); return; }
+    t+=dt; const now=t, st=G.st; if(!st) return;
     cam.x=0; cam.y=0; cam.z=1;
     const zone=M.spot==='land'?'field':M.spot==='gh'?'gh':'garage';
     const plots=st.plots.filter(p=>p.zone===zone&&p.owned);
