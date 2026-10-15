@@ -31,7 +31,7 @@ window.UI = (function(){
     box.classList.add('dock');
     const tabs=document.getElementById('locTabs');
     const tr=tabs&&tabs.getClientRects&&tabs.getClientRects().length?tabs.getBoundingClientRect():null;
-    if(tr&&tr.height>8&&tr.top<innerHeight*0.45&&tr.bottom+64<innerHeight-72){ box.style.setProperty('--dock-top', Math.round(tr.bottom+10)+'px'); box.style.setProperty('--dock-bot','auto'); }
+    if(tr&&tr.height>8&&tr.top<innerHeight*0.45&&tr.bottom+80<innerHeight-72){ box.style.setProperty('--dock-top', Math.round(tr.bottom+18)+'px'); box.style.setProperty('--dock-bot','auto'); }
     else if(tr&&tr.height>8&&tr.top>innerHeight*0.45){ box.style.setProperty('--dock-top', Math.max(8, Math.round(tr.top-56))+'px'); box.style.setProperty('--dock-bot','auto'); }
     else { box.style.setProperty('--dock-top','auto'); box.style.setProperty('--dock-bot','calc(var(--sab) + 18px)'); }
     const el=document.createElement('div'); el.className='toast'; el.textContent=String(text||''); box.appendChild(el);
