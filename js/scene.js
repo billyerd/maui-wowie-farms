@@ -979,7 +979,9 @@ window.R=(function(){
     const tab=36, gearH=78, lightH=spot==='gh'?0:42;
     const bar=document.getElementById('toolbar');
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
-    const gearTop=Math.round(barTop-gearH), bedsTop=tab, bedsH=Math.max(40,gearTop-bedsTop);
+    const gearTop=Math.round(barTop-gearH);
+    // The greenhouse photo's topper and farm view fill the top. Beds start on the dirt below that.
+    const bedsTop=spot==='gh'?Math.round(H*0.16):tab, bedsH=Math.max(40,gearTop-bedsTop);
     const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
     // Poles stop at the grass, so the beds use nearly the full width.
     const edge=spot==='gh'?0.04:0, bedL=W*edge, bedR=W*(1-edge);
@@ -1003,8 +1005,7 @@ window.R=(function(){
       bedsFresh();
       if(spot==='garage') drawGarageShelf(soil,0,W);
       else if(spot==='indoor') drawIndoorRack(soil,0,W);
-      else if(r===0) drawFrontSoil(soil,y0+bedH,bedL,bedR);
-      // Lower greenhouse rows sit on the photo's dirt. The first row is in front of the farm view, so it gets the same dark soil strip.
+      // Greenhouse plants root in the photo's dirt. No painted bed over the farm view.
       if(spot!=='gh'){
         const glow=ctx.createLinearGradient(0,y0+lightH-2,0,soil+6);
         glow.addColorStop(0,'rgba(255,246,220,.34)');
@@ -1030,16 +1031,6 @@ window.R=(function(){
     scrim.addColorStop(0,'rgba(0,0,0,0)'); scrim.addColorStop(1,'rgba(0,0,0,.28)');
     ctx.fillStyle=scrim; ctx.fillRect(0,gearTop,W,barTop-gearTop);
     drawGear(spot,gearTop+4,barTop-4);
-    function drawFrontSoil(soil,bedBot,x0,x1){
-      const top=soil-12, bot=Math.min(bedBot+10, soil+28), h=bot-top;
-      ctx.fillStyle='rgba(0,0,0,.32)'; ctx.beginPath(); ctx.roundRect(x0+2,top+3,x1-x0-4,h,5); ctx.fill();
-      const g=ctx.createLinearGradient(0,top,0,bot);
-      g.addColorStop(0,'#5c3b24'); g.addColorStop(.22,'#3a2416'); g.addColorStop(1,'#24160e');
-      ctx.fillStyle=g; ctx.beginPath(); ctx.roundRect(x0,top,x1-x0,h,5); ctx.fill();
-      ctx.fillStyle='#6d4b32'; ctx.fillRect(x0+2,top+1,x1-x0-4,3);
-      ctx.fillStyle='rgba(90,58,34,.4)';
-      for(let x=x0+7;x<x1-6;x+=10) ctx.fillRect(x,top+7+(x%6),2,2);
-    }
     function drawGarageShelf(y,x0,x1){
       ctx.fillStyle='#3e454c'; for(let x=x0+14;x<x1-8;x+=72){ ctx.fillRect(x,y+6,4,16); ctx.fillRect(x+22,y+6,4,16); ctx.fillStyle='#2a3036'; ctx.fillRect(x-2,y+20,30,3); ctx.fillStyle='#3e454c'; }
       const g=ctx.createLinearGradient(0,y-8,0,y+3); g.addColorStop(0,'#e4b57e'); g.addColorStop(.5,'#a56b3c'); g.addColorStop(1,'#6b4124');
