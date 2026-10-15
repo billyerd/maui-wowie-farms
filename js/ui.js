@@ -99,7 +99,7 @@ window.UI = (function(){
     modal(`<div class="reveal"><img class="r-sil" data-cu="${s.id}" data-sz="220" data-h="1" alt=""><img class="r-real" data-cu="${s.id}" data-sz="220" data-h="0" alt=""></div><div style="font-size:12px;font-weight:900;letter-spacing:3px;color:#d9a8ff">PHENO DISCOVERED</div><h3>${esc(s.name)}</h3><div>${tag(s)}</div><p>${esc((s.parents||[]).join(' × '))}<br>Recipe recorded in your Strain Book. Seeds unlocked (+3 in your bag).</p>`,[{label:'Details',cls:'sec',v:'d'},{label:'Thanks!',cls:'gold'}]).then(v=>{ if(v==='d') strainModal(s.id); }); }
 
   // ---------- HUD ----------
-  let shownCash=0;
+  let shownCash=0, xpVis=null, xpLv=0;
   const LOCI={garage:'🏠',farm:'🌿',indoor:'🏭'};
   function landReq(){ const st=G.st; return [{t:'Reach level '+G.LAND_LEVEL,ok:st.level>=G.LAND_LEVEL,p:Math.min(1,(st.level-1+st.xp/G.xpNeed(st.level))/(G.LAND_LEVEL-1))},{t:'Save '+fmt(G.LAND_COST),ok:st.cash>=G.LAND_COST,p:st.cash/G.LAND_COST}]; }
   let goalT=0; function goalPeek(ms){ const g=$('#goal'); if(!g) return; g.classList.add('open'); clearTimeout(goalT); goalT=setTimeout(()=>g.classList.remove('open'),ms); }
@@ -135,9 +135,14 @@ window.UI = (function(){
       if(Math.abs(gap)<0.5) shownCash=target;
       else { const dt0=Math.max(0,Math.min(0.25,typeof dt==='number'&&dt>0?dt:0)), k=dt0?1-Math.pow(0.001,dt0/0.45):0; shownCash+=gap*k; if(Math.abs(shownCash-target)<0.5) shownCash=target; } }
     $('#cash').textContent=fmt(shownCash); $('#gems').textContent=G.num(st.gems);
-    $('#lvl').textContent=st.level;
-    { const ring=$('#xpRing'), box=$('#lvlBox'); if(ring){ const need=G.xpNeed(st.level)||1, pct=Math.max(0,Math.min(1,st.xp/need)), C=2*Math.PI*18;
-      ring.style.strokeDasharray=(pct<=0.004?0:C*pct)+' '+C; if(box) box.setAttribute('aria-label','Level '+st.level+', '+Math.round(pct*100)+'% to next'); } }
+    { const ring=$('#xpRing'), box=$('#lvlBox'), lvEl=$('#lvl'), lv=st.level|0;
+      if(lvEl){ const digits=String(Math.max(0,lv)).length; lvEl.textContent=String(lv); lvEl.style.fontSize=digits>=3?'13px':digits===2?'15px':'17px'; }
+      if(ring){ const need=G.xpNeed(lv)||1, pct=Math.max(0,Math.min(1,st.xp/need));
+        if(xpVis==null||lv!==xpLv){ xpVis=(xpLv&&lv!==xpLv)?0:pct; xpLv=lv; }
+        const dt0=Math.max(0,Math.min(0.25,typeof dt==='number'&&dt>0?dt:0)), k=dt0?1-Math.pow(0.001,dt0/0.4):1;
+        xpVis+=(pct-xpVis)*k; if(Math.abs(xpVis-pct)<0.003) xpVis=pct;
+        const C=2*Math.PI*18; ring.style.strokeDasharray=(xpVis<=0.004?0:C*xpVis)+' '+C;
+        if(box) box.setAttribute('aria-label','Level '+lv+', '+Math.round(pct*100)+'% to next'); } }
     const m=G.earnMult(); $('#multBadge').textContent='x'+(m<10?m.toFixed(1):Math.round(m)); $('#multBadge').style.display=m>1.001?'':'none';
     const ph=G.dayPhase(), hh=Math.floor(ph*24), mm=Math.floor((ph*24-hh)*60), w=G.WEATHER[st.weather.type];
     const U=G.upkeepRates()[st.loc]; const upk=U.total>0?` · ${fmt(U.total)}/h upkeep${st.upkeepWarn[st.loc]>0?' ⚠ slowed':''}`:'';

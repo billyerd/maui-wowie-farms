@@ -863,6 +863,13 @@ window.R=(function(){
     const pick=a.ok?a:(b.ok?b:(a.cellW>=40&&a.cellH>=40?a:b.cellW*b.cellH>a.cellW*a.cellH?b:a));
     return Object.assign(pick,{n:40,zone:'field'});
   }
+  // Unlock order walks out from the middle of the full grid. Buying the next plot adds a cell; earlier pots stay put.
+  function centerOrder(cols, rows){
+    const slots=[], cx=(cols-1)/2, cy=(rows-1)/2;
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) slots.push({c,r,d:(c-cx)*(c-cx)+(r-cy)*(r-cy)});
+    slots.sort((a,b)=>a.d-b.d||a.r-b.r||a.c-b.c);
+    return slots;
+  }
   function drawCover(im){
     if(!im||!im.complete||!im.naturalWidth){ ctx.fillStyle='#143026'; ctx.fillRect(0,0,W,H); return; }
     const s=Math.max(W/im.naturalWidth,H/im.naturalHeight), dw=im.naturalWidth*s, dh=im.naturalHeight*s;
@@ -926,19 +933,24 @@ window.R=(function(){
       const plots=st.plots.filter(p=>p.zone===g.zone).sort((a,b)=>a.idx-b.idx);
       const cls=room==='gh'?'gh':room==='facility'?'out':'in';
       const probe={cls,sp:10,ppm:1}; const mature=Math.max(.4,plantSize('Hybrid',1,probe).h);
-      let marked=false;
       const kind=g.zone==='garage'?'garage':g.zone==='field'?'field':g.zone==='gh'?'gh':'bench';
-      for(let i=0;i<g.n;i++){
-        const col=i%g.cols, row=(i/g.cols)|0;
+      const owned=plots.filter(p=>p.owned);
+      const nxt=plots.find(p=>!p.owned);
+      const order=centerOrder(g.cols, g.rows);
+      const place=owned.map((p,i)=>({p,slot:order[i],owned:true,expand:null})).filter(x=>x.slot);
+      if(nxt&&G.nextStep(kind)&&order[owned.length]) place.push({p:nxt,slot:order[owned.length],owned:false,expand:kind});
+      const shown=new Set(place.map(x=>x.p.id));
+      plots.forEach(p=>{ if(!shown.has(p.id)) slotOf.delete(p.id); });
+      const pot=room==='garage'||room==='benches';
+      for(const item of place){
+        const col=item.slot.c, row=item.slot.r;
         const x=band.left+col*(g.cellW+g.gap), y=band.top+row*(g.cellH+g.gap);
-        const p=plots[i]||null; const pot=room==='garage'||room==='benches';
+        const p=item.p;
         const potH=pot?14:8; const rim=y+g.cellH-18-potH;
         const plantH=Math.max(20,rim-y-4); const ppm=plantH/mature; const sp=Math.max(.25,(g.cellW-10)/(ppm*1.2));
         const sl={x:x+g.cellW/2,y:pot?rim-2:rim,cls,sp,ppm,kind:pot?'pot':'soil'};
-        let expand=null;
-        if(p&&!p.owned&&!marked&&G.nextStep(kind)){ expand=kind; marked=true; }
-        cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:!!(p&&p.owned),expand,sl,pot,rim});
-        if(p) slotOf.set(p.id,sl);
+        cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim});
+        slotOf.set(p.id,sl);
       }
       if(lit){
         const ly=band.top-gutter+6, lw=Math.min(168,band.w*0.46), lx=(W-lw)/2;
@@ -957,14 +969,18 @@ window.R=(function(){
       for(const c of cells){
         if(!c.p) continue;
         const cx=c.sl.x;
-        if(c.owned){ if(c.pot) drawPotPx(cx,c.rim,c.w); else drawDirtPx(cx,c.rim,c.w); }
-        else { ctx.globalAlpha=.35; if(c.pot) drawPotPx(cx,c.rim,c.w); else drawDirtPx(cx,c.rim,c.w); ctx.globalAlpha=1; }
-        if(c.owned&&c.p.strain){ drawPlantAt(c.p,null,c.sl,now); }
-        if(c.owned&&!c.p.strain){
-          ctx.fillStyle='#2f9d4a'; ctx.beginPath(); ctx.arc(cx,c.rim-16,11,0,TAU); ctx.fill();
-          ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(cx-5,c.rim-16); ctx.lineTo(cx+5,c.rim-16); ctx.moveTo(cx,c.rim-21); ctx.lineTo(cx,c.rim-11); ctx.stroke();
+        if(c.owned){
+          if(c.pot) drawPotPx(cx,c.rim,c.w); else drawDirtPx(cx,c.rim,c.w);
+          if(c.p.strain) drawPlantAt(c.p,null,c.sl,now);
+          else {
+            ctx.fillStyle='#2f9d4a'; ctx.beginPath(); ctx.arc(cx,c.rim-16,11,0,TAU); ctx.fill();
+            ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(cx-5,c.rim-16); ctx.lineTo(cx+5,c.rim-16); ctx.moveTo(cx,c.rim-21); ctx.lineTo(cx,c.rim-11); ctx.stroke();
+          }
+        } else if(c.expand){
+          ctx.fillStyle='rgba(255,214,90,.16)'; ctx.beginPath(); ctx.arc(cx,c.y+c.h/2,16,0,TAU); ctx.fill();
+          ctx.strokeStyle='rgba(255,214,90,.8)'; ctx.lineWidth=1.5; ctx.stroke();
+          ctx.fillStyle='rgba(255,214,90,.95)'; ctx.font='700 18px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('+',cx,c.y+c.h/2+1);
         }
-        if(!c.owned&&c.expand){ ctx.fillStyle='rgba(255,214,90,.95)'; ctx.font='700 11px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('+',cx,c.y+c.h/2); }
         if(sel&&c.p&&sel.id===c.p.id){ ctx.strokeStyle='rgba(255,217,106,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(cx,c.rim+2,Math.min(18,c.w*0.28),7,0,0,TAU); ctx.stroke(); }
       }
       for(const c of cells){
