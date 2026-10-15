@@ -976,7 +976,7 @@ window.R=(function(){
     const zone=spot==='indoor'?'field':spot==='gh'?'gh':'garage';
     const plots=st.plots.filter(p=>p.zone===zone&&p.owned);
     bedsArm(); bedsFresh(); ctx.clearRect(0,0,W,H);
-    const tab=36, gearH=78, lightH=spot==='gh'?32:42;
+    const tab=36, gearH=78, lightH=spot==='gh'?0:42;
     const bar=document.getElementById('toolbar');
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
     const gearTop=Math.round(barTop-gearH), bedsTop=tab, bedsH=Math.max(40,gearTop-bedsTop);
@@ -986,8 +986,10 @@ window.R=(function(){
     const bedH=bedsH/nBeds, cell=(bedR-bedL)/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
+    // Greenhouse has no fixture, just a little air above the canopy. The old light band is now plant height.
+    const head=spot==='gh'?6:lightH;
     const snaps=[75,72,64,60,56,50,48,40];
-    const maxH=Math.min(bedH-lightH-28, Math.floor((cell-8)/0.70));
+    const maxH=Math.min(bedH-head-(spot==='gh'?26:28), Math.floor((cell-8)/0.70));
     const plantH=snaps.find(s=>s<=maxH)||40;
     const ppm=plantH/Hm;
     window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per;
@@ -997,21 +999,22 @@ window.R=(function(){
     ctx.fillStyle='rgba(4,8,6,.22)'; ctx.fillRect(0,0,W,H);
     for(let r=0;r<nBeds;r++){
       const y0=bedsTop+r*bedH, row=plots.slice(r*per,(r+1)*per);
-      const soil=y0+lightH+4+plantH;
+      const soil=y0+head+4+plantH;
       bedsFresh();
       if(spot==='garage') drawGarageShelf(soil,0,W);
       else if(spot==='indoor') drawIndoorRack(soil,0,W);
       else if(r===0) drawFrontSoil(soil,y0+bedH,bedL,bedR);
       // Lower greenhouse rows sit on the photo's dirt. The first row is in front of the farm view, so it gets the same dark soil strip.
-      const glow=ctx.createLinearGradient(0,y0+lightH-2,0,soil+6);
-      glow.addColorStop(0,spot==='gh'?'rgba(255,236,190,.20)':'rgba(255,246,220,.34)');
-      glow.addColorStop(1,'rgba(255,246,220,0)');
-      const gL=spot==='gh'?bedL+4:24, gR=spot==='gh'?bedR-4:W-24, sL=spot==='gh'?bedL:6, sR=spot==='gh'?bedR:W-6;
-      ctx.fillStyle=glow; ctx.beginPath(); ctx.moveTo(gL,y0+lightH-2); ctx.lineTo(gR,y0+lightH-2); ctx.lineTo(sR,soil-2); ctx.lineTo(sL,soil-2); ctx.closePath(); ctx.fill();
+      if(spot!=='gh'){
+        const glow=ctx.createLinearGradient(0,y0+lightH-2,0,soil+6);
+        glow.addColorStop(0,'rgba(255,246,220,.34)');
+        glow.addColorStop(1,'rgba(255,246,220,0)');
+        ctx.fillStyle=glow; ctx.beginPath(); ctx.moveTo(24,y0+lightH-2); ctx.lineTo(W-24,y0+lightH-2); ctx.lineTo(W-6,soil-2); ctx.lineTo(6,soil-2); ctx.closePath(); ctx.fill();
+      }
       row.forEach((p,i)=>{
         const x=bedL+(i+.5)*cell; p.prog=.9; p.water=1; p.food=1; p.pest=null; p._dv=1;
         const sl={x,y:kind==='pot'?soil:soil-.09*ppm,ppm,sp:Math.max(.25,(cell-12)/ppm/1.2),cls,kind};
-        bedsClip(bedL+i*cell+1,y0+lightH,cell-2,bedH-lightH-2,()=>{
+        bedsClip(bedL+i*cell+1,y0+head,cell-2,bedH-head-2,()=>{
           const yoff=potLift(sl); ctx.save(); ctx.translate(0,-yoff);
           if(kind==='pot') bucketPot(sl.x,sl.y,sl.ppm); else soilMound(sl.x,sl.y,sl.ppm);
           drawPlantAt(p,null,sl,now); ctx.restore();
@@ -1020,7 +1023,7 @@ window.R=(function(){
         const lab=secs>=86400?Math.max(1,Math.round(secs/86400))+'d':secs>=3600?Math.max(1,Math.round(secs/3600))+'h':Math.max(1,Math.round(secs/60))+'m';
         pill(x,Math.min(y0+bedH-12,soil+13),lab,'rgba(10,20,14,.92)','#e9ffd6',11);
       });
-      hangLight(spot,y0,soil);
+      if(spot!=='gh') hangLight(spot,y0,soil);
     }
     bedsFresh();
     const scrim=ctx.createLinearGradient(0,gearTop,0,barTop);
@@ -1057,7 +1060,7 @@ window.R=(function(){
       ctx.drawImage(im,0,srcY,im.naturalWidth,srcH,x0,top,fw,fh);
     }
     function drawGear(spot,top,bottom){
-      const order={garage:['press','ped','fan','dehu','tank','box','ph','temp'],gh:['hoop','shade','swamp','inline','tank','temp','panel'],indoor:['tent','fan','dehu','res','rack','ph','temp']};
+      const order={garage:['press','ped','fan','dehu','tank','box','ph','temp'],gh:['hoop','shade','swamp','inline','tank','temp'],indoor:['tent','fan','dehu','res','rack','ph','temp']};
       const use=(order[spot]||[]).filter(k=>bedIM[k]&&bedIM[k].naturalWidth);
       if(!use.length) return;
       let h=Math.min(56,bottom-top-2);
