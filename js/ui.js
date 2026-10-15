@@ -244,7 +244,7 @@ window.UI = (function(){
     if(body._h!==o.body||reset){ body._h=o.body; body.innerHTML=o.body; paintStrainImgs(body); syncVol(body); }
     const f=o.foot||''; if($('#sheetFoot')._h!==f){ $('#sheetFoot')._h=f; $('#sheetFoot').innerHTML=f; }
     if(!reset) body.scrollTop=top; else body.scrollTop=0;
-    const lc=document.getElementById('labScene'); if(lc) drawLab(lc); drawCosPrev(body); { const pt=document.getElementById('passTrack'); if(pt&&!pt._init){ pt._init=1; const nx=pt.querySelector('.pt-col.next')||pt.querySelector('.pt-col.un:last-child'); if(nx) pt.scrollLeft=Math.max(0,nx.offsetLeft-60); } } if(document.getElementById('strainWeb')){ try{ webInit(); }catch(err){ console.error(err); } } body.querySelectorAll('canvas.pcard').forEach(c=>{ const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); try{ R.plantCard(x,JSON.parse(c.dataset.pc)); }catch(e){} });
+    const lc=document.getElementById('labScene'); if(lc) drawLab(lc); drawCosPrev(body); { const pt=document.getElementById('passTrack'); if(pt&&!pt._init){ pt._init=1; const nx=pt.querySelector('.pt-col.next')||pt.querySelector('.pt-col.un:last-child'); if(nx) pt.scrollLeft=Math.max(0,nx.offsetLeft-60); } } body.classList.toggle('fit-web', !!document.getElementById('webFit')); if(document.getElementById('webFit')){ try{ webInit(); }catch(err){ console.error(err); } } body.querySelectorAll('canvas.pcard').forEach(c=>{ const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height); try{ R.plantCard(x,JSON.parse(c.dataset.pc)); }catch(e){} });
   }
   // Pheno Room / Breeding Pheno Room vignette at the top of the breeding sheet: the current hunt grows out on the bench, mothers stand on the right
   function drawLab(c){ const st=G.st, x=c.getContext('2d'), W=c.width, H=c.height, lab=st.breedLab, hunt=st.hunt; x.clearRect(0,0,W,H);
@@ -446,116 +446,76 @@ window.UI = (function(){
     const can=a&&b&&!st.breed&&st.cash>=cost&&G.gate('breed');
     return {title:'Pheno Room',sub:'Hunt mystery phenos by experimenting',body,foot:`<button class="btn wide pink" data-a="breed" ${can?'':'disabled'}>${ico('dna')}${a&&b?'Cross for '+fmt(cost)+' · '+sec(time):'Start cross'}</button>`};
   };
-  // ---------- Strain Web: family tree of parents -> children (pan, pinch-zoom, tap for details, highlighted lineage) ----------
-  const TAU=Math.PI*2, WEB={sel:null,cam:null};
-  let webT=0, webRaf=0;
-  function webMotion(){ return !(G.st&&G.st.settings.motion===false); }
-  function webKick(){
-    if(webRaf) return;
-    const step=t=>{
-      const cv=document.getElementById('strainWeb');
-      if(!cv||!cv.isConnected||!document.body.classList.contains('sheet-open')||panel!=='book'){ webRaf=0; return; }
-      webT=(t||0)/1000; webDraw();
-      if(!webMotion()){ webRaf=0; return; }
-      webRaf=requestAnimationFrame(step);
-    };
-    webRaf=requestAnimationFrame(step);
-  }
+  // ---------- Strain Web: one generation on screen, auto-fit, no pan or scroll ----------
+  const WEB={sel:null,tier:0};
+  let WG=null;
   function webGraph(){ const S=G.S||[], nodes=new Map(), edges=[];
     const nameOf=new Map(); S.forEach(s=>{ if(s&&s.id&&s.name) nameOf.set(String(s.name).toLowerCase(),s.id); });
     S.forEach(s=>{ if(s&&s.id) nodes.set(s.id,{id:s.id,s,kind:'s'}); });
     S.forEach(s=>{ if(!s||!s.id) return; const parents=Array.isArray(s.parents)?s.parents:[], ids=Array.isArray(s.parentIds)?s.parentIds:[];
       parents.forEach((pn,i)=>{ if(pn==null||pn==='') return; const name=String(pn), pid=ids[i]||nameOf.get(name.toLowerCase())||('p:'+name.toLowerCase()); if(!nodes.has(pid)) nodes.set(pid,{id:pid,name,kind:'p'}); edges.push({a:pid,b:s.id,i}); }); });
-    // generation = longest parent chain
     const gen=new Map(), par=new Map(); edges.forEach(e=>{ (par.get(e.b)||par.set(e.b,[]).get(e.b)).push(e.a); });
     const g=id=>{ if(gen.has(id)) return gen.get(id); gen.set(id,0); const P=par.get(id)||[]; const v=P.length?1+Math.max(...P.map(g)):0; gen.set(id,v); return v; }; nodes.forEach((n,id)=>n.g=g(id));
-    // roots with no children and no parents go in a separate "starter" column; order each column by the mean y of parents
-    const cols=[]; nodes.forEach(n=>{ (cols[n.g]=cols[n.g]||[]).push(n); });
-    const order=n=>n.kind==='p'?1:0; const label=n=>n.s&&n.s.name||n.name||''; cols.forEach((c,gi)=>{ c.sort((a,b)=>{ if(gi>0){ const ma=avgY(a), mb=avgY(b); if(ma!==mb) return ma-mb; } return order(a)-order(b)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||label(a).localeCompare(label(b)); }); c.forEach((n,i)=>{ n.x=gi*228; n.y=(i-(c.length-1)/2)*118; }); });
-    function avgY(n){ const P=par.get(n.id)||[]; if(!P.length) return 0; return P.reduce((t,p)=>{ const node=nodes.get(p); return t+(node&&node.y||0); },0)/P.length; }
     return {nodes,edges,par}; }
   function webState(n){ const st=G.st||{}; if(!n||n.kind==='p') return 'pollen'; const s=n.s||{}; const disc=st.discovered&&typeof st.discovered==='object'&&!Array.isArray(st.discovered)?st.discovered:{}; const hints=st.hintRev&&typeof st.hintRev==='object'&&!Array.isArray(st.hintRev)?st.hintRev:{}; if(disc[s.id]) return 'known'; if(window.PREMIUM_STRAINS&&PREMIUM_STRAINS[s.id]) return 'locked'; if(s.mystery) return (hints[s.id]||0)>0?'hinted':'mystery'; return 'locked'; }
-  // which parent edges of a node the player may see (no spoilers): discovered child = all, hinted = first r parents, otherwise none
   function edgeVisible(e,Gr){ const n=Gr.nodes.get(e.b); if(!n) return false; const stt=webState(n); if(stt==='known'||stt==='locked'&&!(n.s&&n.s.mystery)) return true; if(stt==='hinted'){ const hints=G.st&&G.st.hintRev&&typeof G.st.hintRev==='object'?G.st.hintRev:{}; return e.i<(hints[n.id]||0); } return false; }
-  const webImg=new Map();
-  function thumb(n,hid){ const k=n.id+(hid?'h':''); let im=webImg.get(k); if(im) return im;
-    try{ if(n.s&&R.closeupCanvas){ const c=R.closeupCanvas(n.s,96,hid); if(c&&c.width){ webImg.set(k,c); return c; } } }catch(e){}
-    if(n.s&&window.Art&&Art.thumbCanvas){ try{ const c=Art.thumbCanvas(n.s,96,hid); if(c&&c.width){ webImg.set(k,c); return c; } }catch(e){} }
-    const u=n.s&&R.closeup?R.closeup(n.s,96,hid):''; im=new Image(); if(u&&u.toDataURL) im.src=u.toDataURL(); else im.src=u||''; im.onload=()=>webDraw(); webImg.set(k,im); return im; }
-  let WG=null;
-  function webDraw(){ const cv=document.getElementById('strainWeb'); if(!cv||!WG||!WEB.cam) return; const x=cv.getContext('2d'), d=Math.min(2,devicePixelRatio||1), W=cv.clientWidth, H=cv.clientHeight;
-    if(W<2||H<2) return;
-    if(cv.width!==Math.round(W*d)||cv.height!==Math.round(H*d)){ cv.width=Math.round(W*d); cv.height=Math.round(H*d); }
-    const c=WEB.cam; x.setTransform(d,0,0,d,0,0); x.clearRect(0,0,W,H);
-    const bg=x.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#07140e'); bg.addColorStop(.42,'#143422'); bg.addColorStop(1,'#07110c'); x.fillStyle=bg; x.fillRect(0,0,W,H);
-    x.fillStyle='rgba(18,72,38,.34)'; [[.16,.06,100,50],[.52,-.02,150,64],[.88,.08,110,52]].forEach(([px,py,rw,rh])=>{ x.beginPath(); x.ellipse(W*px,H*py+18+Math.sin(webT*.35+px*6)*3,rw,rh,0,0,TAU); x.fill(); });
-    for(let i=0;i<22;i++){ const px=(i*97)%W, py=((i*53+webT*14*(i%2?1:-.35))%H+H)%H; x.globalAlpha=.22+(i%5)*.08; x.fillStyle=i%3?'#ffe7a8':'#d8ffc8'; x.beginPath(); x.arc(px,py,i%4?1:1.7,0,TAU); x.fill(); }
-    x.globalAlpha=1;
-    x.setTransform(d*c.z,0,0,d*c.z,d*(W/2-c.x*c.z),d*(H/2-c.y*c.z));
-    const cols=new Map(); WG.nodes.forEach(n=>{ const col=cols.get(n.g)||{g:n.g,x:n.x,minY:1e9,maxY:-1e9}; col.minY=Math.min(col.minY,n.y); col.maxY=Math.max(col.maxY,n.y); cols.set(n.g,col); });
-    cols.forEach(col=>{ const top=col.minY-52, h=col.maxY+58-top; x.fillStyle='rgba(255,255,255,.04)'; x.beginPath(); x.roundRect(col.x-88,top,176,h,26); x.fill(); x.strokeStyle='rgba(255,214,120,.16)'; x.lineWidth=2; x.stroke(); });
-    const hl=new Set(), hle=new Set(); if(WEB.sel){ const up=id=>{ if(hl.has(id)) return; hl.add(id); WG.edges.forEach((e,i)=>{ if(e.b===id&&edgeVisible(e,WG)){ hle.add(i); up(e.a); } }); }; up(WEB.sel); WG.edges.forEach((e,i)=>{ if(e.a===WEB.sel&&edgeVisible(e,WG)){ hle.add(i); hl.add(e.b); } }); }
-    const geom=(A,B)=>{ const ra=A.kind==='p'?30:44, rb=B.kind==='p'?30:44, x1=A.x+ra, y1=A.y, x2=B.x-rb, y2=B.y, pull=Math.max(56,Math.min(96,(x2-x1)*.42)); return [{x:x1,y:y1},{x:x1+pull,y:y1},{x:x2-pull,y:y2},{x:x2,y:y2}]; };
-    const stroke=(p)=>{ x.beginPath(); x.moveTo(p[0].x,p[0].y); x.bezierCurveTo(p[1].x,p[1].y,p[2].x,p[2].y,p[3].x,p[3].y); x.stroke(); };
-    const bez=(p,t)=>{ const u=1-t; return {x:u*u*u*p[0].x+3*u*u*t*p[1].x+3*u*t*t*p[2].x+t*t*t*p[3].x, y:u*u*u*p[0].y+3*u*u*t*p[1].y+3*u*t*t*p[2].y+t*t*t*p[3].y}; };
-    x.lineCap='round';
-    WG.edges.forEach((e,i)=>{ const A=WG.nodes.get(e.a), B=WG.nodes.get(e.b), vis=edgeVisible(e,WG), on=hle.has(i); if(!A||!B||(!vis&&!on)) return; const p=geom(A,B);
-      x.setLineDash(webState(B)==='hinted'?[7,6]:[]); x.strokeStyle=on?'rgba(255,211,90,.32)':WEB.sel?'rgba(120,190,140,.07)':'rgba(160,230,176,.2)'; x.lineWidth=on?11:7; stroke(p);
-      x.strokeStyle=on?'#ffe7a2':WEB.sel?'rgba(180,225,190,.3)':'rgba(226,255,232,.78)'; x.lineWidth=on?2.5:1.6; stroke(p); x.setLineDash([]);
-      if(vis&&webMotion()){ const q=bez(p,((webT*.16)+i*.137)%1); x.fillStyle=on?'#fff6d0':'rgba(236,255,228,.92)'; x.beginPath(); x.arc(q.x,q.y,on?3.6:2.2,0,TAU); x.fill(); }
-      if(on){ x.fillStyle='#ffd35a'; x.beginPath(); x.moveTo(p[3].x+2,p[3].y); x.lineTo(p[3].x-11,p[3].y-5.5); x.lineTo(p[3].x-11,p[3].y+5.5); x.fill(); } });
-    const RAR={Common:'#9aa8a0',Uncommon:'#5ad06a',Rare:'#4aa0ff',Epic:'#c08bff',Legendary:'#ffb02a'};
-    WG.nodes.forEach(n=>{ const stt=webState(n), dim=WEB.sel&&!hl.has(n.id), r=n.kind==='p'?24:36; x.globalAlpha=dim?.38:1;
-      if(n.kind==='p'){ x.fillStyle='#1c2c22'; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.fill(); x.strokeStyle='#b6e88a'; x.lineWidth=3; x.stroke(); x.fillStyle='#d8f0c0'; for(let k=0;k<6;k++){ const a=k*TAU/6-webT*.25; x.beginPath(); x.arc(n.x+Math.cos(a)*9,n.y+Math.sin(a)*9,3.1,0,TAU); x.fill(); } x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x,n.y,4.5,0,TAU); x.fill(); }
-      else { const hid=stt==='mystery'||stt==='hinted', im=thumb(n,hid), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[n.id], ring=WEB.sel===n.id?'#fff':ex?'#ffd35a':(RAR[n.s.rarity]||'#9aa8a0');
-        if(stt==='known'){ x.fillStyle=ex?'rgba(255,211,90,.34)':'rgba(120,220,150,.26)'; x.beginPath(); x.arc(n.x,n.y,r+8,0,TAU); x.fill(); }
-        x.save(); x.beginPath(); x.arc(n.x,n.y,r-2,0,TAU); x.clip(); const ready=im&&((im.nodeName==='CANVAS'&&im.width)||(im.complete&&im.naturalWidth)); if(ready) x.drawImage(im,n.x-r,n.y-r,2*r,2*r); else { x.fillStyle='#1a2820'; x.fillRect(n.x-r,n.y-r,2*r,2*r); }
-        if(stt==='locked'||hid){ x.fillStyle=stt==='locked'?'rgba(4,8,6,.62)':'rgba(6,10,8,.42)'; x.fillRect(n.x-r,n.y-r,2*r,2*r); } x.restore();
-        x.strokeStyle=(stt==='locked'||stt==='mystery')?'rgba(186,196,190,.5)':ring; x.lineWidth=stt==='known'?4.5:2.6; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.stroke();
-        x.strokeStyle='rgba(255,255,255,.38)'; x.lineWidth=1.6; x.beginPath(); x.arc(n.x,n.y,r-4,-2.5,-.35); x.stroke();
-        if(stt==='mystery'){ x.fillStyle='#f4fff8'; x.font='900 28px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('?',n.x,n.y+1); }
-        const Ln=G.st.lines&&typeof G.st.lines==='object'?G.st.lines[n.id]:null; if(Ln&&typeof Ln==='object'&&Ln.heir){ x.strokeStyle='#ffd35a'; x.lineWidth=2; x.setLineDash([4,3]); x.beginPath(); x.arc(n.x,n.y,r+10,0,TAU); x.stroke(); x.setLineDash([]); x.font='14px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('🏅',n.x-r*.7,n.y-r*.7); }
-        if(G.st.keepers&&G.st.keepers[n.id]){ x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x+r*.7,n.y-r*.7,8,0,TAU); x.fill(); x.fillStyle='#3a2500'; x.font='900 10px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('M',n.x+r*.7,n.y-r*.7+.5); }
-        if(ex){ x.fillStyle='#ffd35a'; x.font='900 9px system-ui'; x.textAlign='center'; x.textBaseline='bottom'; x.fillText('EXCLUSIVE',n.x,n.y-r-3); } }
-      let lab=n.kind==='p'?n.name+' (pollen)':stt==='mystery'?'???':n.s.name; x.font='700 12px system-ui'; x.textAlign='center'; x.textBaseline='top';
-      while(lab.length>4&&x.measureText(lab).width>148) lab=lab.slice(0,-2)+'…';
-      const tw=x.measureText(lab).width; x.fillStyle='rgba(6,14,10,.8)'; x.beginPath(); x.roundRect(n.x-tw/2-7,n.y+r+5,tw+14,18,9); x.fill(); x.fillStyle=stt==='locked'?'#b7c4bc':'#f3fff6'; x.fillText(lab,n.x,n.y+r+7); x.globalAlpha=1; });
-    x.setTransform(d,0,0,d,0,0);
-    const vig=x.createRadialGradient(W/2,H*.46,Math.min(W,H)*.22,W/2,H/2,Math.max(W,H)*.75); vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(4,10,7,.45)'); x.fillStyle=vig; x.fillRect(0,0,W,H);
-    x.fillStyle='rgba(6,16,12,.78)'; x.fillRect(0,0,W,36);
-    x.font='800 13px system-ui'; x.textAlign='center'; x.textBaseline='middle';
-    cols.forEach(col=>{ const sx=W/2+(col.x-c.x)*c.z; if(sx<-50||sx>W+50) return; const label=col.g===0?'Starters':'Gen '+(col.g+1); const tw=x.measureText(label).width+16;
-      x.fillStyle='rgba(255,214,120,.16)'; x.beginPath(); x.roundRect(sx-tw/2,7,tw,22,11); x.fill(); x.fillStyle='#ffd98a'; x.fillText(label,sx,18); });
-    x.setTransform(1,0,0,1,0,0); }
-  function webCard(){ const el=document.getElementById('webCard'); if(!el) return; const id=WEB.sel; if(!id){ el.innerHTML='<p class="wc-hint">Tap a strain to see its family. Drag to pan, pinch or scroll to zoom.</p>'; return; }
-    const n=WG&&WG.nodes.get(id), st=G.st||{}; if(!n){ el.innerHTML='<p class="wc-hint">Tap a strain to see its family. Drag to pan, pinch or scroll to zoom.</p>'; return; }
-    if(n.kind==='p'){ const kids=WG.edges.filter(e=>e.a===id&&edgeVisible(e,WG)).map(e=>{ const child=WG.nodes.get(e.b); return child&&child.s&&child.s.name; }).filter(Boolean); el.innerHTML=`<h4>${esc(n.name||'Pollen')} <span class="tag">Pollen</span></h4><p>A parent line you can use as pollen in the Pheno Room.</p><p><b>Known children:</b> ${kids.length?esc(kids.join(', ')):'none found yet'}</p>`; return; }
-    const s=n.s||{}, stt=webState(n), ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[id], rawK=st.keepers&&typeof st.keepers==='object'?st.keepers[id]:null, k=rawK&&typeof rawK==='object'?rawK:null, hints=st.hintRev&&typeof st.hintRev==='object'?st.hintRev:{}, r=hints[id]||0;
-    const parents=Array.isArray(s.parents)?s.parents:[];
-    const pars=parents.length?parents.map((p,i)=>stt==='known'||(stt==='locked'&&!s.mystery)||i<r?esc(p):'???').join(' × '):'Landrace / original line';
-    const how=[]; if(ex){ const n=G.PREMIUM.filter(i=>G.strain(i)).length||1; how.push('Exclusive: Island Shop (money or gems)','Rare drop: Legendary Seed Packs ('+pct(G.DROP.packPremium/n)+' each, as an extra seed)','Rare drop: finished pheno hunts ('+pct(G.DROP.huntPremium/n)+' each)'); }
-    if(s.mystery) how.push(stt==='known'?'Bred in the Pheno Room':'Cross the right two parents in the Pheno Room'+(r?' (hint: '+r+' parent'+(r>1?'s':'')+' revealed)':'')); else if(!ex) how.push(window.G.festNow&&G.FESTS.some(f=>f.strain===id)?'Island festival reward':'Seed shop from level '+((s.game&&s.game.unlockLevel)||1));
-    const lines=st.lines&&typeof st.lines==='object'?st.lines:{}, lineKnown=!!(lines[id]&&(typeof lines[id]==='object'||typeof lines[id]==='number'));
-    el.innerHTML=`<div class="wc-top"><img data-cu="${s.id}" data-sz="96" data-h="${stt==='mystery'||stt==='hinted'?1:0}" alt=""><div><h4>${stt==='mystery'?'??? mystery pheno':esc(s.name)} ${tag(s)}</h4><p>${esc(s.type)}${stt==='known'&&s.thc?' · '+s.thc+'% THC':''} · ${esc(s.rarity)}</p></div></div>
-      <p><b>Parents:</b> ${pars}</p><p><b>How to get:</b> ${esc(how.join(' · '))}</p><p><b>Line:</b> ${lineKnown?esc(G.lineName(id)):s.mystery&&stt!=='known'?'not bred yet':'commercial stable line'}${s.tier>=4?' · Legendary recipe: parents must be stable lines (F'+G.LINE.stable+'+) in the Breeding Pheno Room':''}</p><p><b>Kept mother:</b> ${k?`Pheno ${esc(k.k||'?')} · ${esc(k.terp||'')} · yield ${Math.round(((+k.y||1)-1)*100)}%, quality +${Math.round((+k.q||0)*100)}%`:'none'}</p>
-      ${stt==='known'?`<button class="btn sec" data-a="strain" data-id="${id}">Open strain page</button>`:''}`; paintStrainImgs(el); }
-  function webInit(){ const cv=document.getElementById('strainWeb'); if(!cv) return; if(cv._init){ webDraw(); webKick(); return; } cv._init=1; WG=webGraph(); if(!WEB.cam){ let minY=1e9,maxY=-1e9,sx=0,n0=0; WG.nodes.forEach(n=>{ if(n.g) return; n0++; sx=n.x; minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); }); const Wv=cv.clientWidth||360, z=.95; WEB.cam={x:n0?(Wv/2-96)/z+sx:0,y:n0?(minY+maxY)/2:0,z}; }
-    const pts=new Map(); let moved=0, pinch=null;
-    const toW=(px,py)=>{ const c=WEB.cam, W=cv.clientWidth, H=cv.clientHeight; return {x:c.x+(px-W/2)/c.z, y:c.y+(py-H/2)/c.z}; };
-    const zoomAt=(px,py,f)=>{ const c=WEB.cam, a=toW(px,py); c.z=Math.max(.25,Math.min(3,c.z*f)); const b=toW(px,py); c.x+=a.x-b.x; c.y+=a.y-b.y; };
-    cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.offsetX,y:e.offsetY}); moved=0; if(pts.size===2){ const [a,b]=[...pts.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y)}; } });
-    cv.addEventListener('pointermove',e=>{ const p=pts.get(e.pointerId); if(!p) return; const dx=e.offsetX-p.x, dy=e.offsetY-p.y; p.x=e.offsetX; p.y=e.offsetY;
-      if(pts.size>=2&&pinch){ const [a,b]=[...pts.values()], d=Math.hypot(a.x-b.x,a.y-b.y); zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/Math.max(1,pinch.d)); pinch.d=d; moved=99; }
-      else { moved+=Math.abs(dx)+Math.abs(dy); WEB.cam.x-=dx/WEB.cam.z; WEB.cam.y-=dy/WEB.cam.z; } webDraw(); });
-    const up=e=>{ const had=pts.has(e.pointerId); pts.delete(e.pointerId); if(pts.size<2) pinch=null; if(had&&moved<8&&!pts.size){ const w=toW(e.offsetX,e.offsetY); let hit=null,best=1e9; WG.nodes.forEach(n=>{ const dist=Math.hypot(n.x-w.x,n.y-w.y), need=Math.max(n.kind==='p'?28:40,22/WEB.cam.z); if(dist<need&&dist<best){ best=dist; hit=n.id; } }); WEB.sel=hit===WEB.sel?null:hit; webDraw(); webCard(); } };
-    cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
-    cv.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(e.offsetX,e.offsetY,Math.exp(-e.deltaY*.0015)); webDraw(); },{passive:false});
-    webDraw(); webCard(); webKick(); }
-  window.StrainWeb={select:id=>{ WEB.sel=id; const n=WG&&WG.nodes.get(id); if(n){ WEB.cam.x=n.x; WEB.cam.y=n.y; } webDraw(); webCard(); }, get sel(){ return WEB.sel; }};
-  // Strain book
+  function webGens(){ let max=0; if(WG) WG.nodes.forEach(n=>{ if((n.g||0)>max) max=n.g; }); const out=[]; for(let i=0;i<=max;i++) out.push(i); return out; }
+  function webNodes(g){ const list=[]; if(!WG) return list; WG.nodes.forEach(n=>{ if((n.g||0)===g) list.push(n); });
+    const label=n=>(n.s&&n.s.name)||n.name||''; list.sort((a,b)=>(a.kind==='p'?1:0)-(b.kind==='p'?1:0)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||label(a).localeCompare(label(b))); return list; }
+  function pack(n,W,H){ if(n<1||W<40||H<40) return null; const gap=4, labelH=14; let best=null;
+    const maxCols=Math.min(n, Math.max(1, Math.floor((W+gap)/(40+gap))));
+    for(let cols=1; cols<=maxCols; cols++){ const rows=Math.ceil(n/cols); const nodeW=Math.floor((W-gap*(cols-1))/cols); const nodeH=Math.floor((H-gap*(rows-1))/rows); const node=Math.min(nodeW, nodeH, 72); if(node<40) continue; const orb=node-labelH, labels=orb>=44;
+      if(!best||node>best.node||(node===best.node&&labels&&!best.labels)) best={cols,rows,node,labels,orb:labels?orb:node,gap}; }
+    return best; }
+  function innerBox(el){ let pl=0,pr=0,pt=0,pb=0; if(typeof getComputedStyle==='function'){ const s=getComputedStyle(el); pl=parseFloat(s.paddingLeft)||0; pr=parseFloat(s.paddingRight)||0; pt=parseFloat(s.paddingTop)||0; pb=parseFloat(s.paddingBottom)||0; } return {w:Math.floor((el.clientWidth||0)-pl-pr), h:Math.floor((el.clientHeight||0)-pt-pb)}; }
+  function discKey(){ const d=G.st&&G.st.discovered; return d&&typeof d==='object'&&!Array.isArray(d)?Object.keys(d).length:0; }
+  function orbStyle(fit){ return fit.labels?'style="width:'+fit.orb+'px;height:'+fit.orb+'px"':'style="width:100%;height:100%"'; }
+  function webNode(n,fit){ const on=WEB.sel===n.id?' on':'';
+    if(n.kind==='p'){ const name=n.name||'Pollen'; return `<button type="button" class="wn pollen${on}" data-web="${esc(n.id)}" aria-label="${esc(name)}"><span class="orb" ${orbStyle(fit)}></span>${fit.labels?`<b>${esc(name)}</b>`:''}</button>`; }
+    const s=n.s||{}, stt=webState(n), hid=stt==='mystery'||stt==='hinted', ex=window.PREMIUM_STRAINS&&window.PREMIUM_STRAINS[n.id];
+    const rawK=G.st&&G.st.keepers&&typeof G.st.keepers==='object'?G.st.keepers[n.id]:null, mom=!!(rawK&&typeof rawK==='object');
+    const lines=G.st&&G.st.lines&&typeof G.st.lines==='object'?G.st.lines[n.id]:null, heir=!!(lines&&typeof lines==='object'&&lines.heir);
+    const cls=['wn',stt,s.rarity?'r-'+s.rarity:'',ex?'ex':'',mom?'mom':'',heir?'heir':'',on?'on':''].filter(Boolean).join(' ');
+    const label=hid?'???':(s.name||'Strain'), art=hid?'':`<img data-cu="${esc(s.id)}" data-sz="96" data-h="0" alt="">`;
+    return `<button type="button" class="${cls}" data-web="${esc(s.id)}" aria-label="${esc(label)}"><span class="orb" ${orbStyle(fit)}>${art}</span>${mom?'<span class="mark">M</span>':''}${fit.labels?`<b>${esc(label)}</b>`:''}</button>`; }
+  function webMark(){ const grid=document.getElementById('strainWeb'), tiers=document.getElementById('webTiers'), hot=new Set();
+    if(WEB.sel&&WG) WG.edges.forEach(e=>{ if(e.b===WEB.sel&&edgeVisible(e,WG)){ const p=WG.nodes.get(e.a); if(p) hot.add(p.g||0); } });
+    if(grid&&grid.querySelectorAll) grid.querySelectorAll('[data-web]').forEach(b=>{ if(b.classList) b.classList.toggle('on', b.dataset.web===WEB.sel); });
+    if(tiers&&tiers.querySelectorAll) tiers.querySelectorAll('[data-tier]').forEach(b=>{ const g=+b.dataset.tier; if(b.classList){ b.classList.toggle('on', g===(WEB.tier||0)); b.classList.toggle('hot', hot.has(g)); } }); }
+  function webLayout(){ if(!WG) return; const grid=document.getElementById('strainWeb'); if(!grid) return; const box=innerBox(grid);
+    if(box.w<40||box.h<40){ if(!grid._wait){ grid._wait=1; const raf=typeof requestAnimationFrame==='function'?requestAnimationFrame:null; if(raf) raf(()=>{ grid._wait=0; webLayout(); }); } return; }
+    const nodes=webNodes(WEB.tier||0), fit=pack(nodes.length, box.w, box.h);
+    const sig=(WEB.tier||0)+'|'+box.w+'x'+box.h+'|'+nodes.length+'|'+discKey()+'|'+(fit?fit.cols+'x'+fit.node+(fit.labels?'L':''):'x');
+    if(grid._sig===sig){ webMark(); return; }
+    const tiers=document.getElementById('webTiers'); if(tiers) tiers.innerHTML=webGens().map(g=>`<button type="button" data-tier="${g}">${g===0?'Start':'Gen '+(g+1)}</button>`).join('');
+    if(!fit){ grid._sig=sig; grid.dataset.node='0'; grid.innerHTML='<p class="wc-hint">This generation does not fit.</p>'; webMark(); return; }
+    grid.style.gridTemplateColumns='repeat('+fit.cols+','+fit.node+'px)'; grid.style.gridAutoRows=fit.node+'px'; grid.style.gap=fit.gap+'px';
+    grid.dataset.node=String(fit.node); grid.dataset.cols=String(fit.cols); grid.dataset.labels=fit.labels?'1':'0';
+    grid.innerHTML=nodes.map(n=>webNode(n,fit)).join(''); grid._sig=sig; paintStrainImgs(grid); webMark(); }
+  function webCard(){ const el=document.getElementById('webCard'); if(!el) return; const id=WEB.sel;
+    if(!id||!WG){ el.innerHTML='<p class="wc-hint">Tap a strain. Each generation stays on this screen.</p>'; return; }
+    const n=WG.nodes.get(id); if(!n){ el.innerHTML='<p class="wc-hint">Tap a strain. Each generation stays on this screen.</p>'; return; }
+    if(n.kind==='p'){ const kids=WG.edges.filter(e=>e.a===id&&edgeVisible(e,WG)).map(e=>{ const c=WG.nodes.get(e.b); return c&&c.s&&c.s.name; }).filter(Boolean);
+      el.innerHTML=`<div class="wc-top"><div class="grow"><h4>${esc(n.name||'Pollen')}</h4><p>Pollen · known children: ${kids.length?esc(kids.join(', ')):'none found yet'}</p></div></div>`; return; }
+    const s=n.s||{}, st=G.st||{}, stt=webState(n), rawK=st.keepers&&typeof st.keepers==='object'?st.keepers[id]:null, k=rawK&&typeof rawK==='object'?rawK:null;
+    const hints=st.hintRev&&typeof st.hintRev==='object'?st.hintRev:{}, r=hints[id]||0, parents=Array.isArray(s.parents)?s.parents:[];
+    const pars=parents.length?parents.map((p,i)=>stt==='known'||(stt==='locked'&&!s.mystery)||i<r?esc(p):'???').join(' × '):'Landrace';
+    const mom=k?'Pheno '+esc(k.k||'?')+' · '+esc(k.terp||''):'none', name=stt==='mystery'?'???':esc(s.name||'Strain');
+    const btn=stt==='known'?'<button class="btn sec" data-a="strain" data-id="'+esc(id)+'">Details</button>':'';
+    el.innerHTML=`<div class="wc-top"><img data-cu="${esc(s.id)}" data-sz="96" data-h="${stt==='mystery'||stt==='hinted'?1:0}" alt=""><div class="grow"><h4>${name}</h4><p>Parents: ${pars} · Kept mother: ${mom}</p></div>${btn}</div>`; paintStrainImgs(el); }
+  function webInit(){ if(!WG) WG=webGraph(); const root=document.getElementById('webFit'); if(!root){ webCard(); return; }
+    if(!root._init){ root._init=1; root.addEventListener('click',e=>{
+      const tier=e.target&&e.target.closest&&e.target.closest('[data-tier]');
+      if(tier&&root.contains(tier)){ WEB.tier=+tier.dataset.tier||0; const grid=document.getElementById('strainWeb'); if(grid) grid._sig=''; webCard(); webLayout(); return; }
+      const node=e.target&&e.target.closest&&e.target.closest('[data-web]');
+      if(!node||!root.contains(node)||(e.target.closest&&e.target.closest('[data-a]'))) return;
+      WEB.sel=WEB.sel===node.dataset.web?null:node.dataset.web; webCard(); webLayout(); });
+      if(typeof ResizeObserver==='function'){ const ro=new ResizeObserver(()=>{ const grid=document.getElementById('strainWeb'); if(!grid) return; const box=innerBox(grid), key=box.w+'x'+box.h; if(grid._box===key) return; grid._box=key; grid._sig=''; webLayout(); }); try{ ro.observe(root); }catch(e){} } }
+    webCard(); webLayout(); }
+  window.StrainWeb={select:id=>{ if(!WG) WG=webGraph(); WEB.sel=id; const n=WG&&WG.nodes.get(id); if(n) WEB.tier=n.g||0; const grid=document.getElementById('strainWeb'); if(grid) grid._sig=''; webCard(); webLayout(); }, get sel(){ return WEB.sel; }};
   PANELS.book=()=>{
     const st=G.st||{}, disc=st.discovered&&typeof st.discovered==='object'&&!Array.isArray(st.discovered)?st.discovered:{}, recipes=st.recipes&&typeof st.recipes==='object'&&!Array.isArray(st.recipes)?st.recipes:{}, n=Object.keys(disc).length; tab=tab||'web';
-    if(tab==='web') return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · family web`,tabs:[['web','Web'],['list','List']],body:`${(()=>{ const P=G.breedProgress(); return `<div class="row" style="display:block"><h4>Breeding completion · ${P.pct}%</h4>${bar(P.pct/100,'amber')}<p>${P.found}/${P.mystery} mystery phenos bred · ${P.stable}/${P.mystery} lines stabilized to F${G.LINE.stable}+ · ${P.known}/${P.all} strains in your book</p></div>`; })()}<div id="webWrap"><canvas id="strainWeb"></canvas><div class="web-legend"><span><i style="background:#ffd35a"></i>Exclusive</span><span><i style="background:#9fd76a"></i>Pollen</span><span>? mystery</span><span>M mother</span></div></div><div id="webCard" class="row" style="display:block"></div>`};
+    if(tab==='web'){ const P=G.breedProgress(); return {title:'Strain Book',sub:`${n}/${G.S.length} discovered · family tree`,tabs:[['web','Web'],['list','List']],body:`<div id="webFit"><div class="web-prog"><span>Breeding completion · ${P.pct}%</span>${bar(P.pct/100,'amber')}</div><div id="webTiers" class="web-tiers"></div><div id="strainWeb"></div><div id="webCard" class="row web-card"></div></div>`}; }
     const cards=G.S.slice().sort((a,b)=>(a.tier||0)-(b.tier||0)||String(a.name||'').localeCompare(String(b.name||''))).map(s=>{ const d=disc[s.id], hid=!d&&s.mystery;
       return `<button class="card ${d?'':'locked'}" data-a="strain" data-id="${s.id}"><img data-cu="${s.id}" data-sz="120" data-h="${hid?1:0}" alt="" style="width:100%;aspect-ratio:1;border-radius:12px;display:block;${d||hid?'':'filter:brightness(.35) saturate(.2)'}"><div class="nm">${hid?'???':esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span>${recipes[s.id]?'<span class="tag" style="font-size:12px;background:#7a4ad0;color:#fff">Recipe</span>':''}</button>`; }).join('');
     return {title:'Strain Book',sub:`${n}/${G.S.length} discovered`,tabs:[['web','Web'],['list','List']],body:`<div class="grid">${cards}</div><div class="note">Strain notes are original game text. Fields marked ESTIMATE were not given a published figure. Close-ups are painted game art tinted from each strain's described look; no photos are shipped.</div>`};
@@ -930,6 +890,6 @@ window.UI = (function(){
   }
   let acc=0;
   function update(dt){ hud(dt); acc+=dt; if(acc>.5){ acc=0; if(panel&&performance.now()-lastPointer>700&&!document.activeElement?.matches('select')) render(); if(popPlot) renderPop(); } }
-  function artReady(){ webImg.clear(); const body=document.getElementById('sheetBody'); if(body) body._h=''; if(panel) render(); const card=document.getElementById('modalCard'); const host=card&&card.closest&&card.closest('#modal'); if(card&&host&&!host.classList.contains('hidden')) paintStrainImgs(card); }
+  function artReady(){ const grid=document.getElementById('strainWeb'); if(grid) grid._sig=''; const body=document.getElementById('sheetBody'); if(body) body._h=''; if(panel) render(); const card=document.getElementById('modalCard'); const host=card&&card.closest&&card.closest('#modal'); if(card&&host&&!host.classList.contains('hidden')) paintStrainImgs(card); }
   return {init,update,toast,modal,celebrate,levelUp,loginCel,confetti,open,close,tapPlot,quick,hidePop,setTool,strainModal,bigCel,reveal,storyLine,landModal,indoorModal,artReady,get tool(){return tool},get panel(){return panel},render};
 })();
