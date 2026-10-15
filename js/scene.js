@@ -981,8 +981,8 @@ window.R=(function(){
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
     const gearTop=Math.round(barTop-gearH), bedsTop=tab, bedsH=Math.max(40,gearTop-bedsTop);
     const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
-    // Greenhouse poles are the outer pairs. Keep plants, timers, and the light inside them.
-    const edge=spot==='gh'?0.08:0, bedL=W*edge, bedR=W*(1-edge);
+    // Poles stop at the grass, so the beds use nearly the full width.
+    const edge=spot==='gh'?0.04:0, bedL=W*edge, bedR=W*(1-edge);
     const bedH=bedsH/nBeds, cell=(bedR-bedL)/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
