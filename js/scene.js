@@ -976,42 +976,48 @@ window.R=(function(){
     const zone=spot==='indoor'?'field':spot==='gh'?'gh':'garage';
     const plots=st.plots.filter(p=>p.zone===zone&&p.owned);
     bedsArm(); bedsFresh(); ctx.clearRect(0,0,W,H);
-    const tab=36, gearH=78, lightH=spot==='gh'?0:42;
+    const tab=36, gearH=78;
     const bar=document.getElementById('toolbar');
     const barTop=bar&&bar.getBoundingClientRect().height>40?bar.getBoundingClientRect().top:H-128;
     const gearTop=Math.round(barTop-gearH);
-    // The greenhouse photo's topper and farm view fill the top. Beds start on the dirt below that.
-    const bedsTop=spot==='gh'?Math.round(H*0.16):tab, bedsH=Math.max(40,gearTop-bedsTop);
+    // One ceiling bar for the lit rooms. The greenhouse keeps its open farm view and no fixture.
+    const lit=spot!=='gh', ceilH=lit?50:0;
+    const bedsTop=spot==='gh'?Math.round(H*0.16):tab+ceilH, bedsH=Math.max(40,gearTop-bedsTop);
     const nBeds=spot==='gh'?6:5, per=spot==='indoor'?8:spot==='gh'?6:5;
     // Poles stop at the grass, so the beds use nearly the full width.
     const edge=spot==='gh'?0.04:0, bedL=W*edge, bedR=W*(1-edge);
     const bedH=bedsH/nBeds, cell=(bedR-bedL)/per;
     const cls=spot==='gh'?'gh':'in', kind=spot==='gh'?'soil':'pot';
     const Hm=cls==='gh'?1.2:1.25;
-    // Greenhouse has no fixture, just a little air above the canopy. The old light band is now plant height.
-    const head=spot==='gh'?6:lightH;
+    const head=spot==='gh'?6:2;
     const snaps=[75,72,64,60,56,50,48,40];
-    const maxH=Math.min(bedH-head-(spot==='gh'?26:28), Math.floor((cell-8)/0.70));
-    const plantH=snaps.find(s=>s<=maxH)||40;
+    const widthMax=Math.floor((cell-8)/0.70);
+    const plantH=(spot==='gh'
+      ? snaps.find(s=>s<=Math.min(bedH-head-26, widthMax))
+      : snaps.find(s=>s<=widthMax && head+s+0.32*(s/Hm)+22<=bedH)
+    )||40;
     const ppm=plantH/Hm;
     window.__bedPx=plantH; window.__bedCell=Math.round(cell); window.__bedSpot=spot; window.__bedTop=bedsTop; window.__bedN=nBeds; window.__bedPer=per;
     const bg=bedIM['bg-'+spot];
     if(bg&&bg.naturalWidth){ ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; const s=Math.max(W/bg.naturalWidth,H/bg.naturalHeight), dw=bg.naturalWidth*s, dh=bg.naturalHeight*s; ctx.drawImage(bg,(W-dw)/2,(H-dh)/2,dw,dh); }
     else { ctx.fillStyle=spot==='garage'?'#16120e':spot==='gh'?'#1a2416':'#10141a'; ctx.fillRect(0,0,W,H); }
     ctx.fillStyle='rgba(4,8,6,.22)'; ctx.fillRect(0,0,W,H);
+    if(lit){
+      // Soft wash under the one ceiling bar. Plants and timers are drawn after it, so they keep their contrast.
+      const glow=ctx.createLinearGradient(0,bedsTop-4,0,bedsTop+bedsH*0.45);
+      glow.addColorStop(0,'rgba(255,246,220,.16)');
+      glow.addColorStop(1,'rgba(255,246,220,0)');
+      ctx.fillStyle=glow; ctx.fillRect(bedL,bedsTop-4,bedR-bedL,bedsH*0.5);
+      hangLight(tab,ceilH);
+    }
     for(let r=0;r<nBeds;r++){
       const y0=bedsTop+r*bedH, row=plots.slice(r*per,(r+1)*per);
-      const soil=y0+head+4+plantH;
+      const lift=kind==='pot'?0.32*ppm:0;
+      const soil=y0+head+(spot==='gh'?4:0)+plantH+lift;
       bedsFresh();
       if(spot==='garage') drawGarageShelf(soil,0,W);
       else if(spot==='indoor') drawIndoorRack(soil,0,W);
       // Greenhouse plants root in the photo's dirt. No painted bed over the farm view.
-      if(spot!=='gh'){
-        const glow=ctx.createLinearGradient(0,y0+lightH-2,0,soil+6);
-        glow.addColorStop(0,'rgba(255,246,220,.34)');
-        glow.addColorStop(1,'rgba(255,246,220,0)');
-        ctx.fillStyle=glow; ctx.beginPath(); ctx.moveTo(24,y0+lightH-2); ctx.lineTo(W-24,y0+lightH-2); ctx.lineTo(W-6,soil-2); ctx.lineTo(6,soil-2); ctx.closePath(); ctx.fill();
-      }
       row.forEach((p,i)=>{
         const x=bedL+(i+.5)*cell; p.prog=.9; p.water=1; p.food=1; p.pest=null; p._dv=1;
         const sl={x,y:kind==='pot'?soil:soil-.09*ppm,ppm,sp:Math.max(.25,(cell-12)/ppm/1.2),cls,kind};
@@ -1022,9 +1028,8 @@ window.R=(function(){
         });
         const secs=G.timeLeft?G.timeLeft(p):0;
         const lab=secs>=86400?Math.max(1,Math.round(secs/86400))+'d':secs>=3600?Math.max(1,Math.round(secs/3600))+'h':Math.max(1,Math.round(secs/60))+'m';
-        pill(x,Math.min(y0+bedH-12,soil+13),lab,'rgba(10,20,14,.92)','#e9ffd6',11);
+        pill(x,Math.min(y0+bedH-11,soil+14),lab,'rgba(10,20,14,.92)','#e9ffd6',11);
       });
-      if(spot!=='gh') hangLight(spot,y0,soil);
     }
     bedsFresh();
     const scrim=ctx.createLinearGradient(0,gearTop,0,barTop);
@@ -1040,11 +1045,11 @@ window.R=(function(){
       ctx.fillStyle='#2a3036'; const step=Math.max(48,(x1-x0)/8); for(let x=x0+8;x<x1-6;x+=step) ctx.fillRect(x,y+4,3,18);
       ctx.fillStyle='#8d959e'; ctx.fillRect(x0,y-1,x1-x0,6); ctx.fillStyle='#e4eaf0'; ctx.fillRect(x0,y-1,x1-x0,2); ctx.fillStyle='#525a64'; ctx.fillRect(x0,y+5,x1-x0,3);
     }
-    function hangLight(spot,y0,soil){
+    function hangLight(y0,bandH){
       const im=bedIM['light-'+spot]||bedIM['light-garage']; if(!im||!im.naturalWidth) return;
-      // The sprite's bar is the lower half (about 8:1). Its built-in chains are a couple of pixels wide, so draw two short cables up to the bed top and the bar art beneath them.
+      // One wide bar for the room. The sprite's housing is the lower half; cables run up to the ceiling.
       const srcY=Math.round(im.naturalHeight*.5), srcH=im.naturalHeight-srcY;
-      const fh=Math.max(16,lightH-10), fw=Math.min(bedR-bedL-16, fh*im.naturalWidth/srcH), cx=(bedL+bedR)/2, top=y0+8;
+      const fh=Math.max(20,bandH-14), fw=Math.min(W-28, fh*im.naturalWidth/srcH), cx=W/2, top=y0+10;
       const x0=cx-fw/2, xL=x0+fw*(16/im.naturalWidth), xR=x0+fw*(238/im.naturalWidth);
       ctx.strokeStyle='rgba(198,204,210,.95)'; ctx.lineWidth=2.25; ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo(xL,y0+1); ctx.lineTo(xL,top+2); ctx.moveTo(xR,y0+1); ctx.lineTo(xR,top+2); ctx.stroke();
