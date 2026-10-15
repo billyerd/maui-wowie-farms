@@ -695,6 +695,15 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 /* Level ring in the top bar, left of gold. One row on a phone. Shop stays a 40px target. */
 #hud .lvl,#hud .lvl-ring{width:44px!important;height:44px!important;min-width:44px;min-height:44px}
 #hud .shopbtn{height:40px;min-height:40px;min-width:40px}
+/* Narrow phones: keep Kuli, level, gold, gems, Shop, and settings from stacking on each other. */
+@media (max-width:420px){
+  #hud{padding-left:8px;padding-right:8px;column-gap:4px}
+  #hud .hud-mid{display:none}
+  #hud .hud-left,#hud .hud-right{gap:4px}
+  #hud .pill{padding:0 6px;gap:3px;font-size:12px}
+  #hud .pill .ico{width:16px;height:16px;flex:none}
+  #hud .shopbtn{padding:0 10px 0 8px;gap:4px;font-size:13px}
+}
 @media (orientation:portrait){
   #hud{flex-wrap:nowrap}
   .hud-mid{flex-basis:auto;order:0}
