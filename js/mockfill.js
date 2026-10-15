@@ -1,15 +1,16 @@
 /* Fills an endgame farm for camera studies. Not used in normal play. */
 (function(){
   const q=new URLSearchParams(location.search), mock=q.get('mock');
-  if(mock!=='grid'&&mock!=='iso'&&mock!=='room') return;
+  if(mock!=='grid'&&mock!=='iso'&&mock!=='room'&&mock!=='beds') return;
   document.documentElement.classList.add('mock-cam');
+  if(mock==='beds') document.documentElement.classList.add('mock-beds');
   window.__paused=true;
-  const spot=q.get('spot')||(mock==='room'?'land':'garage'), zone=spot==='land'?'field':spot==='gh'?'gh':'garage';
-  if(mock==='room'){
+  const spot=q.get('spot')||(mock==='room'||mock==='beds'?'land':'garage'), zone=spot==='land'?'field':spot==='gh'?'gh':'garage';
+  if(mock==='room'||mock==='beds'){
     const nav=document.createElement('nav'); nav.id='roomTabs';
     [['garage','Garage'],['land','Land'],['gh','Greenhouse']].forEach(([id,label])=>{
       const b=document.createElement('button'); b.type='button'; b.textContent=label; if(id===spot) b.className='on';
-      b.onclick=()=>{ location.search='?mock=room&spot='+id; }; nav.appendChild(b);
+      b.onclick=()=>{ location.search='?mock='+mock+'&spot='+id; }; nav.appendChild(b);
     });
     document.body.appendChild(nav);
   }
