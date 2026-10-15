@@ -763,7 +763,7 @@ window.R=(function(){
     if(hk.includes('m')){ for(let i=0;i<10;i++){ const px=c.width*(.25+r()*.5), py=c.height*(.05+r()*.45), rr2=6+r()*12; const g=x.createRadialGradient(px,py,0,px,py,rr2); g.addColorStop(0,'rgba(235,235,225,.95)'); g.addColorStop(1,'rgba(200,200,190,0)'); x.fillStyle=g; x.fillRect(px-rr2,py-rr2,rr2*2,rr2*2); } }
     return m[k]=c; }
   const ICON={water:['#3d9be8','💧'],food:['#e8853a','🧪'],prune:['#7bc043','✂️'],top:['#2f8f4e','🔝'],pests:['#c0392b','🐛'],mold:['#7f8c8d','🍄']};
-  function badge(x,y,ic,r){ ctx.fillStyle='rgba(255,255,255,.95)'; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); ctx.strokeStyle=ic[0]; ctx.lineWidth=2.5; ctx.stroke(); ctx.font=Math.round(r*1.15)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(ic[1],x,y+1); }
+  function badge(x,y,ic,r){ if(!ic) return; ctx.fillStyle='rgba(255,255,255,.95)'; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); ctx.strokeStyle=ic[0]; ctx.lineWidth=2.5; ctx.stroke(); ctx.font=Math.round(r*1.15)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(ic[1],x,y+1); }
   // overlays drawn in screen space so they stay readable at any zoom
   const patchC={};
   function drawPatch(k,P){ const sc=Math.round(cam.z*dpr*20)/20, key=sc+'|'+P.map(p=>p.id+p.strain+Math.round(p.prog*30)+(p.water<=.15?'t':'')+(p.water<=0?'d':'')+(G.isHungry(p)?'h':'')+(p.pest||'')).join(',');
@@ -798,7 +798,7 @@ window.R=(function(){
           else { badge(hx,by,[col,'✂️'],10); ctx.beginPath(); ctx.arc(hx+9,by-8,6,0,TAU); ctx.fillStyle=col; ctx.fill(); ctx.font='800 9px system-ui,sans-serif'; ctx.fillStyle='#1c2a12'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(gr,hx+11,by-8.5); } }
       else if(p.strain){ if(inCl.has(o)&&!o.sel) continue; const icons=[];
         // Only the care the plant needs right now. A full, healthy plant stays unmarked.
-        if(p.pest) icons.push([ICON[p.pest],'treat']); if(G.isThirsty(p)) icons.push([ICON.water,'water']); if(G.isHungry(p)) icons.push([ICON.food,'feed']);
+        if(p.pest) icons.push([ICON[p.pest]||ICON.pests,'treat']); if(G.isThirsty(p)) icons.push([ICON.water,'water']); if(G.isHungry(p)) icons.push([ICON.food,'feed']);
         // Optional training stays on the plant the player tapped, and on the plant card, so a room of plants in veg does not grow a scissors on every pot.
         if(o.sel){ if(G.canPrune(p)) icons.push([ICON.prune,'prune']); if(G.canTrain(p)) icons.push([ICON.top,'top']); }
         const cp=(crowd||(s.y-top)<46)&&!o.sel, gap=cp?24:30, r=cp?9:12; if(!lens.on) icons.forEach(([ic,a],i)=>{ const bx=bubX(s.x,((icons.length-1)/2)*gap+r+5)+(i-(icons.length-1)/2)*gap, byy=top-(cp?10:14)-(o.sel?0:2*Math.sin(now*3+i)); if(o.sel){ ctx.fillStyle='rgba(10,20,14,.55)'; ctx.beginPath(); ctx.arc(bx,byy,r+4,0,TAU); ctx.fill(); } badge(bx,byy,ic,r); qbub.push({x:bx,y:byy,act:{type:'qa',a,p}}); });
@@ -838,16 +838,16 @@ window.R=(function(){
   function roomNow(){ try{ return G.currentRoom(); }catch(e){ return 'garage'; } }
   function shownEl(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); if(r.width<8||r.height<8) return null; const s=getComputedStyle(e); if(s.display==='none'||s.visibility==='hidden') return null; return r; }
   function bedBand(room){
-    let top=100;
-    for(const id of ['hud','clock','goal','eventChip','orderBoard','locTabs']){ const r=shownEl(id); if(r) top=Math.max(top, r.bottom+6); }
+    let top=88;
+    for(const id of ['hud','clock','goal','eventChip','locTabs']){ const r=shownEl(id); if(r&&r.bottom<H*0.5) top=Math.max(top, r.bottom+6); }
     if(room==='gh') top=Math.max(top, H*0.16);
     let bot=H-8;
-    for(const id of ['toolbar','qaFab','seedBag','scoutBtn','upgBtn']){ const r=shownEl(id); if(r&&r.top>H*0.35) bot=Math.min(bot, r.top-8); }
+    for(const id of ['toolbar','qaFab','seedBag','scoutBtn','upgBtn','orderBoard']){ const r=shownEl(id); if(r&&r.top>H*0.45) bot=Math.min(bot, r.top-8); }
     return {top, bot, left:8, right:Math.max(56,W-8), w:Math.max(48,W-16), h:Math.max(48,bot-top)};
   }
   function gridScore(band, cols, rows){
     const gap=4, cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(rows-1))/rows, plantH=cellH-30;
-    return {ok:cellW>=40&&cellH>=44&&plantH>=36, cols, rows, cellW, cellH, gap};
+    return {ok:cellW>=40&&cellH>=40, cols, rows, cellW, cellH, gap, plantH};
   }
   function gridFor(room, band){
     if(room==='garage') return Object.assign(gridScore(band,5,5),{n:25,zone:'garage'});
@@ -963,7 +963,10 @@ window.R=(function(){
       }
       for(const c of cells){
         if(!c.owned||!c.p||!c.p.strain) continue;
-        const label=c.p.prog>=1?'Ripe':G.dur(G.timeLeft(c.p));
+        let label=c.p.prog>=1?'Ripe':G.dur(G.timeLeft(c.p));
+        ctx.font='700 11px system-ui,sans-serif';
+        if(ctx.measureText(label).width+10>c.w-2) label=label.replace(/ /g,'');
+        if(ctx.measureText(label).width+10>c.w-2) label=label.split(' ')[0];
         pill(c.sl.x,c.y+c.h-9,label,'rgba(10,20,14,.92)','#e9ffd6',11);
       }
       if(group){
@@ -972,7 +975,7 @@ window.R=(function(){
         if(bits.length) pill(W/2,band.top-14,bits.join(' · '),'rgba(12,22,16,.9)','#fff',12);
       } else {
         for(const c of care){
-          const ic=c.p.pest?ICON[c.p.pest]:G.isThirsty(c.p)?ICON.water:ICON.food;
+          const ic=c.p.pest?(ICON[c.p.pest]||ICON.pests):G.isThirsty(c.p)?ICON.water:ICON.food;
           const a=c.p.pest?'treat':G.isThirsty(c.p)?'water':'feed';
           const bx=Math.min(c.x+c.w-14,c.x+14), by=c.y+14;
           badge(bx,by,ic,11); qbub.push({x:bx,y:by,act:{type:'qa',a,p:c.p}});
@@ -988,7 +991,7 @@ window.R=(function(){
   }
   function frame(dt){
     t+=dt; const now=t, st=G.st; if(!st) return; if(!SC.garage.slots) rebuild();
-    try{ if(drawBeds(dt,now)) return; }catch(e){ if(!frame._bedErr){ frame._bedErr=1; console.error(e); } }
+    try{ if(drawBeds(dt,now)) return; }catch(e){ if((frame._bedN=(frame._bedN|0)+1)<3) console.error(e); return; }
     if(G.st.loc!==loc) setLoc(G.st.loc);
     stepPan(dt);
     drawBase(); // static backdrop comes from the cached blit only (a stray second drawWorldBase() here re-painted the full room art every frame)
@@ -1410,5 +1413,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,build:!!bedLay.build},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();

@@ -95,7 +95,7 @@ window.UI = (function(){
     const cur=G.currentRoom();
     if(el.dataset.rooms!==rooms.join(',')){ el.dataset.rooms=rooms.join(',');
       el.innerHTML=rooms.map(r=>`<button class="loctab" data-room="${r}"><span class="li"></span><span class="lt"><b></b><small></small></span><em class="badge"></em></button>`).join(''); }
-    const label={garage:G.LOC_NAME.garage,gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
+    const label={garage:'Garage',gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
     const ico={garage:'🏠',gh:'🌿',facility:'🏭',benches:'💡'};
     rooms.forEach((r,i)=>{ const btn=el.children[i]; const open=r==='gh'?!!st.land:r==='benches'?!!st.inBuilt:r==='facility'?!!st.land:true;
       const ripe=G.roomRipe(r); const z=G.roomZone(r);
@@ -336,7 +336,7 @@ window.UI = (function(){
     return `<div class="row" style="display:block"><h4>Upkeep now: ${fmt(U.total)}/hour ${G.st.upkeepWarn[l]>0?'<span class="tag" style="background:#ff8a5c">Cash short: growth slowed to 30%</span>':''}</h4>${parts.length?`<dl class="kv">${parts.map(([k,v])=>`<dt>${esc(G.UPK_NAME[k]||k)}</dt><dd>${fmt(v)}/h</dd>`).join('')}</dl>`:'<p>Nothing growing here right now.</p>'}<p>Charged while plants grow. If cash runs out you never go into debt: plants just grow slower until you can pay.</p></div>`; }
   PANELS.upgrades=()=>{
     const st=G.st; const cur=G.currentRoom(); tab=tab||(cur==='benches'?'facility':cur==='facility'?'facility':cur==='gh'?'gh':'garage'); if(tab==='farm') tab='facility'; if(tab==='indoor') tab='facility'; let body='';
-    const tabs=[['garage',G.LOC_NAME.garage],['gh','Greenhouse'],['facility','Indoor Facility'],['lines','Water + feed'],['hands','Helpers']];
+    const tabs=[['garage','Garage'],['gh','Greenhouse'],['facility','Indoor Facility'],['lines','Water + feed'],['hands','Helpers']];
     if(tab==='garage'){ const g=G.GARAGE[st.garage];
       body+=`<div class="section-t">Grow space · ${G.capOf('garage')}/25 plants</div><div class="note">Now: <b>${esc(g.name)}</b>. Beds stay in the room. Gear you buy shows up here, not on the floor.</div>`+stepCard('garage','Garage')+upkeepBox('garage');
       body+=`<div class="section-t">Garage gear</div>`+['light','fan','oscfan','dehu','timer','phkit','trays'].map(k=>upRow(k)).join('');
@@ -410,7 +410,7 @@ window.UI = (function(){
     const g=id=>{ if(gen.has(id)) return gen.get(id); gen.set(id,0); const P=par.get(id)||[]; const v=P.length?1+Math.max(...P.map(g)):0; gen.set(id,v); return v; }; nodes.forEach((n,id)=>n.g=g(id));
     // roots with no children and no parents go in a separate "starter" column; order each column by the mean y of parents
     const cols=[]; nodes.forEach(n=>{ (cols[n.g]=cols[n.g]||[]).push(n); });
-    const order=n=>n.kind==='p'?1:0; cols.forEach((c,gi)=>{ c.sort((a,b)=>{ if(gi>0){ const ma=avgY(a), mb=avgY(b); if(ma!==mb) return ma-mb; } return order(a)-order(b)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||(a.s?a.s.name:a.name).localeCompare(b.s?b.s.name:b.name); }); c.forEach((n,i)=>{ n.x=gi*168; n.y=(i-(c.length-1)/2)*72; }); });
+    const order=n=>n.kind==='p'?1:0; cols.forEach((c,gi)=>{ c.sort((a,b)=>{ if(gi>0){ const ma=avgY(a), mb=avgY(b); if(ma!==mb) return ma-mb; } return order(a)-order(b)||((a.s?a.s.tier:0)-(b.s?b.s.tier:0))||(a.s?a.s.name:a.name).localeCompare(b.s?b.s.name:b.name); }); c.forEach((n,i)=>{ n.x=gi*176; n.y=(i-(c.length-1)/2)*88; }); });
     function avgY(n){ const P=par.get(n.id)||[]; if(!P.length) return 0; return P.reduce((t,p)=>t+(nodes.get(p).y||0),0)/P.length; }
     return {nodes,edges,par}; }
   function webState(n){ const st=G.st; if(n.kind==='p') return 'pollen'; const s=n.s; if(st.discovered[s.id]) return 'known'; if(window.PREMIUM_STRAINS&&PREMIUM_STRAINS[s.id]) return 'locked'; if(s.mystery) return (st.hintRev[s.id]||0)>0?'hinted':'mystery'; return 'locked'; }
@@ -426,7 +426,7 @@ window.UI = (function(){
     const hl=new Set(), hle=new Set(); if(WEB.sel){ const up=id=>{ if(hl.has(id)) return; hl.add(id); WG.edges.forEach((e,i)=>{ if(e.b===id&&edgeVisible(e,WG)){ hle.add(i); up(e.a); } }); }; up(WEB.sel); WG.edges.forEach((e,i)=>{ if(e.a===WEB.sel&&edgeVisible(e,WG)){ hle.add(i); hl.add(e.b); } }); }
     WG.edges.forEach((e,i)=>{ const A=WG.nodes.get(e.a), B=WG.nodes.get(e.b), vis=edgeVisible(e,WG), on=hle.has(i); if(!vis&&!on) return;
       x.strokeStyle=on?'#ffd35a':WEB.sel?'rgba(160,220,170,.12)':'rgba(160,220,170,.38)'; x.lineWidth=on?3.2:1.6; x.setLineDash(webState(B)==='hinted'?[6,5]:[]);
-      x.beginPath(); x.moveTo(A.x+28,A.y); x.bezierCurveTo(A.x+78,A.y,B.x-78,B.y,B.x-28,B.y); x.stroke(); x.setLineDash([]);
+      x.beginPath(); x.moveTo(A.x+28,A.y); x.bezierCurveTo(A.x+52,A.y,B.x-52,B.y,B.x-28,B.y); x.stroke(); x.setLineDash([]);
       if(on){ x.fillStyle='#ffd35a'; x.beginPath(); x.moveTo(B.x-30,B.y); x.lineTo(B.x-40,B.y-5); x.lineTo(B.x-40,B.y+5); x.fill(); } });
     WG.nodes.forEach(n=>{ const stt=webState(n), dim=WEB.sel&&!hl.has(n.id), r=n.kind==='p'?20:30; x.globalAlpha=dim?.35:1;
       if(n.kind==='p'){ x.fillStyle='#2a3a2e'; x.strokeStyle='#9fd76a'; x.lineWidth=2; x.beginPath(); x.arc(n.x,n.y,r,0,TAU); x.fill(); x.stroke(); x.fillStyle='#d8f0c0'; for(let k=0;k<6;k++){ const a=k*TAU/6; x.beginPath(); x.arc(n.x+Math.cos(a)*8,n.y+Math.sin(a)*8,3.2,0,TAU); x.fill(); } x.fillStyle='#ffd35a'; x.beginPath(); x.arc(n.x,n.y,4,0,TAU); x.fill(); }

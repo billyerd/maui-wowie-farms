@@ -1151,7 +1151,7 @@ window.G = (function(){
       // v2 saves from before real-time: keep the same in-game day/hour, then let the wall clock drive it
       if(raw&&(!raw.tv||raw.t0==null)){ const old=raw.time||0, days=old/480; st.t0=(raw.lastSave||Date.now())-days*DAY_LEN*1000; st.tv=2; }
       if(st.land&&!st.phenoRoom) st.phenoRoom=true;
-      migrateGarage(st); migrateRoom(st); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
+      migrateGarage(st); migrateRoom(st, raw); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
       if(st.inBuilt) st.found=true;
       if(st.upg&&st.upg.sign==null&&st.upg.stand){ st.upg.sign=st.upg.stand; st.upg.stand=Math.min(3,st.upg.stand); }
       // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)
@@ -1314,13 +1314,18 @@ window.G = (function(){
   const ROOM_ZONE={garage:'garage',facility:'field',gh:'gh',benches:'in'};
   const ROOM_NAME={garage:'Garage',facility:'Indoor Facility',gh:'Greenhouse',benches:'Benches'};
   function roomZone(r){ return ROOM_ZONE[r]||'garage'; }
-  function migrateRoom(s){
+  function migrateRoom(s, raw){
     if(!s) return;
+    // newState fills room:'garage' before the save is merged, so an old file with no room
+    // field must follow its loc. A save that already picked a room keeps that pick.
+    const known=raw&&(raw.room==='garage'||raw.room==='gh'||raw.room==='facility'||raw.room==='benches');
+    if(!known){
+      if(s.loc==='indoor'&&s.inBuilt) s.room='benches';
+      else if(s.loc==='farm') s.room='facility';
+      else s.room='garage';
+    }
     if(s.room==='benches'&&!s.inBuilt) s.room=s.land?'facility':'garage';
-    if(s.room==='garage'||s.room==='gh'||s.room==='facility'||s.room==='benches') return;
-    if(s.loc==='indoor'&&s.inBuilt) s.room='benches';
-    else if(s.loc==='farm') s.room='facility';
-    else s.room='garage';
+    if(s.room!=='garage'&&s.room!=='gh'&&s.room!=='facility'&&s.room!=='benches') s.room='garage';
   }
   function currentRoom(){
     if(!st) return 'garage';
