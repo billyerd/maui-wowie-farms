@@ -808,6 +808,10 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
   font-size:8px;font-weight:800;line-height:1.05;letter-spacing:-.01em;
   color:#d5eadc;white-space:normal;text-align:center;max-width:100%;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  overflow-wrap:break-word;hyphens:manual;
+}
+@media (max-width:379px){
+  #toolbar #locBtn small{font-size:7px;letter-spacing:-.04em}
 }
 #toolbar #menu button .ico{width:16px;height:16px;flex:none}
 #toolbar #menu button .badge{top:1px;right:1px}

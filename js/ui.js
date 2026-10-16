@@ -192,13 +192,14 @@ window.UI = (function(){
   function locTabs(){
     const cur=G.currentRoom();
     const names={garage:'Garage',gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
+    const shown={garage:'Garage',gh:'Green\u00ADhouse',facility:'Indoor Facility',benches:'Benches'};
     const ico={garage:'🏠',gh:'🌿',facility:'🏭',benches:'💡'};
     const lb=$('#locBtn');
     if(lb){
       const ripe=G.roomRipe?G.roomRipe(cur):0;
       const name=names[cur]||'Garage';
       const sm=lb.querySelector('small'), ic=lb.querySelector('.li');
-      if(sm&&sm.textContent!==name) sm.textContent=name;
+      if(sm&&sm.textContent!==(shown[cur]||name)) sm.textContent=shown[cur]||name;
       if(ic) ic.textContent=ico[cur]||'🏠';
       const al='Location: '+name+(ripe?' · '+ripe+' ready':'')+'. Garage, Greenhouse, and Indoor Facility.';
       if(lb.getAttribute('aria-label')!==al) lb.setAttribute('aria-label',al);
