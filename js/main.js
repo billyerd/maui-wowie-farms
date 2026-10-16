@@ -3,7 +3,10 @@
 (function(){
   const cv=document.getElementById('game');
   let muted=false;
-  const boot=G.load(); const testPreset=window.TestMenu&&TestMenu.applyPending(); if(testPreset) boot.fresh=false;
+  const boot=G.load();
+  if(window.TEST_LV10&&boot.fresh&&!boot.corrupt){ G.applyTestStart(); boot.fresh=false; }
+  const testPreset=window.TEST_LV10?null:(window.TestMenu&&TestMenu.applyPending()); if(testPreset) boot.fresh=false;
+  if(window.TEST_LV10){ const tag=document.getElementById('testTag'); if(tag) tag.classList.remove('hidden'); }
   // settings defaults (older saves) + apply audio / motion preferences
   const S0=G.st.settings; if(S0.vMusic==null) S0.vMusic=S0.music===false?0:70; if(S0.vSfx==null) S0.vSfx=S0.sfx===false?0:80; if(S0.vAmb==null) S0.vAmb=60;
   if(S0.vib==null) S0.vib=true; if(S0.motion==null) S0.motion=!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches); if(S0.autoQ==null) S0.autoQ=true;
@@ -260,7 +263,7 @@
     if(boot.corrupt) UI.modal(`<h3>Save needs a backup</h3><p>The farm stored on this device could not be read, so it was left in place. Open Settings to export it, or import a backup you already have.</p>`,[{label:'Got it!',cls:'gold'}]);
     if(boot.kept) UI.toast('Farm kept. Your plants, cash, and unlocks are still on this device.','good long');
     else if(boot.off) showAway(boot.off,boot.off.away,boot.off.cap);
-    if(G.dailyReady()&&!boot.fresh&&!window.TEST_MODE){   // test mode: gift only via Settings > Test so QC can capture clean screens
+    if(G.dailyReady()&&!boot.fresh&&!window.TEST_MODE&&!window.TEST_LV10){   // test mode: gift only via Settings > Test so QC can capture clean screens
  window.__streakSaved=G.streakSaved(); G.claimDaily(); }
   };
   requestAnimationFrame(loop);

@@ -708,6 +708,12 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 @media (max-width:520px){ #multBadge{display:none!important} }
 /* Unko Kuli sits in the top bar, left of the level circle, so the room can start higher. */
 #hud{z-index:12}
+#testTag{position:fixed;z-index:13;top:calc(var(--sat) + 50px);right:8px;pointer-events:none;
+  font:800 10px/1 system-ui,sans-serif;letter-spacing:.06em;color:#3a2500;background:#ffe08a;
+  border-radius:8px;padding:3px 6px;opacity:.9;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+#testTag.hidden{display:none}
+#hud .pill.cash{min-width:0;flex:0 1 auto}
+#hud .pill.cash b{min-width:0}
 #hud .goal{position:relative;top:auto!important;left:auto!important;right:auto!important;width:44px;height:44px;min-width:44px;min-height:44px;max-width:44px!important;margin:0;padding:0!important;border:0;border-radius:50%!important;flex:none;display:grid;place-items:center;overflow:visible;background:transparent;box-shadow:none;z-index:2}
 #hud .goal:empty{display:none}
 #hud .goal .gport{width:44px!important;height:44px!important;border:2px solid #ffd96a;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,.35)}

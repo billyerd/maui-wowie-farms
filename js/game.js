@@ -1175,6 +1175,20 @@ window.G = (function(){
     if(raw&&!playerIdOk(raw.pid)&&!st._holdSave) save();
     return {fresh:!raw,off,migrated:false,corrupt:false,kept:schemaKept};
   }
+  // Fresh ?test=lv10 farm. Buildings stay locked behind their level and cost.
+  // Strains with unlockLevel <= 10 show up in the shop. The tutorial does not.
+  function applyTestStart(){
+    st.level=10; st.xp=0; st.cash=100000000;
+    st.land=false; st.ghBuilt=false; st.permit=false; st.found=false; st.inBuilt=false; st.breedLab=false;
+    st.garage=0; st.garageKeep=0; st.garageV=3;
+    st.room='garage'; st.loc='garage';
+    st.tut={v:1,step:0,on:false,done:true,skip:true,bought:0};
+    st.streak={n:0,last:dayKey()};
+    if(st.gecko) st.gecko.next=240;
+    syncPlots();
+    lvlQuiet=true; refreshUnlocks(); lvlQuiet=false;
+    save();
+  }
   function applyEntitlements(){
     const P=window.Payments; if(!P) return;
     if(P.isOwned('pass2x')||P.isOwned('pass2x_g')) st.pass2x=true;
@@ -1377,7 +1391,7 @@ window.G = (function(){
     recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
-    tick, simulate, save, load, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,
+    tick, simulate, save, load, applyTestStart, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,
     devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll, devGrantCash, devGrantGems,
   };
 })();

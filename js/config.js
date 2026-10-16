@@ -21,6 +21,13 @@ window.GAME_CONFIG = {
   const q=new URLSearchParams(location.search); if(q.get('test')==='1') sessionStorage.setItem('mwf_test','1'); if(q.get('test')==='0') sessionStorage.removeItem('mwf_test');
   const slot=localStorage.getItem('mwf_test_slot'); window.TEST_MODE=sessionStorage.getItem('mwf_test')==='1'||!!slot;
   if(slot) window.GAME_CONFIG.saveKey='mwfarms_test_'+slot; window.TEST_SLOT=slot||null;
+  // ?test=lv10 is a separate farm. It does not set mwf_test_slot, so a normal
+  // visit (no parameter) keeps reading mwfarms_save_v1.
+  if(q.get('test')==='lv10'){
+    window.TEST_LV10=true;
+    window.GAME_CONFIG.saveKey='mwfarms_test_v1';
+    if(q.get('reset')==='1') localStorage.removeItem('mwfarms_test_v1');
+  }
 }catch(e){} })();
 /* Hidden tester panel (?dev=1) and the ?test=1 jump menu. Off unless this tab opted in
    on a build that allows them. Store builds set GAME_CONFIG.allowDevTools to false
