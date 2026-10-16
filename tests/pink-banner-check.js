@@ -97,7 +97,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
       G.st.level = 8;
       G.st.xp = 0;
       G.st.tut = {v:1,step:0,on:false,done:true,skip:true,bought:0};
-      if(G.st.streak) G.st.streak.last = G.dayKey();
+      if(G.st.streak){ const d=new Date(); G.st.streak.last=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
       G.setFest('makahiki');
       G.st.market.hot = 'acdc';
       G.st.market.hotT = 90;
@@ -188,12 +188,20 @@ localStorage.removeItem('mwfarms_test_v1');` });
       const modal=document.getElementById('modal');
       const pest=modal && !modal.classList.contains('hidden') && /Mold spotted/.test(modal.textContent||'');
       const ok=document.querySelector('#modal .acts .btn'); if(ok) ok.click();
-      return { story: story.slice(0,500), market: market.slice(0,400), shop: shop.slice(0,400), pest: !!pest };
+      return {
+        storyFest: /Festival now/i.test(story) && /Harvest Festival/i.test(story),
+        storyEvent: /Island Festival/i.test(story) && /2x XP/i.test(story),
+        market: /Tourist rush/i.test(market) && /ACDC/i.test(market),
+        shop: /2x growth/.test(shop) && /2x sale price/.test(shop) && /Better pheno odds/.test(shop),
+        pest: !!pest,
+        storyTail: story.slice(-280),
+        marketHead: market.slice(0,180)
+      };
     })()`);
-    assert(panels && /Festival now/.test(panels.story) && /Harvest Festival/.test(panels.story), 'Story card lost the festival ' + JSON.stringify(panels && panels.story));
-    assert(/Island Festival/.test(panels.story) && /2x XP/.test(panels.story), 'Story card lost the timed event ' + JSON.stringify(panels.story));
-    assert(/Tourist rush/.test(panels.market) && /ACDC/.test(panels.market), 'Market lost the sale ' + JSON.stringify(panels.market));
-    assert(/2x growth/.test(panels.shop) && /2x sale price/.test(panels.shop) && /Better pheno odds/.test(panels.shop), 'shop lost the running boosts ' + JSON.stringify(panels.shop));
+    assert(panels && panels.storyFest, 'Story card lost the festival ' + JSON.stringify(panels && panels.storyTail));
+    assert(panels.storyEvent, 'Story card lost the timed event ' + JSON.stringify(panels.storyTail));
+    assert(panels.market, 'Market lost the sale ' + JSON.stringify(panels.marketHead));
+    assert(panels.shop, 'shop lost the running boosts');
     assert(panels.pest, 'mold pop-up did not open');
 
     await sleep(200);
