@@ -620,8 +620,20 @@ window.R=(function(){
     // fertigation: reservoir + dosing controller, blue drip lines along every bench
     if(L('fert')){
       list.push({y:470,draw:()=>{ const k=ip(470); cshadow({x:850,y:470},k,.5); art('p_fertig',850,472,1.0,k); }}); }
-    // veg room: a lit veg tent in the porch corner, flap open
-    if(L('veg')) list.push({y:540,draw:()=>{ const k=ip(540); cshadow({x:262,y:540},k,.45); art('p_vegtent',262,543,1.25,k); }});
+    // veg room: a wood grow table with pots and trays, same corner the tent used to occupy
+    if(L('veg')) list.push({y:540,draw:()=>{ const k=ip(540), x0=262, y0=540;
+      ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(x0,y0+6,0.55*k,0.12*k,0,0,TAU); ctx.fill();
+      ctx.fillStyle='#5a3c22'; ctx.fillRect(x0-0.42*k,y0-0.34*k,0.06*k,0.36*k); ctx.fillRect(x0+0.36*k,y0-0.34*k,0.06*k,0.36*k);
+      ctx.fillStyle='#6b4a2a'; ctx.fillRect(x0-0.46*k,y0-0.08*k,0.92*k,0.05*k);
+      const top=ctx.createLinearGradient(x0-0.5*k,y0-0.42*k,x0+0.5*k,y0-0.28*k); top.addColorStop(0,'#a07848'); top.addColorStop(1,'#6e4c2c');
+      ctx.fillStyle=top; ctx.beginPath(); ctx.roundRect(x0-0.5*k,y0-0.42*k,k,0.12*k,3); ctx.fill();
+      ctx.fillStyle='#3a2a18'; ctx.fillRect(x0-0.44*k,y0-0.4*k,0.88*k,0.035*k);
+      for(const u of [-0.28,0,0.28]){ const px=x0+u*k, py=y0-0.42*k;
+        ctx.fillStyle='#1e2024'; ctx.beginPath(); ctx.moveTo(px-0.07*k,py); ctx.lineTo(px-0.05*k,py-0.11*k); ctx.lineTo(px+0.05*k,py-0.11*k); ctx.lineTo(px+0.07*k,py); ctx.fill();
+        ctx.fillStyle='#4a3520'; ctx.beginPath(); ctx.ellipse(px,py-0.1*k,0.045*k,0.016*k,0,0,TAU); ctx.fill();
+        ctx.fillStyle='#3e7a34'; ctx.beginPath(); ctx.ellipse(px,py-0.16*k,0.05*k,0.07*k,0,0,TAU); ctx.fill();
+        ctx.fillStyle='#2f5e28'; ctx.beginPath(); ctx.ellipse(px-0.03*k,py-0.2*k,0.03*k,0.045*k,-0.6,0,TAU); ctx.fill();
+      } }});
     // clone + mother room: rolling cart with humidity domes under a T5
     if(L('clone')) list.push({y:600,draw:()=>{ const k=ip(600); cshadow({x:345,y:600},k,.45); art('p_clonecart',345,603,.95,k); }});
     // drying + cure room: stacked hanging dry nets with branches in the back-left corner
