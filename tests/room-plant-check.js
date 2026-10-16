@@ -1,5 +1,6 @@
-/* Room plants use the painted shop portraits and growth art, stay in the pot,
-   and fit the cell. The procedural stand-in is only a fallback.
+/* Room plants are original painted growth art: a stem, fan leaves, and
+   strain-colored colas. They stay in the pot and fit the cell.
+   The seed shop keeps its own bud portraits.
    Run: node tests/room-plant-check.js */
 const { spawn } = require('child_process');
 const http = require('http');
@@ -124,7 +125,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
       console.log('shot', file);
     }
 
-    // Fill every owned plot in a zone. Young plants keep a growth-stage picture; ripe plants use the shop portrait.
+    // Fill every owned plot in a zone. Each growth stage is its own painted plant.
     const scene = (room, zone, prep) => `(() => {
       ${prep}
       G.syncPlots();
@@ -150,10 +151,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
       console.log(tag, JSON.stringify({ n: m.n, room: m.room, calls: m.calls, sprites: (m.sprites||[]).length, errs: m.errs }));
       assert(m.room, tag + ' room missing');
       assert(!(m.errs && m.errs.length), tag + ' console errors ' + JSON.stringify(m.errs));
-      assert(m.calls === 0, tag + ' drew the procedural plant ' + m.calls + ' times');
       assert(m.sprites && m.sprites.length === m.n, tag + ' sprite count ' + (m.sprites && m.sprites.length) + ' vs pots ' + m.n);
       for (const s of m.sprites || []){
-        assert(s.painted && s.closeup, tag + ' pot ' + s.id + ' is not the seed-shop closeup ' + JSON.stringify(s));
+        assert(s.painted && s.grown && !s.closeup, tag + ' pot ' + s.id + ' is not the grown plant ' + JSON.stringify(s));
         const span = (s.foot || 0) - (s.cellTop || 0);
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
@@ -172,7 +172,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         owned.forEach((p,i)=>{ p.strain=ids[i%ids.length]; p.prog=i%3===0?1:i%3===1?.35:.8; p.water=1; p.food=1; p.pest=null; });
         G.setRoom('${room}');
         if(R.resize) R.resize();
-        const feet=()=>R.bedSprites().map(s=>({id:s.id,foot:s.foot,top:s.top,h:s.h,closeup:s.closeup,cellTop:s.cellTop}));
+        const feet=()=>R.bedSprites().map(s=>({id:s.id,foot:s.foot,top:s.top,h:s.h,closeup:s.closeup,grown:s.grown,stage:s.stage,cellTop:s.cellTop}));
         R.setDprCap(1); R.resize(); R.frame(0.05);
         const low=feet();
         R.zoomAt(innerWidth/2, innerHeight/2, 2.4);
@@ -188,16 +188,50 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(m.low.length && m.low.length === m.hi.length && m.low.length === m.pinched.length, tag + ' zoom lost plants');
       for (let i = 0; i < m.low.length; i++){
         const a = m.low[i], b = m.pinched[i], c = m.hi[i];
-        assert(a.closeup && b.closeup && c.closeup, tag + ' zoom left the shop closeup');
+        assert(a.grown && b.grown && c.grown && !a.closeup, tag + ' zoom left the grown plant');
         assert(Math.abs(a.foot - b.foot) < 0.6 && Math.abs(a.foot - c.foot) < 0.6, tag + ' zoom moved the plant off the pot ' + JSON.stringify([a,b,c]));
         assert(Math.abs((a.top + a.h) - a.foot) < 0.6 && Math.abs((c.top + c.h) - c.foot) < 0.6, tag + ' plant is not sitting on the soil');
         assert(a.top >= a.cellTop - 1 && c.top >= c.cellTop - 1, tag + ' zoom grew the plant out of the cell');
       }
     }
 
+    async function stageRow(label){
+      const m = await evalJs(`(() => {
+        G.st.garage=0; G.st.garageKeep=0; G.syncPlots();
+        const owned=G.st.plots.filter(p=>p.zone==='garage'&&p.owned);
+        const setup=[[0.04,'northern-lights'],[0.34,'northern-lights'],[0.75,'northern-lights'],[1,'northern-lights'],[1,'granddaddy-purple']];
+        owned.forEach((p,i)=>{
+          const s=setup[i];
+          if(!s){ p.strain=null; p.prog=0; return; }
+          p.strain=s[1]; p.prog=s[0]; p.water=1; p.food=1; p.pest=null;
+        });
+        G.setRoom('garage');
+        const goal=document.getElementById('goal'); if(goal) goal.classList.remove('open');
+        if(R.resize) R.resize();
+        R.frame(0.05); R.frame(0.05);
+        return { sprites:R.bedSprites(), errs:(window.__errs||[]).slice(0,4) };
+      })()`);
+      console.log('stages', label, JSON.stringify((m.sprites||[]).map(s=>({stage:s.stage,h:+s.h.toFixed(1),w:+s.w.toFixed(1)}))));
+      assert(!(m.errs && m.errs.length), label + ' stage errors ' + JSON.stringify(m.errs));
+      const four=(m.sprites||[]).slice(0,4);
+      assert(four.map(s=>s.stage).join(',')==='0,2,4,5', label + ' stages ' + four.map(s=>s.stage).join(','));
+      assert(four[0].h < four[1].h && four[1].h < four[3].h, label + ' growth did not read ' + four.map(s=>s.h).join(','));
+      for (const s of m.sprites||[]){
+        assert(s.grown && s.painted && !s.closeup, label + ' stage plant is not grown art');
+        assert(Math.abs((s.top + s.h) - s.foot) < 0.6, label + ' stage plant is not rooted');
+      }
+      await shot('stages_' + label);
+      await evalJs(`(() => { UI.open('seeds'); return true; })()`);
+      await sleep(700);
+      await shot('shop_' + label);
+      await evalJs(`(() => { UI.close(); return true; })()`);
+      await sleep(200);
+    }
+
     await boot(390, 844);
     check('390 garage 5', await evalJs(scene('garage', 'garage', `G.st.garage=0; G.st.garageKeep=0;`)));
     await shot('garage_5_390x844');
+    await stageRow('390x844');
     check('390 garage 20', await evalJs(scene('garage', 'garage', `G.st.garage=5; G.st.garageKeep=0;`)));
     await shot('garage_20_390x844');
     check('390 greenhouse', await evalJs(scene('gh', 'gh', `G.st.ghBuilt=true; G.st.gh=0; G.st.ghMatch=12;`)));
@@ -213,6 +247,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
     await boot(320, 568);
     check('320 garage 5', await evalJs(scene('garage', 'garage', `G.st.garage=0; G.st.garageKeep=0;`)));
     await shot('garage_5_320x568');
+    await stageRow('320x568');
     check('320 garage 20', await evalJs(scene('garage', 'garage', `G.st.garage=5; G.st.garageKeep=0;`)));
     await shot('garage_20_320x568');
     check('320 greenhouse', await evalJs(scene('gh', 'gh', `G.st.ghBuilt=true; G.st.gh=0; G.st.ghMatch=12;`)));

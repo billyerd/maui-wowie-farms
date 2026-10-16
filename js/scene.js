@@ -804,32 +804,27 @@ window.R=(function(){
     out.painted=0;
     if(detailC.size>160) detailC.clear(); detailC.set(key,out); return out;
   }
-  // In-room plant: the seed-shop closeup, painted once per strain and stage, then scaled into the pot.
-  function shopSprite(st,prog,destPx){
-    if(!st||!st.id) return null;
+  // In-room plant: original painted growth art, one sprite per strain and stage.
+  // The seed shop keeps its own bud portraits. This drawing is the whole plant.
+  function grownSprite(st,prog){
+    if(!st||!st.id||!window.Art) return null;
     const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
     const light=roomLight();
-    const size=512;
-    const key='shop|'+st.id+'|'+stage+'|'+light+'|'+size;
+    const key='grown|'+(st.id||'')+'|'+stage+'|'+light;
     const hit=detailC.get(key); if(hit) return hit;
-    const builtKey='shop|'+st.id+'|'+light+'|'+size;
-    let built=detailC.get(builtKey);
-    if(!built){
-      const plant=closeupPlant(st,size); if(!plant) return null;
-      const c=document.createElement('canvas'); c.width=size; c.height=size;
-      const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
-      x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
-      x.drawImage(plant.c,0,0);
-      if(!plant.sig){ x.save(); x.globalCompositeOperation='source-atop'; frostDots(x,st,plant.L,size); x.restore(); }
-      applyRoomLight(x,size,size,light);
-      try{ built=cropOpaque(c); }
-      catch(e){ built={c,w:size,h:size,base:1}; }
-      built.painted=1; built.closeup=1;
-      if(detailC.size>160) detailC.clear();
-      detailC.set(builtKey,built);
-    }
-    detailC.set(key,built);
-    return built;
+    const sc=3, LW=250, LH=270, foot=LH-6;
+    const W=Math.round(LW*sc), H=Math.round(LH*sc);
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
+    x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+    x.save(); x.scale(sc,sc);
+    Art.drawPlant(x,st,stage,LW/2,foot,1,0);
+    x.restore();
+    applyRoomLight(x,W,H,light);
+    let out; try{ out=cropOpaque(c); }catch(e){ out={c,w:W,h:H,base:1}; }
+    out.painted=1; out.grown=1; out.closeup=0; out.stage=stage;
+    if(detailC.size>96) detailC.clear();
+    detailC.set(key,out); return out;
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -878,11 +873,11 @@ window.R=(function(){
         ctx.globalAlpha=prev;
         return {h:hDraw,w:wDraw};
       };
-      const spA=shopSprite(st,prog,dest);
+      const spA=grownSprite(st,prog);
       let box=null;
       if(spA) box=drawSp(spA,1);
       else if(window.Art){ const sp=procSprite(st,prog,dest); box=drawSp(sp,1); }
-      if(box) bedSprites.push({id:p.id,painted:!!(spA&&spA.painted),closeup:!!(spA&&spA.closeup),h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW});
+      if(box) bedSprites.push({id:p.id,painted:!!(spA&&spA.painted),closeup:!!(spA&&spA.closeup),grown:!!(spA&&spA.grown),stage:spA?spA.stage:-1,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }

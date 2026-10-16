@@ -62,37 +62,49 @@ window.Art = (function(){
     ctx.fillStyle=shade(col,.45); ctx.beginPath(); ctx.arc(-size*.02,-size*.02,Math.max(.6,size*.022),0,TAU); ctx.fill();
     ctx.restore();
   }
-  // Cola: sugar leaves behind stacked calyxes, curled pistils, trichome stalks. Cached with the plant sprite.
+  // Cola: a column of teardrop calyxes, wider through the middle, with sugar leaves,
+  // curled pistils, and stalked trichomes. Original paint in the shop-bud language.
   function cola(ctx,x,y,ang,len,wid,c,R,ripe){
-    const dx=Math.cos(ang), dy=Math.sin(ang), n=ripe?10:7, blobs=[];
+    const dx=Math.cos(ang), dy=Math.sin(ang), px=-dy, py=dx;
+    const n=ripe?13:8, blobs=[];
     for(let i=0;i<n;i++){
-      const u=i/(n-1), taper=Math.sin(Math.PI*Math.min(1,u*.9))*(1-u*.28);
-      const r=wid*(.5+.62*taper)*(.88+R()*.16);
-      blobs.push([x+dx*len*u+(R()-.5)*wid*.2, y+dy*len*u+(R()-.5)*wid*.1, r, u]);
+      const u=(i+.45)/n;
+      const belly=Math.sin(Math.PI*Math.pow(Math.min(1,u/.92),.8));
+      const r=wid*(.34+.78*belly)*(.9+R()*.12);
+      const side=(i%2?1:-1)*(u<.18?.05:.22+R()*.38)*(u>.86?.45:1);
+      const along=u*(ripe?.96:.82);
+      blobs.push([x+dx*len*along+px*wid*side, y+dy*len*along+py*wid*side*.85, r, u]);
     }
-    blobs.forEach(([px,py,r,u])=>{ if(u>.78||R()>.5) return;
-      for(const sd of [-1,1]){ ctx.save(); ctx.translate(px,py); ctx.rotate(ang+sd*(.95+R()*.3)); ctx.fillStyle=c.sugar; leaflet(ctx,r*1.25,r*.15,7); ctx.fill(); ctx.restore(); } });
-    for(const [px,py,r] of blobs){
-      ctx.save(); ctx.translate(px,py); ctx.rotate(ang);
-      const g=ctx.createRadialGradient(-r*.22,-r*.3,r*.06,r*.05,r*.08,r);
-      g.addColorStop(0,c.budLight); g.addColorStop(.5,c.bud); g.addColorStop(1,shade(c.bud,-.45));
-      ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(0,0,r*.58,r*.82,0,0,TAU); ctx.fill();
-      ctx.fillStyle=shade(c.budLight,.1); ctx.globalAlpha=.8; ctx.beginPath(); ctx.ellipse(-r*.1,-r*.18,r*.26,r*.34,-.4,0,TAU); ctx.fill(); ctx.globalAlpha=1;
-      ctx.strokeStyle=shade(c.bud,-.32); ctx.lineWidth=Math.max(.45,r*.04); ctx.beginPath(); ctx.ellipse(0,0,r*.58,r*.82,0,0,TAU); ctx.stroke();
+    blobs.forEach(([bx,by,r,u])=>{
+      if(u<.12) return;
+      const sd=R()<.5?-1:1;
+      ctx.save(); ctx.translate(bx,by); ctx.rotate(ang+sd*(.55+R()*.55));
+      ctx.fillStyle=c.sugar; leaflet(ctx,r*(ripe?1.15:1.45),r*(ripe?.1:.15),7); ctx.fill();
+      ctx.restore();
+    });
+    for(const [bx,by,r] of blobs){
+      ctx.save(); ctx.translate(bx,by); ctx.rotate(ang+(R()-.5)*.35);
+      const g=ctx.createRadialGradient(-r*.28,-r*.38,r*.04,r*.08,r*.12,r*1.05);
+      g.addColorStop(0,c.budLight); g.addColorStop(.42,c.bud); g.addColorStop(1,shade(c.bud,-.52));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(0,0,r*.66,r*.92,0,0,TAU); ctx.fill();
+      ctx.fillStyle=shade(c.budLight,.08); ctx.globalAlpha=.75;
+      ctx.beginPath(); ctx.ellipse(-r*.12,-r*.22,r*.24,r*.32,-.45,0,TAU); ctx.fill(); ctx.globalAlpha=1;
+      ctx.strokeStyle=shade(c.bud,-.38); ctx.lineWidth=Math.max(.4,r*.04);
+      ctx.beginPath(); ctx.moveTo(0,r*.72); ctx.quadraticCurveTo(-r*.08,0,0,-r*.78); ctx.stroke();
       ctx.restore();
     }
-    ctx.strokeStyle=c.pistil; ctx.fillStyle=shade(c.pistil,.22); ctx.lineCap='round'; ctx.lineWidth=Math.max(.8,wid*.06);
-    for(const [px,py,r,u] of blobs){ if(u<.12) continue; const hairs=ripe?4:2;
-      for(let k=0;k<hairs;k++){ const a=-2.4+R()*1.4, sx=px+Math.cos(a)*r*.15, sy=py+Math.sin(a)*r*.1, curl=(R()-.5)*r*1.15;
-        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(sx+curl*.45,sy-r*.75,sx+curl,sy-r*1.05); ctx.stroke();
-        ctx.beginPath(); ctx.arc(sx+curl,sy-r*1.05,Math.max(.5,wid*.028),0,TAU); ctx.fill(); } }
-    const frost=Math.max(.2,Math.min(1,c.frost==null?.65:c.frost))*(ripe?1:.4);
-    for(const [px,py,r] of blobs){ const dots=Math.round((ripe?9:4)*frost);
-      for(let k=0;k<dots;k++){ const a=R()*TAU, d=Math.sqrt(R())*r*.7, qx=px+Math.cos(a)*d, qy=py+Math.sin(a)*d, head=Math.max(.55,wid*(ripe?.04:.028));
-        ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=.4; ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(qx+(R()-.5)*.3,qy-head*1.25); ctx.stroke();
-        const amber=ripe&&R()<.16;
-        ctx.fillStyle=amber?'rgba(255,186,70,.92)':'rgba(255,255,255,'+(.55+R()*.4)+')'; ctx.beginPath(); ctx.arc(qx,qy-head*1.25,head,0,TAU); ctx.fill();
-        ctx.fillStyle='rgba(255,255,255,.95)'; ctx.beginPath(); ctx.arc(qx-head*.25,qy-head*1.45,head*.26,0,TAU); ctx.fill(); } }
+    ctx.strokeStyle=c.pistil; ctx.fillStyle=shade(c.pistil,.18); ctx.lineCap='round'; ctx.lineWidth=Math.max(.7,wid*.045);
+    for(const [bx,by,r,u] of blobs){ if(u<.08) continue; const hairs=ripe?3:2;
+      for(let k=0;k<hairs;k++){ const a=-2.6+R()*2.2, sx=bx+Math.cos(a)*r*.12, sy=by+Math.sin(a)*r*.08, curl=(R()-.5)*r*1.35, up=-r*(ripe?.85:1.15);
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(sx+curl*.4,sy+up*.45,sx+curl,sy+up); ctx.stroke();
+        ctx.beginPath(); ctx.arc(sx+curl,sy+up,Math.max(.45,wid*.022),0,TAU); ctx.fill(); } }
+    const frost=Math.max(.15,Math.min(1,c.frost==null?.65:c.frost))*(ripe?1:.35);
+    for(const [bx,by,r] of blobs){ const dots=Math.round((ripe?8:3)*frost);
+      for(let k=0;k<dots;k++){ const a=R()*TAU, d=Math.sqrt(R())*r*.72, qx=bx+Math.cos(a)*d, qy=by+Math.sin(a)*d, head=Math.max(.5,wid*(ripe?.034:.022));
+        ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=.35; ctx.beginPath(); ctx.moveTo(qx,qy); ctx.lineTo(qx+(R()-.5)*.25,qy-head*1.3); ctx.stroke();
+        const amber=ripe&&R()<.14;
+        ctx.fillStyle=amber?'rgba(232,164,62,.95)':'rgba(255,255,255,'+(.5+R()*.45)+')'; ctx.beginPath(); ctx.arc(qx,qy-head*1.3,head,0,TAU); ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,.95)'; ctx.beginPath(); ctx.arc(qx-head*.22,qy-head*1.48,head*.24,0,TAU); ctx.fill(); } }
   }
   // Plant sprite cache: key strain|stage|zone|quality
   const cache=new Map();
@@ -135,63 +147,135 @@ window.Art = (function(){
     ctx.fillStyle=shade(col,-.45); ctx.beginPath(); ctx.ellipse(x,y,w,w*.42,0,0,TAU); ctx.fill();
     ctx.fillStyle=shade(col,.28); ctx.beginPath(); ctx.ellipse(x-w*.2,y-w*.12,w*.45,w*.18,0,0,TAU); ctx.fill();
   }
+  function oddFingers(n){ n=Math.round(n); if(n<3) return 3; if(n>9) return 9; return n%2?n:n-1; }
+  function stemStroke(ctx,x0,y0,x1,y1,w,bend,col){
+    const mx=(x0+x1)/2+bend, my=(y0+y1)/2;
+    const g=ctx.createLinearGradient(x0-w,y0,x0+w,y1);
+    g.addColorStop(0,shade(col,-.15)); g.addColorStop(.35,shade(col,.22)); g.addColorStop(1,shade(col,-.48));
+    ctx.strokeStyle=g; ctx.lineWidth=w; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.quadraticCurveTo(mx,my,x1,y1); ctx.stroke();
+    ctx.strokeStyle='rgba(232,255,210,.42)'; ctx.lineWidth=Math.max(.45,w*.22);
+    ctx.beginPath(); ctx.moveTo(x0-w*.15,y0); ctx.quadraticCurveTo(mx-w*.2,my,x1-w*.08,y1); ctx.stroke();
+  }
+  function stipules(ctx,x,y,sz,col){
+    ctx.fillStyle=shade(col,.2);
+    ctx.beginPath(); ctx.moveTo(x-.4,y); ctx.lineTo(x-sz*1.5,y-sz*2.4); ctx.lineTo(x-.15,y-sz*.35); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x+.4,y); ctx.lineTo(x+sz*1.5,y-sz*2.4); ctx.lineTo(x+.15,y-sz*.35); ctx.fill();
+  }
+  function axilHairs(ctx,x,y,side,col,R,n){
+    ctx.strokeStyle=col; ctx.fillStyle=shade(col,.2); ctx.lineCap='round'; ctx.lineWidth=.8;
+    for(let i=0;i<n;i++){
+      const a=-Math.PI/2+side*(.35+R()*.7), L=5+R()*7;
+      const x1=x+Math.cos(a)*L, y1=y+Math.sin(a)*L;
+      ctx.beginPath(); ctx.moveTo(x+side*.6,y); ctx.quadraticCurveTo(x+Math.cos(a)*L*.45,y-L*.35,x1,y1); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x1,y1,.7,0,TAU); ctx.fill();
+    }
+  }
+  // Original painted plant. Foot is (bx,by), growing up. Stages:
+  // 0 seedling, 1 early veg, 2 veg, 3 pre-flower, 4 flower, 5 ripe.
   function drawPlant(ctx,st,stage,bx,by,sz,droop=0){
-    const R=rng(hash(st.id)+stage*7); const col=plantColors(st);
+    const R=rng(hash(st.id)+stage*13+3); const col=plantColors(st);
     const sativa=st.type==='Sativa', indica=st.type==='Indica';
-    const shape=(st.look&&st.look.leafShape)||'';
-    const k=sativa||shape==='narrow'?9:indica||shape==='broad'?5:7;
-    let wr=sativa?.14:indica?.28:.18;
-    if(shape==='narrow') wr*=.82; else if(shape==='broad') wr*=1.18;
-    // Seedling: stem planted at by, smooth cotyledons, then one serrated true leaf.
-    if(stage===0){
-      drawStem(ctx,bx,by,bx,by-22*sz,Math.max(1.6,2.2*sz),0);
-      nodeRing(ctx,bx,by-16*sz,2.4*sz,'#3d6a2c');
-      ctx.fillStyle='#8ed06a'; ctx.beginPath(); ctx.ellipse(bx-7*sz,by-18*sz,7*sz,2.6*sz,-.35,0,TAU); ctx.fill();
-      ctx.fillStyle='#74c258'; ctx.beginPath(); ctx.ellipse(bx+7*sz,by-18*sz,7*sz,2.6*sz,.35,0,TAU); ctx.fill();
-      ctx.strokeStyle='rgba(236,255,220,.7)'; ctx.lineWidth=Math.max(.6,.5*sz);
-      ctx.beginPath(); ctx.moveTo(bx-12*sz,by-17*sz); ctx.lineTo(bx-2*sz,by-19*sz); ctx.moveTo(bx+12*sz,by-17*sz); ctx.lineTo(bx+2*sz,by-19*sz); ctx.stroke();
-      fanLeaf(ctx,bx,by-22*sz,-Math.PI/2,14*sz,3,wr,'#b6ee86','#2f6a28',3*sz);
+    const look=st.look||{};
+    const leafShape=look.leafShape||'';
+    const budShape=look.shape||'';
+    const full=oddFingers(leafShape==='narrow'||sativa?9:leafShape==='broad'||indica?5:7);
+    let wr=leafShape==='narrow'||sativa?.1:leafShape==='broad'||indica?.2:.145;
+    const stretch=sativa?1.14:indica?.84:1;
+    const dr=droop*.9;
+    if(stage<=0){
+      const h=26*sz*stretch, top=by-h;
+      stemStroke(ctx,bx,by,bx,top,Math.max(1.7,2.4*sz),0,'#6ea24a');
+      nodeRing(ctx,bx,by-h*.62,2.2*sz,'#3d6a2c');
+      stipules(ctx,bx,by-h*.62,1.6*sz,'#8ed06a');
+      ctx.fillStyle='#9ed872'; ctx.beginPath(); ctx.ellipse(bx-6.5*sz,by-h*.7,6.2*sz,2.5*sz,-.4,0,TAU); ctx.fill();
+      ctx.fillStyle='#7ec85a'; ctx.beginPath(); ctx.ellipse(bx+6.5*sz,by-h*.66,6.2*sz,2.5*sz,.4,0,TAU); ctx.fill();
+      ctx.strokeStyle='rgba(236,255,214,.75)'; ctx.lineWidth=.7;
+      ctx.beginPath(); ctx.moveTo(bx-11*sz,by-h*.66); ctx.quadraticCurveTo(bx-6*sz,by-h*.78,bx-1.5*sz,by-h*.7);
+      ctx.moveTo(bx+11*sz,by-h*.62); ctx.quadraticCurveTo(bx+6*sz,by-h*.74,bx+1.5*sz,by-h*.66); ctx.stroke();
+      fanLeaf(ctx,bx,by-h*.58,-Math.PI/2-1.05+dr,11*sz,3,wr*.9,'#b7ee8c','#2d6424',5*sz);
+      fanLeaf(ctx,bx,by-h*.5,-Math.PI/2+1.05-dr,12*sz,3,wr*.9,'#c6f49a','#2f6a28',5.5*sz);
+      fanLeaf(ctx,bx,top+1*sz,-Math.PI/2,8*sz,3,wr,'#d9f7ae','#3a7a30',2.2*sz);
       return;
     }
-    const stretch=sativa?1.12:indica?.84:1;
-    const H=[0,48,92,128,156,176][stage]*sz*stretch;
-    const nodes=[0,2,3,4,5,6][stage];
-    let leafCol=stage>=5?col.leafLate:stage===4?mix(col.leaf,col.leafLate,.45):col.leaf; if(droop) leafCol=mix(leafCol,'#b5a24a',.4);
-    const dark=shade(leafCol,-.42), back=shade(leafCol,-.22), backDark=shade(leafCol,-.55);
-    const flowering=stage>=4, ripe=stage>=5;
-    const br=[];
-    for(let i=0;i<nodes;i++){
-      const t=nodes===1?.55:i/(nodes-1); const y=by-H*(.16+.68*t);
-      const len=H*(.22*(1-t*.55)+.06);
+    const H=[0,78,118,146,168,190][stage]*sz*stretch;
+    const n=[0,3,4,5,5,5][stage];
+    let leafCol=stage>=5?col.leafLate:stage===4?mix(col.leaf,col.leafLate,.4):col.leaf;
+    if(droop) leafCol=mix(leafCol,'#b7a44e',.38);
+    const dark=shade(leafCol,-.4), young=mix(leafCol,'#d8f6a6',.42);
+    const lean=(R()-.5)*(sativa?7:4)*sz;
+    const ys=[];
+    { let acc=0; const wts=[];
+      for(let i=0;i<n;i++){ const t=n===1?.5:i/(n-1); let w=.62+.5*Math.sin(Math.PI*Math.min(1,t)); if(stage>=4&&t>.62) w*=.5; if(stage===3&&t>.7) w*=.72; wts.push(w); acc+=w; }
+      let y=by-H*.06; const span=H*.8;
+      for(let i=0;i<n;i++){ y-=span*wts[i]/acc; ys.push(y); } }
+    const nx=y=>bx+lean*((by-y)/Math.max(1,H));
+    const topY=ys[ys.length-1]-H*(stage>=4?.16:.1);
+    const fingersAt=t=>oddFingers(stage===1?Math.min(5,full):t>.86?3:t>.64?Math.min(full,5):full);
+    const leafAt=(i)=>{ const t=n===1?.4:i/(n-1); const base=i===0&&n>2?.88:1; return H*(indica?.25:sativa?.19:.22)*base*(1-t*.46)*(stage===1?1.18:1); };
+    // Far leaves, darker and steeper, so the stalk has depth before the front fans.
+    for(let i=0;i<n;i++){
+      const t=i/(n-1), y=ys[i], x=nx(y), s=leafAt(i)*.72;
+      const colB=shade(leafCol,-.18), dk=shade(leafCol,-.5);
+      fanLeaf(ctx,x,y,-Math.PI/2-(.35+t*.2),s,Math.max(3,fingersAt(t)-2),wr,colB,dk,s*.48);
+    }
+    const tags=st.colorTags||[];
+    const stemCol=['purple','violet','lavender','pink','blue','black'].includes(tags[0])?mix('#5d8a3a',col.bud,.28):'#5f8d3c';
+    stemStroke(ctx,bx,by,nx(topY),topY,Math.max(2.2,(2.6+stage*.45)*sz),lean*.35,stemCol);
+    const limbs=[];
+    for(let i=0;i<n;i++){
+      const t=i/(n-1), y=ys[i], x=nx(y);
+      nodeRing(ctx,x,y,Math.max(1.7,(1.5+stage*.18)*sz)*(1-t*.25),leafCol);
+      stipules(ctx,x,y,(1.3+stage*.15)*sz*(1-t*.3),young);
+      const spread=(indica?1.02:sativa?1.28:1.14)*(1-.14*t);
+      const twist=(i%2?1:-1)*.16+(R()-.5)*.06;
       for(const side of [-1,1]){
-        const a=-Math.PI/2+side*(indica?.55:.72)*(1-.22*t)+(R()-.5)*.08;
-        br.push({t,y,side,len,a});
+        const ang=-Math.PI/2+side*spread+twist+side*dr*.35;
+        const szL=leafAt(i)*(side<0?.92+R()*.1:1);
+        const colL=t>.72?mix(leafCol,young,.55):leafCol;
+        fanLeaf(ctx,x,y+sz*.4,ang,szL,fingersAt(t),wr,colL,dark,szL*.7);
+      }
+      const branch=(stage>=2&&t>.1&&t<.7) || (stage===1&&i===1);
+      if(branch){
+        for(const side of [-1,1]){
+          const len=H*(stage===1?.14:.18+.12*(1-t))*(sativa?1.08:indica?.8:.94)*(.8+R()*.28)*(side<0?.88:1);
+          const x1=x+side*len, y1=y-len*(indica?.8:.64);
+          limbs.push({x,y,x1,y1,side,t,len});
+        }
       }
     }
-    const dr=droop*.8;
-    // Far leaves first, darker, so the canopy has depth.
-    br.forEach(b=>{ const s=(H*.22*(1-b.t*.35)+7)*(.92+R()*.1); fanLeaf(ctx,bx+b.side*1.5,b.y,b.side>0?-.42-R()*.2+dr:Math.PI+.42+R()*.2-dr,s,Math.max(3,k-2),wr,back,backDark,s*.38); });
-    const sway=(R()-.5)*4*sz;
-    drawStem(ctx,bx,by,bx+sway*.25,by-H,Math.max(2.1,(2.4+stage*.55)*sz),sway);
-    br.forEach(b=>{
-      const tx=bx+Math.cos(b.a)*b.len*.62, ty=b.y+Math.sin(b.a)*b.len*.28;
-      drawStem(ctx,bx,b.y,tx,ty,Math.max(1.15,(1.2+stage*.22)*(1-b.t*.4)*sz),b.side*2);
-      nodeRing(ctx,bx,b.y,Math.max(1.8,(1.4+stage*.22)*sz),leafCol);
-      b.tx=tx; b.ty=ty;
+    limbs.forEach(b=>{
+      const w=Math.max(1.15,(1.35+stage*.16)*(1-b.t*.45)*sz);
+      stemStroke(ctx,b.x,b.y,b.x1,b.y1,w,b.side*b.len*.12,stemCol);
+      const midX=(b.x+b.x1)*.55, midY=(b.y+b.y1)*.5;
+      const ang=-Math.PI/2+b.side*(indica?.7:.95);
+      const s=leafAt(Math.min(n-1,Math.round(b.t*(n-1))))*.62;
+      fanLeaf(ctx,midX,midY,ang+b.side*dr*.2,s,oddFingers(Math.max(3,full-2)),wr,leafCol,dark,s*.62);
+      nodeRing(ctx,b.x1,b.y1,1.6*sz,leafCol);
     });
-    br.forEach(b=>{ const s=(H*.24*(1-b.t*.4)+8)*(.9+R()*.12); fanLeaf(ctx,bx+b.side*1.2,b.y+1,b.side>0?.48+R()*.18+dr:Math.PI-.48-R()*.18-dr,s,k,wr,leafCol,dark,s*.42); });
-    if(!flowering){
-      br.forEach(b=>fanLeaf(ctx,b.tx,b.ty,b.a+(b.side>0?dr:-dr)*.4,H*.1+6,k,wr,mix(leafCol,'#c6f08a',.18),dark,2*sz));
-      fanLeaf(ctx,bx+sway*.15,by-H,-Math.PI/2+dr*.15,H*.18+6,k,wr,mix(leafCol,'#d4f6a0',.25),dark,2*sz);
+    const form=budShape==='foxtail'||budShape==='spear'?1.22:budShape==='chunky'?.88:1;
+    const girth=(budShape==='chunky'?1.2:budShape==='spear'||budShape==='foxtail'?.74:1)*(.78+(look.density==null?.6:look.density)*.4);
+    const ripe=stage>=5, flower=stage>=4;
+    const hairs=ripe?shade(col.pistil,-.08):mix(col.pistil,'#f6f1e4',.78);
+    const c2={bud:ripe?col.bud:mix(col.bud,'#93c266',.42),budLight:ripe?col.budLight:mix(col.budLight,'#f4fbe6',.5),pistil:hairs,sugar:col.sugar,frost:(col.frost==null?.6:col.frost)*(ripe?1:.4)};
+    if(stage===3){
+      for(let i=0;i<n;i++){ const t=i/(n-1); if(t<.5) continue; axilHairs(ctx,nx(ys[i]),ys[i],i%2?1:-1,'#f7f4ea',R,3); }
+      fanLeaf(ctx,nx(topY),topY,-Math.PI/2+dr*.1,H*.11,3,wr,young,dark,H*.04);
       return;
     }
-    const chunk=indica||(st.look&&st.look.shape==='chunky')?1.15:sativa?.82:1;
-    const c2={bud:ripe?col.bud:mix(col.bud,'#8fc060',.35),budLight:ripe?col.budLight:mix(col.budLight,'#e7f6c8',.35),pistil:ripe?shade(col.pistil,-.06):'#f4f0dc',sugar:col.sugar,frost:col.frost};
-    br.filter(b=>b.t>.32).slice().sort((a,b)=>b.y-a.y).forEach(b=>{
-      const L=(ripe?28:16)*(1-b.t*.2)*sz*chunk, w=(ripe?9:5.5)*(1-b.t*.12)*sz*chunk;
-      cola(ctx,b.tx,b.ty,-Math.PI/2+(b.a+Math.PI/2)*.22,L,w,c2,R,ripe);
+    if(!flower){
+      fanLeaf(ctx,nx(topY),topY+2*sz,-Math.PI/2-.35,H*.12,oddFingers(Math.min(5,full)),wr,young,dark,H*.045);
+      fanLeaf(ctx,nx(topY),topY+1*sz,-Math.PI/2+.32,H*.1,3,wr,young,dark,H*.04);
+      fanLeaf(ctx,nx(topY),topY-1*sz,-Math.PI/2,H*.09,3,wr,mix(young,'#ffffff',.2),dark,H*.03);
+      return;
+    }
+    limbs.slice().sort((a,b)=>b.y-a.y).forEach(b=>{
+      const L=H*(ripe?.2:.13)*form*(1-b.t*.25), w=H*(ripe?.055:.04)*girth*(1-b.t*.15);
+      cola(ctx,b.x1,b.y1,-Math.PI/2+b.side*.12,L,w,c2,R,ripe);
     });
-    cola(ctx,bx+sway*.1,by-H+6*sz,-Math.PI/2,(ripe?52:30)*sz,(ripe?13:8)*sz*chunk,c2,R,ripe);
+    const xTop=nx(topY);
+    cola(ctx,xTop,topY+H*(ripe?.02:.04),-Math.PI/2,H*(ripe?.34:.22)*form,H*(ripe?.078:.055)*girth,c2,R,ripe);
+    if(!ripe){ for(let i=n-2;i<n;i++){ if(i<0) continue; axilHairs(ctx,nx(ys[i]),ys[i],1,'#f7f4ea',R,2); } }
   }
   // Procedural stand-in used until the painted sprite is ready, and if a photo canvas cannot be read.
   function thumbCanvas(st,size=96,locked=false){
