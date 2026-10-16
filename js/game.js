@@ -744,8 +744,19 @@ window.G = (function(){
     emit('pack',out); return out;
   }
   // ---------- upgrades / workers ----------
-  function upgNeedOk(d){ return !d.need||(d.need==='gh'?st.ghBuilt:d.need==='land'?st.land:d.need==='in'?st.inBuilt:d.need==='lab'?st.breedLab:true); }
-  function buyUpg(k){ if(k==='stand'||!UPG[k]) return false; const d=UPG[k], l=lv(k); if(l>=maxLv(d)) return false; if(!upgNeedOk(d)){ emit('toast',{t:'Unlock that location first',k:'bad'}); return false; } if(d.lvl&&st.level<d.lvl){ emit('toast',{t:d.name+' unlocks at level '+d.lvl,k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.upg[k]=l+1; if(k==='water'&&l+1>=1) done('hose'); emit('upgrade',k); return true; }
+  // Room gear stays locked until that room is actually built. Owned levels are left alone,
+  // so an old save that already has the greenhouse or the Indoor Facility keeps its gear.
+  function upgBlock(k){
+    const d=UPG[k]; if(!d) return '';
+    if(d.need==='gh'&&!st.ghBuilt) return 'Unlock the Greenhouse first';
+    if((d.loc==='indoor'||d.need==='in')&&!st.land&&!st.inBuilt) return 'Unlock the Indoor Facility first';
+    if(d.need==='in'&&!st.inBuilt) return 'Unlock the sealed benches first';
+    if(d.need==='land'&&!st.land) return 'Unlock the Indoor Facility first';
+    if(d.need==='lab'&&!st.breedLab) return 'Unlock the Breeding Room first';
+    return '';
+  }
+  function upgNeedOk(d){ if(!d) return false; if(d.need==='gh'&&!st.ghBuilt) return false; if((d.loc==='indoor'||d.need==='in')&&!st.land&&!st.inBuilt) return false; if(d.need==='in'&&!st.inBuilt) return false; if(d.need==='land'&&!st.land) return false; if(d.need==='lab'&&!st.breedLab) return false; return true; }
+  function buyUpg(k){ if(k==='stand'||!UPG[k]) return false; const d=UPG[k], l=lv(k); if(l>=maxLv(d)) return false; const block=upgBlock(k); if(block){ emit('toast',{t:block,k:'bad'}); return false; } if(d.lvl&&st.level<d.lvl){ emit('toast',{t:d.name+' unlocks at level '+d.lvl,k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.upg[k]=l+1; if(k==='water'&&l+1>=1) done('hose'); emit('upgrade',k); return true; }
   function workerOk(){ return false; }
   function hire(){ return false; }
   // ---------- rebirth (New Season) ----------
@@ -1388,7 +1399,7 @@ window.G = (function(){
     on, emit, fmt, num, dur, cost, maxLv, lv, wk, earnMult, xpNeed, key, unkey, invCount, capOf, syncPlots, locOpen, nextStep, buyStep, buyLand, buildGH, buyPermit, indoorChecklist, buildIndoor,
     buySeeds, seedPrice, plant, water, feed, feedCost, harvest, quality, yieldMult, cycleCost, upkeepRates, growRate, timeLeft, isNight, dayPhase, stage, dryerSlots, batchMax, loadDryer,
     price, sell, sellAll, marketDay, dayNum, regTier, orderSlots, orderValue, orderHave, fillOrder, PREFS, prefOk, custMatch, serveCust,
-    recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
+    recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, upgBlock, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
     tick, simulate, save, load, applyTestStart, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,

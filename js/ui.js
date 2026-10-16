@@ -496,7 +496,7 @@ window.UI = (function(){
   // Upgrades / build
   function upRow(k,isW){
     const d=isW?G.WORKERS[k]:G.UPG[k]; const l=isW?G.wk(k):G.lv(k), max=isW?d.max:G.maxLv(d), done=l>=max, c=done?0:G.cost(d,l), price=c<=0?(isW&&l>0?'Train':'Free'):fmt(c);
-    let lock=''; if(isW&&!G.workerOk(k)) lock=G.st.level<d.level?ico('lock')+' Lv '+d.level:'Needs location'; else if(!isW&&!G.upgNeedOk(d)) lock='Needs location'; else if(!isW&&d.lvl&&G.st.level<d.lvl) lock=ico('lock')+' Lv '+d.lvl;
+    let lock=''; if(isW&&!G.workerOk(k)) lock=G.st.level<d.level?ico('lock')+' Lv '+d.level:'Needs location'; else if(!isW&&G.upgBlock(k)) lock=G.upgBlock(k); else if(!isW&&d.lvl&&G.st.level<d.lvl) lock=ico('lock')+' Lv '+d.lvl;
     const stepName=d.steps?d.steps[Math.min(l,(d.steps.length||1)-1)]:'';
     const name=d.steps?`${esc(d.name)} <em>${esc(stepName)}</em>`:esc(d.name);
     const desc=d.steps?(done?esc(d.descs[Math.min(l,d.descs.length-1)]):`Next: <b>${esc(d.steps[l+1])}</b> · ${esc(d.descs[l+1])}`):esc(d.desc);
@@ -520,7 +520,7 @@ window.UI = (function(){
       body+=upBanner('garage')+`<div class="section-t">Grow space · ${space}</div><div class="note">${now} Beds stay in the room. Gear you buy shows up here, not on the floor.</div>`+stepCard('garage','Garage');
       body+=`<div class="section-t">Garage gear</div>`+['light','fan','oscfan','dehu','timer','phkit','trays'].map(k=>upRow(k)).join('');
       const labImg=window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('labPollen','garage')}">`:'';
-      body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the Indoor Facility it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':ucard({key:'lab',theme:'indoor',state:G.st.inBuilt&&G.st.cash>=G.LAB.cost?'canbuy':'locked',img:labImg,title:'Indoor Breeding Pheno Room',desc:'Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the sealed benches.',action:`<button class="btn gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button>`})); }
+      body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the Indoor Facility it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':ucard({key:'lab',theme:'indoor',state:G.st.inBuilt&&G.st.cash>=G.LAB.cost?'canbuy':'locked',img:labImg,title:'Indoor Breeding Pheno Room',desc:'Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the sealed benches.',action:`<button class="btn gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${G.st.inBuilt?fmt(G.LAB.cost):(st.land?'Unlock the sealed benches first':'Unlock the Indoor Facility first')}</button>`})); }
     else if(tab==='gh'){
       body+=upBanner('gh');
       const ghImg=`<img class="upico" alt="" src="assets/new-art/sprites/hoop-house.png">`;
@@ -533,20 +533,24 @@ window.UI = (function(){
         body+=`<div class="note">The greenhouse is a daylight room of its own: steel poles, a plastic topper, and dirt beds. It starts with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. The Indoor Facility is later, at level ${G.LAND_LEVEL}.</div>${reqList(reqs)}`;
         body+=ucard({key:'ghbuild',theme:'farm',state:reqs.every(c=>c.ok)?'canbuy':'locked',img:ghImg,title:'Build the greenhouse',desc:'Opens with your current garage pot count. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${reqs.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:fmt(cost)}</button>`});
       } else {
-        body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')} pots</div><div class="note">Outdoor daylight. A roof light runs the length of the pots. Plants root in the dirt. There is no grow-light upgrade.</div>`+stepCard('gh','Greenhouse');
-        body+=`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); }
+        body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')} pots</div><div class="note">Outdoor daylight. A roof light runs the length of the pots. Plants root in the dirt. There is no grow-light upgrade.</div>`+stepCard('gh','Greenhouse'); }
+      body+=`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
     }
     else if(tab==='facility'){
       body+=upBanner('facility');
-      if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. It opens at level ${G.LAND_LEVEL} for ${fmt(G.LAND_COST)}. Plants already growing there stay put. The sealed benches are later: level ${G.INDOOR.level}, permit ${fmt(G.INDOOR.permitCost)} at level ${G.INDOOR.permitLevel}, foundation ${fmt(G.INDOOR.foundCost)} at level ${G.INDOOR.foundLevel}, build ${fmt(G.INDOOR.build)}.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
+      const gear=['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
+      const sealed=['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join('');
+      if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. It opens at level ${G.LAND_LEVEL} for ${fmt(G.LAND_COST)}. Plants already growing there stay put. The sealed benches are later: level ${G.INDOOR.level}, permit ${fmt(G.INDOOR.permitCost)} at level ${G.INDOOR.permitLevel}, foundation ${fmt(G.INDOOR.foundCost)} at level ${G.INDOOR.foundLevel}, build ${fmt(G.INDOOR.build)}.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`;
+        body+=`<div class="section-t">Facility gear</div>`+gear+`<div class="section-t">Sealed benches</div>`+sealed; }
       else { body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div>`+stepCard('field','Plots');
-        body+=`<div class="section-t">Facility gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
+        body+=`<div class="section-t">Facility gear</div>`+gear;
         body+=`<div class="section-t">Sealed benches</div>`;
         if(!st.inBuilt){ body+=`<div class="note">A later sealed room with its own pots. Finish the checklist when you are ready. Plants already in that room stay on their benches.</div>`+reqList(G.indoorChecklist());
           if(!st.permit) body+=`<button class="btn wide" data-a="permit" ${st.level<G.INDOOR.permitLevel||st.cash<G.INDOOR.permitCost?'disabled':''}>${st.level<G.INDOOR.permitLevel?ico('lock')+'Permit at Lv '+G.INDOOR.permitLevel:'Buy County Agricultural Permit · '+fmt(G.INDOOR.permitCost)}</button>`;
           if(st.permit&&!st.found) body+=`<button class="btn wide" data-a="found" style="margin-top:8px" ${st.level<G.INDOOR.foundLevel||st.cash<G.INDOOR.foundCost?'disabled':''}>${st.level<G.INDOOR.foundLevel?ico('lock')+'Foundation at Lv '+G.INDOOR.foundLevel:'Pour the foundation · '+fmt(G.INDOOR.foundCost)}</button>`;
           body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build sealed benches · ${fmt(G.INDOOR.build)}</button>`; }
-        else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches')+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); }
+        else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches');
+        body+=sealed; }
     }
     else { body+=upBanner('lines')+`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes'); }
     return {title:'Upgrades',sub:'Gear lives on these cards. Rooms stay clear.',tabs,body};
