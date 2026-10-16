@@ -41,19 +41,17 @@ window.G = (function(){
   const LOCS=['garage','farm','indoor'];
   const LOC_NAME={get garage(){ return locName('garage'); },farm:'Greenhouse',indoor:'Indoor'};
   function locName(l){ if(l!=='garage') return {farm:'Greenhouse',indoor:'Indoor'}[l]; const r=st?garageRole():'grow'; return r==='pheno'?'Pheno Room':r==='storage'?'Garage storage':'Garage'; }
-  // Garage capacity steps (hard max 25). Real tent sizes and street prices (tent + matching light), see SETUPS.md:
-  // 2x2 = 1-2 plants, 3x3 = up to 4, 4x4 = 6 (9 with a SCROG net), 5x5 = up to 13 SCROG, 4x8 = 8. The main tent is swapped up in place.
-  // Save migration (garage v2): capacities per level are unchanged (2,4,6,9,13,17,21,25), so old levels map 1:1 and no plant is lost;
-  // only the layout changed (old level 4 'second 4x4' = new level 4 '5x5 tent', same 13 plants).
+  // Garage buckets. A new game starts at 5 and each upgrade adds 3, landing on 20.
+  // Costs sum to the old path's $3,590 (2→25) so filling the garage still costs the same.
+  // Plot records stay g0–g24 so an older save keeps every plant and its id. Buys stop at 20.
+  const GARAGE_MAX=20;
   const GARAGE=[
-    {name:'Two buckets on a grow table',cap:2, cost:0, desc:'Two 5-gal buckets in drip trays on a grow table under a hanging LED bar'},
-    {name:'Fill the back table',   cap:4,  cost:110,  desc:'+2 buckets on the back table, longer LED bar'},
-    {name:'Second grow table',     cap:6,  cost:180,  desc:'A second table with +2 buckets and its own LED bar'},
-    {name:'Drip irrigation',       cap:9,  cost:90,   desc:'Drip lines along every table: +3 buckets'},
-    {name:'Third grow table',      cap:13, cost:260,  desc:'A third table with +4 buckets and a third LED bar'},
-    {name:'Fourth table + fans',   cap:17, cost:650,  desc:'+4 buckets on a fourth table, fans on stands at the table ends'},
-    {name:'Fill the fourth table', cap:21, cost:1400, desc:'+4 buckets, bigger LED bars'},
-    {name:'Front table (garage max)',cap:25,cost:900, desc:'+4 buckets on the front table. Hard max 25.'},
+    {name:'Five buckets on a grow table', cap:5,  cost:0,    desc:'Five 5-gal buckets on a grow table under a hanging LED bar'},
+    {name:'Eight buckets',                cap:8,  cost:150,  desc:'+3 buckets. The garage holds 8.'},
+    {name:'Eleven buckets',               cap:11, cost:280,  desc:'+3 buckets. The garage holds 11.'},
+    {name:'Fourteen buckets',             cap:14, cost:520,  desc:'+3 buckets. The garage holds 14.'},
+    {name:'Seventeen buckets',            cap:17, cost:960,  desc:'+3 buckets. The garage holds 17.'},
+    {name:'Twenty buckets (garage max)',  cap:20, cost:1680, desc:'+3 buckets. Hard max 20.'},
   ];
   const LAND_COST=12000, LAND_LEVEL=3;
   const FIELD=[{name:'Starter terrace (10 plants)',add:10,cost:0},{name:'East terrace',add:10,cost:3000},{name:'Lower terrace',add:10,cost:6000},{name:'Ocean-view terrace',add:10,cost:9000}];
@@ -131,7 +129,7 @@ window.G = (function(){
     {id:'feed',   who:'Unko Kuli', t:'Feed a plant once it is halfway grown', r:{cash:20}},
     {id:'hose',   who:'Unko Kuli',  t:'Buy a garden hose (Upgrades > Water + feed)', r:{cash:40}},
     {id:'order',  who:'Unko Kuli',  t:'Fill an order on the Order Board (it opens at level 2)', r:{gems:10}},
-    {id:'tent3',  who:'Unko Kuli',  t:'Add the second grow table in the garage (Upgrades > Garage)', r:{cash:80}},
+    {id:'tent3',  who:'Unko Kuli',  t:'Add more garage buckets (Upgrades > Garage). Each upgrade is +3, up to 20.', r:{cash:80}},
     {id:'land',   who:'Uncle Ikaika', t:'Save up and buy the family land on the hill', r:{gems:25}},
     {id:'field',  who:'Uncle Ikaika', t:'Plant on the starter terrace', r:{cash:150}},
     {id:'ghbuild',who:'Malia',t:'Build the outdoor greenhouse', r:{gems:20}},
@@ -151,7 +149,7 @@ window.G = (function(){
   let st;
   function freshPlots(){
     const P=[]; const mk=(zone,pre,n,c0)=>{ for(let i=0;i<n;i++) P.push({id:pre+i,zone,loc:ZONE[zone].loc,idx:i,c:c0+i,r:0,owned:false,strain:null,prog:0,water:0,food:0,q:1,readyT:0,last:null,pest:null}); };
-    mk('garage','g',25,0); mk('field','f',40,100); mk('gh','h',36,200); mk('in','i',32,300);
+    mk('garage','g',25,0); mk('field','f',40,100); mk('gh','h',36,200); mk('in','i',32,300); // g0–g24 stay so an old 25-pot garage keeps its ids
     return P;
   }
   // Anonymous support id. Random, stored on the save, never derived from a name or the farm.
@@ -166,7 +164,7 @@ window.G = (function(){
   function newState(keep){
     const s={
       v:2, econ:2, cash:ECON.startCash, gems:20, xp:0, level:1, lifetime:0, runEarn:0, rebirths:0, mana:0, manaSpent:{},
-      garage:1, land:false,   // 4 starting buckets (QC econ report)
+      garage:0, garageV:3, garageKeep:0, land:false,   // 5 starting buckets
  field:0, ghBuilt:false, gh:0, permit:false, inBuilt:false, bench:0, loc:'garage', room:'garage',
       plots:freshPlots(), seeds:{'northern-lights':4}, selSeed:'northern-lights',
       inv:{wet:{},dry:{},cured:{}}, dryer:[], upg:{}, workers:{}, discovered:{}, clones:{},
@@ -365,18 +363,18 @@ window.G = (function(){
   function gate(k){ return st.level>=GATE[k]; }
 
   // ---------- capacity / plots ----------
-  function capOf(zone){ if(zone==='garage') return GARAGE[st.garage].cap; if(zone==='field') return st.land?FIELD.slice(0,st.field+1).reduce((a,b)=>a+b.add,0):0; if(zone==='gh'){ if(!st.ghBuilt) return 0; if(typeof st.ghMatch==='number'){ const extra=st.gh>0?GH.slice(1,st.gh+1).reduce((a,b)=>a+b.add,0):0; return st.ghMatch+extra; } return GH.slice(0,st.gh+1).reduce((a,b)=>a+b.add,0); } if(zone==='in') return st.inBuilt?BENCH.slice(0,st.bench+1).reduce((a,b)=>a+b.add,0):0; return 0; }
+  function capOf(zone){ if(zone==='garage'){ const i=Math.max(0,Math.min(GARAGE.length-1,st.garage|0)); return Math.max(GARAGE[i].cap, st.garageKeep|0); } if(zone==='field') return st.land?FIELD.slice(0,st.field+1).reduce((a,b)=>a+b.add,0):0; if(zone==='gh'){ if(!st.ghBuilt) return 0; if(typeof st.ghMatch==='number'){ const extra=st.gh>0?GH.slice(1,st.gh+1).reduce((a,b)=>a+b.add,0):0; return st.ghMatch+extra; } return GH.slice(0,st.gh+1).reduce((a,b)=>a+b.add,0); } if(zone==='in') return st.inBuilt?BENCH.slice(0,st.bench+1).reduce((a,b)=>a+b.add,0):0; return 0; }
   function syncPlots(){ st.plots.forEach(p=>{ p.owned=p.idx<capOf(p.zone); }); }
   function locOpen(l){ return l==='garage'||(l==='farm'&&st.land)||(l==='indoor'&&st.inBuilt); }
   function nextStep(kind){ // {name,cost,...} of next capacity purchase or null
-    if(kind==='garage') return GARAGE[st.garage+1]||null;
+    if(kind==='garage'){ const cur=capOf('garage'); if(cur>=GARAGE_MAX) return null; const idx=GARAGE.findIndex(g=>g.cap>cur); if(idx<0) return null; const src=GARAGE[idx], gain=src.cap-cur, cost=gain>=3?src.cost:Math.max(0,Math.round(src.cost*gain/3)); return {name:src.name, cap:src.cap, cost, desc:gain===3?src.desc:('+'+gain+' buckets, up to '+src.cap+'.'), add:gain}; }
     if(kind==='field') return st.land?FIELD[st.field+1]||null:null;
     if(kind==='gh') return st.ghBuilt?GH[st.gh+1]||null:null;
     if(kind==='bench') return st.inBuilt?BENCH[st.bench+1]||null:null;
   }
   function buyStep(kind){
     const n=nextStep(kind); if(!n) return false; if(!spend(n.cost)) return false;
-    if(kind==='garage'){ st.garage++; if(st.garage>=2) done('gcap'); if(st.garage>=3) done('tent3'); }
+    if(kind==='garage'){ const cur=capOf('garage'), idx=GARAGE.findIndex(g=>g.cap>cur); if(idx>=0) st.garage=idx; if((st.garageKeep|0)<=GARAGE[st.garage].cap) st.garageKeep=0; if(capOf('garage')>5) done('gcap'); if(capOf('garage')>=9) done('tent3'); }
     if(kind==='field') st.field++;
     if(kind==='gh'){ st.gh++; if(capOf('gh')>=INDOOR.ghPlants) done('ghfull'); }
     if(kind==='bench') st.bench++;
@@ -771,8 +769,8 @@ window.G = (function(){
   // players who never tap the card all stay in sync. If the player is more than one goal behind, the already-satisfied
   // goals are claimed automatically (rewards paid, one summary toast) and the card lands on the latest real goal.
   function questSat(q){ if(!q) return false; const t=st.stats||{};
-    const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:st.garage>=2, feed:t.feed>0, hose:lv('water')>=1,
-      order:t.orders>0, tent3:st.garage>=3, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:st.plots.some(p=>p.zone==='gh'&&(p.strain||p.last)),
+    const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:capOf('garage')>5, feed:t.feed>0, hose:lv('water')>=1,
+      order:t.orders>0, tent3:capOf('garage')>=9, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:st.plots.some(p=>p.zone==='gh'&&(p.strain||p.last)),
       breed:t.bred>0||!!st.breed, craft:(t.crafted||0)>0, ghfull:capOf('gh')>=INDOOR.ghPlants, permit:st.permit, indoor:st.inBuilt, inharv:t.inHarv>0, pheno:t.phenos>0, earn:st.runEarn>=2e6, season:false};
     if(c[q.id]) return true;
     // a later one-time milestone already reached means the player has clearly passed this step (e.g. bought land but never watered by hand)
@@ -1069,7 +1067,28 @@ window.G = (function(){
     S.forEach(s=>{ if(st.market.f[s.id]==null) st.market.f[s.id]=1; if(!st.market.hist[s.id]) st.market.hist[s.id]=[]; });
     return prevV;
   }
-  function migrateGarage(st){ if(st&&!st.garageV){ st.garageV=2; st.garage=Math.max(0,Math.min(7,st.garage|0)); } }   // see GARAGE note
+  // v2 stored a level 0–7 for caps 2,4,6,9,13,17,21,25. v3 is 5 then +3 up to 20.
+  // newState already stamps garageV 3, and adoptSave copies that onto an old file that never had the field,
+  // so the version has to be read from the raw save. Owned pots are kept (a 25-pot save stays at 25).
+  // Buys still stop at 20. Plot ids are not rewritten.
+  function migrateGarage(st, raw){
+    if(!st) return;
+    const OLD=[2,4,6,9,13,17,21,25];
+    if(!raw){ st.garageV=3; if(!(st.garageKeep>0)) st.garageKeep=0; return; }
+    const ver=raw.garageV|0;
+    if(ver>=3){
+      st.garage=Math.max(0,Math.min(GARAGE.length-1,st.garage|0));
+      st.garageKeep=(st.garageKeep|0)>0?(st.garageKeep|0):0;
+      st.garageV=3;
+      return;
+    }
+    const lv=Math.max(0,Math.min(OLD.length-1,raw.garage|0));
+    let owned=OLD[lv];
+    (st.plots||[]).forEach(p=>{ if(p&&p.zone==='garage'&&(p.owned||p.strain)) owned=Math.max(owned,(p.idx|0)+1); });
+    if(owned<5) owned=5;
+    let idx=0; for(let i=0;i<GARAGE.length;i++) if(GARAGE[i].cap<=owned) idx=i;
+    st.garage=idx; st.garageKeep=owned>GARAGE[idx].cap?owned:0; st.garageV=3;
+  }
   // p.food used to drain from 1 to 0. Any leftover food means this grow was already fed, so snap it
   // to 1 and leave it there. Empty or missing food stays 0. A stray nutrient pile on the save
   // (there is no nutrient item in this build) is left untouched so old saves still load.
@@ -1128,7 +1147,7 @@ window.G = (function(){
       // v2 saves from before real-time: keep the same in-game day/hour, then let the wall clock drive it
       if(raw&&(!raw.tv||raw.t0==null)){ const old=raw.time||0, days=old/480; st.t0=(raw.lastSave||Date.now())-days*DAY_LEN*1000; st.tv=2; }
       if(st.land&&!st.phenoRoom) st.phenoRoom=true;
-      migrateGarage(st); migrateRoom(st, raw); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
+      migrateGarage(st, raw); migrateRoom(st, raw);
       if(st.inBuilt) st.found=true;
       // Older saves may store upg.stand. Leave the number on the save. It does not buy anything and does not change prices.
       // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)

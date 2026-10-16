@@ -45,8 +45,7 @@ window.R=(function(){
   function gridIn(r0,n){ const r=[r0[0]+.1,r0[1]-.1,r0[2]+.22,r0[3]-.06], [u0,u1,v0,v1]=r, cols=n<=2?2:n<=4?2:n<=6?3:n<=9?3:4, rows=Math.ceil(n/cols), out=[];
     for(let k=0;k<n;k++){ const row=Math.floor(k/cols), inRow=Math.min(cols,n-row*cols), c=k-row*cols; const du=(u1-u0)/inRow, dv=(v1-v0)/rows;
       out.push([u0+du*(c+.5), v1-dv*(row+.5), Math.min(du,dv)]); } return out; }
-  // Pot layout (no tents): 5 rows x 5 pots on the clear left floor, 0.75 m centres, rows 0.8 m apart with a walkway in front.
-  // Slots fill row by row (back row first), so caps 2/4/6/9/13/17/21/25 per level are unchanged (save migration stays 1:1).
+  // Legacy floor slots. The live garage is the bed grid (5 pots, then +3 up to 20). These rows stay for the old camera path.
   // grow tables: 0.76 m tall benches, one per row; slots sit on the table top (GT = floor point lifted by the table height)
   const TBL_H=.76, GT=(u,v)=>{ const p=GP(u,v); return {x:p.x,y:p.y-TBL_H*gppm(p.y)}; };
   const PROWS=[7.4,6.0,4.6,3.2,1.8], PCOLS=[1.0,2.0,3.0,4.0,5.0];
@@ -908,8 +907,21 @@ window.R=(function(){
     const gap=2, cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(rows-1))/rows, plantH=cellH-16;
     return {ok:cellW>=36&&cellH>=36, cols, rows, cellW, cellH, gap, plantH};
   }
+  // Fewer owned pots use fewer, larger cells, still centered. A full garage is 20 pots.
+  function garageLayout(band, n){
+    n=Math.max(1,n|0); let best=null;
+    for(let cols=2; cols<=5; cols++){
+      const rows=Math.ceil(n/cols); if(rows>6) continue;
+      const g=gridScore(band, cols, rows);
+      if(g.cellW<52||g.cellH<64) continue;
+      const empty=cols*rows-n, score=Math.min(g.cellW,g.cellH)*10-empty*18-Math.abs(cols-rows)*4;
+      if(!best||score>best.score) best=Object.assign({}, g, {n:cols*rows, zone:'garage', score});
+    }
+    if(!best){ const cols=n>16?5:n>9?4:3, rows=Math.ceil(n/Math.max(1,cols)); best=Object.assign(gridScore(band, cols, rows), {n:cols*rows, zone:'garage'}); }
+    return best;
+  }
   function gridFor(room, band){
-    if(room==='garage') return Object.assign(gridScore(band,5,5),{n:25,zone:'garage'});
+    if(room==='garage') return garageLayout(band, 5);
     if(room==='gh') return Object.assign(gridScore(band,6,6),{n:36,zone:'gh'});
     if(room==='benches') return Object.assign(gridScore(band,8,4),{n:32,zone:'in'});
     const a=gridScore(band,5,8), b=gridScore(band,8,5);
@@ -929,7 +941,7 @@ window.R=(function(){
     ctx.drawImage(im,(W-dw)/2,(H-dh)/2,dw,dh);
   }
   function drawPotPx(cx, rim, cw){
-    const w=Math.min(cw*0.7, 46), h=12;
+    const w=Math.max(28, Math.min(cw*0.62, 96)), h=Math.max(12, Math.min(24, w*0.28));
     ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(cx+1,rim+h+2,w*0.55,4,0,0,TAU); ctx.fill();
     ctx.fillStyle='#1c1e22'; ctx.beginPath(); ctx.roundRect(cx-w*0.72,rim+h*0.35,w*1.44,h*0.7,3); ctx.fill();
     const g=ctx.createLinearGradient(cx-w/2,0,cx+w/2,0); g.addColorStop(0,'#16171a'); g.addColorStop(.4,'#3c3e44'); g.addColorStop(1,'#111214');
@@ -969,7 +981,11 @@ window.R=(function(){
     if(lit) band=Object.assign({},band,{top:band.top+gutter,h:Math.max(48,band.h-gutter)});
     const obs=[];
     for(const id of ['seedBag','upgBtn','orderBoard']){ const r=shownEl(id); if(r) obs.push(r); }
-    const g=gridFor(room,band);
+    const zoneName=room==='garage'?'garage':room==='gh'?'gh':room==='benches'?'in':'field';
+    const ownedN=st.plots.filter(p=>p.zone===zoneName&&p.owned).length;
+    const buyMax=window.G&&G.GARAGE?G.GARAGE[G.GARAGE.length-1].cap:20;
+    const showN=room==='garage'?Math.max(1, ownedN+(ownedN<buyMax&&st.plots.some(p=>p.zone==='garage'&&!p.owned)?1:0)):0;
+    const g=room==='garage'?garageLayout(band, showN):gridFor(room,band);
     const cells=[]; let build=null;
     if(room==='gh'&&!st.ghBuilt){
       const bw=Math.min(300,W-32), bh=132, bx=(W-bw)/2, by=Math.max(band.top, H*0.28);
@@ -1003,7 +1019,7 @@ window.R=(function(){
         const p=item.p;
         let floor=y+g.cellH;
         for(const o of obs){ if(x<o.right-1&&x+g.cellW>o.left+1&&floor>o.top&&y<o.bottom) floor=Math.min(floor,o.top-3); }
-        const potH=pot?10:6, labelH=12;
+        const potH=pot?Math.max(14, Math.min(26, g.cellW*0.18)):6, labelH=14;
         const rim=Math.max(y+18, Math.min(y+g.cellH-labelH, floor)-potH);
         const stn=p.strain&&G.strain(p.strain);
         const mh=Math.max(.4,plantSize(stn?stn.type:'Hybrid',1,probe).h);

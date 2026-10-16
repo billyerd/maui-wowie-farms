@@ -15,16 +15,16 @@ window.portraitImg=function(name,cls,kind){ const c=window.CHARACTERS[name]; con
 // What each story character says when a goal starts (speaker = QUESTS[].who in game.js). Plain English; the local characters
 // (Unko Kuli, Uncle Ikaika, Auntie Lani, Kai) use a light touch of pidgin in about 1 line in 4. UI text is always plain English.
 window.STORY_SAY={
-  plant:"Welcome! These four buckets on the grow table are where I started too. Pick Northern Lights from your seeds and tap a bucket. Thirty seconds and you'll see what I mean.",
+  plant:"Welcome! These five buckets on the grow table are where I started too. Pick Northern Lights from your seeds and tap a bucket. Thirty seconds and you'll see what I mean.",
   water:"Plants get thirsty fast. Tap a plant to water it, or pick up the watering tool.",
   harvest:"See the gold glow? That means it's ripe. Tap it to harvest. Don't wait too long.",
   dry:"Fresh buds sell cheap. Hang them on the drying racks first. Patience pays.",
   sell:"Take your dried buds to the Market. Your first money out of the garage. Shoots, nice job!",
-  gcap:"Two plants won't buy the land. Let's get you more buckets. Look under Upgrades, Garage tab.",
+  gcap:"Five buckets is a start. Each upgrade adds three, up to twenty. Look under Upgrades, Garage tab.",
   feed:"Halfway through, each plant wants one feeding. It is free. Skip it and they grow slower and yield less.",
   hose:"A watering can is fine for two plants, not for twenty. Get a hose so you can water everything at once.",
   order:"The neighbors are asking for your buds now. Fill their orders on the board. They pay extra and they tell their friends.",
-  tent3:"Time to fill the back table. More buckets, more plants.",
+  tent3:"The garage can hold more. Add another three buckets. Twenty is the top.",
   land:"I'm selling the old family terraces up on the hill. Save up, it's your future farm. When you buy it, Grandpa's garage turns into your Pheno Room for hunting new strains.",
   field:"Plant the starter terrace. Sun, rain and trade winds. Growing outdoors costs nothing to power, but the weather is in charge.",
   ghbuild:"A greenhouse keeps the rain off and the warmth in. Build one and the daylight beds are yours.",
