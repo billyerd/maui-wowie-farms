@@ -104,12 +104,28 @@
   G.on('skip',r=>{ UI.toast('Time skipped: the farm worked '+G.dur(r.seconds)+' · '+(r.cash>=0?'+':'')+G.fmt(r.cash)+' · '+r.harvests+' harvests · '+r.sold+' sold','good long'); });
 
   // ---------- input ----------
-  const ptrs=new Map(); let downAt=null, moved=0, pinchD=0;
-  cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(ptrs.size===1){ downAt={x:e.clientX,y:e.clientY}; moved=0; } else { downAt=null; const [a,b]=[...ptrs.values()]; pinchD=Math.hypot(a.x-b.x,a.y-b.y); } Sound.resume(); });
+  const ptrs=new Map(); let downAt=null, moved=0, pinchD=0, holdT=null, holdX=0, holdY=0, held=false;
+  function clearHold(){ if(holdT){ clearTimeout(holdT); holdT=null; } }
+  function holdBlocked(h){ return !!(h&&h.type&&h.type!=='plot'); }
+  function plantUnder(x,y){
+    const h=R.pick(x,y);
+    if(holdBlocked(h)) return null;
+    if(h&&h.type==='plot'&&h.p&&h.p.strain) return h.p;
+    if(R.nearPlant){ const n=R.nearPlant(x,y); if(n) return n; }
+    const ov=R._ovl?R._ovl():[];
+    let id=null, bd=96;
+    for(const o of ov){ if(!o||o.x==null) continue; const d=Math.hypot(o.x-x,o.y-y); if(d<bd){ bd=d; id=o.id; } }
+    return id?G.st.plots.find(p=>p.id===id)||null:null;
+  }
+  cv.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('button,a,.btn')) return; cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(ptrs.size===1){ downAt={x:e.clientX,y:e.clientY}; moved=0; held=false; clearHold(); holdX=e.clientX; holdY=e.clientY;
+      const start=R.pick(holdX,holdY);
+      if(!holdBlocked(start)){ holdT=setTimeout(()=>{ holdT=null; if(moved>28||ptrs.size!==1) return; const plant=plantUnder(holdX,holdY); held=true; UI.inspectGlass(plant); },3000); }
+    } else { downAt=null; clearHold(); const [a,b]=[...ptrs.values()]; pinchD=Math.hypot(a.x-b.x,a.y-b.y); } Sound.resume(); });
   cv.addEventListener('pointermove',e=>{ if(R.lens.on&&(e.pointerType==='mouse'||ptrs.size===1)) R.setLens(true,e.clientX,e.clientY-(e.pointerType==='mouse'?0:60)); const p=ptrs.get(e.pointerId); if(!p) return; const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
-    if(ptrs.size===1){ moved+=Math.abs(dx)+Math.abs(dy); if(moved>8){ if(!R.lens.on) R.pan(dx,dy); UI.hidePop(); } }
-    else if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); if(pinchD>0) R.zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/pinchD); pinchD=d; } });
-  const up=e=>{ const had=ptrs.has(e.pointerId); ptrs.delete(e.pointerId); if(!had) return;
+    if(ptrs.size===1){ moved+=Math.abs(dx)+Math.abs(dy); if(holdT&&moved>28) clearHold(); const panAt=holdT?28:8; if(moved>panAt){ if(!R.lens.on) R.pan(dx,dy); UI.hidePop(); } }
+    else if(ptrs.size===2){ clearHold(); const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); if(pinchD>0) R.zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/pinchD); pinchD=d; } });
+  const up=e=>{ const had=ptrs.has(e.pointerId); ptrs.delete(e.pointerId); if(!had) return; clearHold();
+    if(held){ held=false; if(ptrs.size<2) pinchD=0; downAt=null; return; }
     if(R.lens.on&&ptrs.size===0&&(moved<=8||e.pointerType!=='mouse')){ const lx=R.lens.x, ly=R.lens.y; let h=R.pick(lx,ly); let p=h&&h.type==='plot'&&h.p.eggs>0?h.p:null;
       if(!p){ const c=[]; for(const d of [[0,0],[-18,0],[18,0],[0,-18],[0,18],[-28,-14],[28,-14],[-28,14],[28,14]]){ const k=R.pick(lx+d[0],ly+d[1]); if(k&&k.type==='plot'&&k.p.eggs>0) c.push(k.p); } p=c[0]; }
       if(p) G.scout(p); else if(moved<=8) UI.toast('Nothing hiding here. Keep looking.');

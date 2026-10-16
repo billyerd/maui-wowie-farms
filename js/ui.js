@@ -253,6 +253,26 @@ window.UI = (function(){
     G.setRoom('garage'); }
   function tapLoc(l){ if(l==='indoor') tapRoom('benches'); else if(l==='farm') tapRoom('facility'); else tapRoom('garage'); }
   function reqList(L){ return `<div class="reqs">${L.map(c=>`<div class="req ${c.ok?'ok':''}"><span>${c.ok?'✅':'⬜'}</span><div class="grow"><b>${esc(c.t)}</b>${c.p!=null&&!c.ok?bar(c.p,'thin'):''}${c.v&&!c.ok?`<small>${esc(c.v)}</small>`:''}</div></div>`).join('')}</div>`; }
+  function inspectGlass(p){
+    if(!p||!p.strain){ toast('No plant under your finger'); return; }
+    const s=G.strain(p.strain); if(!s){ toast('No plant under your finger'); return; }
+    const lines=[
+      (p.prog>=1?'Ripe and ready to harvest':Math.round(p.prog*100)+'% grown'),
+      'Water '+Math.round((p.water||0)*100)+'%',
+      p.food>0?'Fed this grow':'Not fed yet'
+    ];
+    if(p.pest==='mold') lines.push('Mold on the leaves');
+    else if(p.pest) lines.push('Pests on the plant');
+    else if(p.eggs>0) lines.push('Eggs or spores are hiding. Wipe them before they hatch.');
+    else lines.push('No mold or pests.');
+    const acts=[{label:'OK',cls:'gold',v:0}];
+    if(p.eggs>0) acts.unshift({label:'Wipe eggs',cls:'',v:'wipe'});
+    if(p.pest) acts.unshift({label:'Treat '+fmt(G.treatCost(p)),cls:'pink',v:'treat'});
+    modal(`<h3>${esc(s.name)}</h3><p>${lines.map(esc).join('<br>')}</p>`,acts).then(v=>{
+      if(v==='wipe') G.scout(p);
+      else if(v==='treat'&&!G.treat(p)) toast('Not enough cash','bad');
+    });
+  }
   function landModal(){ const L=landReq(); const ready=L.every(c=>c.ok);
     modal(`<img src="assets/new-art/backgrounds/indoor-facility.jpg" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor Facility</h3><p>Uncle Ikaika is selling the old family land. Buying it opens the Indoor Facility: 40 plots, and your plants from the old land stay put. The garage keeps producing the whole time. The greenhouse is its own daylight room.</p>${reqList(L)}`,
       [{label:'Later',cls:'sec',v:0},{label:ready?'Buy for '+fmt(G.LAND_COST):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buyLand()){ G.setRoom('facility'); } }); }
@@ -960,5 +980,5 @@ window.UI = (function(){
   let acc=0;
   function update(dt){ hud(dt); acc+=dt; if(acc>.5){ acc=0; if(panel&&performance.now()-lastPointer>700&&!document.activeElement?.matches('select')) render(); if(popPlot) renderPop(); } }
   function artReady(){ const body=document.getElementById('sheetBody'); if(body) body._h=''; if(panel) render(); const card=document.getElementById('modalCard'); const host=card&&card.closest&&card.closest('#modal'); if(card&&host&&!host.classList.contains('hidden')) paintStrainImgs(card); }
-  return {init,update,toast,brief,modal,celebrate,levelUp,loginCel,confetti,open,close,tapPlot,quick,hidePop,setTool,strainModal,bigCel,reveal,storyLine,landModal,indoorModal,artReady,get tool(){return tool},get panel(){return panel},render};
+  return {init,update,toast,brief,modal,celebrate,levelUp,loginCel,confetti,open,close,tapPlot,quick,hidePop,setTool,strainModal,bigCel,reveal,storyLine,landModal,indoorModal,inspectGlass,artReady,get tool(){return tool},get panel(){return panel},render};
 })();
