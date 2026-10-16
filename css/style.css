@@ -801,4 +801,5 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 #seedBag,#upgBtn.sidebtn{top:auto!important;bottom:calc(var(--sab) + 64px)!important;z-index:12}
 #upgBtn.sidebtn{left:64px!important}
 #orderBoard{bottom:calc(var(--sab) + 68px)!important}
+#clock{display:none!important}
 body.sheet-open #qaFab{display:none}

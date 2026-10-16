@@ -970,10 +970,6 @@ window.R=(function(){
         glow.addColorStop(0,'rgba(255,236,190,.34)'); glow.addColorStop(1,'rgba(255,236,190,0)');
         ctx.fillStyle=glow; ctx.fillRect(band.left,ly,band.w,78);
         if(ledIm&&ledIm.complete&&ledIm.naturalWidth) ctx.drawImage(ledIm,lx,ly,lw,26);
-        const ge=st.gecko&&st.gecko.on;
-        if(ge&&ge.loc===st.loc){ const gx=band.left+24, gy=ly+16; geckoS={x:gx,y:gy,r:22};
-          ctx.fillStyle='rgba(255,214,90,.95)'; ctx.beginPath(); ctx.arc(gx,gy,18,0,TAU); ctx.fill();
-          ctx.font='18px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🦎',gx,gy+1); }
       }
       const care=[];
       for(const c of cells){ if(!c.owned||!c.p||!c.p.strain||c.p.prog>=1) continue; if(c.p.pest||G.isThirsty(c.p)||G.isHungry(c.p)) care.push(c); }
@@ -1019,6 +1015,7 @@ window.R=(function(){
       if(id){ const c=cells.find(q=>q.p&&q.p.id===id&&q.owned); if(c){ const b=Math.abs(Math.sin(now*4))*8; ctx.font='32px sans-serif'; ctx.textAlign='center'; ctx.fillText('👆',c.sl.x,c.y+c.h*0.42+b); } }
     }
     bedLay={room,cells,build,band};
+    drawGecko(now);
     stepScreenBits(dt);
     st.plots.forEach(p=>{ if(p._pop>0) p._pop=Math.max(0,p._pop-dt); if(p._shake>0) p._shake=Math.max(0,p._shake-dt); });
     return true;
@@ -1162,15 +1159,32 @@ window.R=(function(){
     ctx.font='34px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=6; ctx.fillText('👆',s.x+6,s.y+8+b); ctx.restore(); }
   // golden gecko (rare tappable boost) and Unko Kuli's mentor bubble
   let geckoS=null, mentorS=null; const MENTOR={garage:[640,120],farm:[1560,560],indoor:[980,560]};
-  function drawGecko(now){ geckoS=null; const g=G.st.gecko&&G.st.gecko.on; if(!g||g.loc!==loc) return; const sc=SC[loc], f=H>W?sc.focusP:sc.focusL;
-    const w=toS(f[0]+(f[2]-f[0])*(.15+.7*g.u), f[1]+(f[3]-f[1])*(.35+.5*g.v)); const k=Math.max(.8,Math.min(1.4,cam.z*1.4)), wig=Math.sin(now*10)*.25;
-    ctx.save(); ctx.translate(w.x,w.y); ctx.scale(k,k); const glow=ctx.createRadialGradient(0,0,2,0,0,34); glow.addColorStop(0,'rgba(255,225,90,.55)'); glow.addColorStop(1,'rgba(255,225,90,0)'); ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,34,0,TAU); ctx.fill();
-    ctx.rotate(Math.sin(now*2)*.2); ctx.strokeStyle='#d99a14'; ctx.lineWidth=5; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(-10,0); ctx.quadraticCurveTo(-22,8+wig*10,-28,-4); ctx.stroke();
-    ctx.lineWidth=3; for(const [x,sgn] of [[6,1],[6,-1],[-6,1],[-6,-1]]){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+4,sgn*(9+wig*4*sgn)); ctx.stroke(); }
-    const gg=ctx.createLinearGradient(0,-6,0,6); gg.addColorStop(0,'#fff0a0'); gg.addColorStop(1,'#e8a817'); ctx.fillStyle=gg; ctx.beginPath(); ctx.ellipse(0,0,13,6,0,0,TAU); ctx.fill(); ctx.beginPath(); ctx.ellipse(15,0,6,4.5,0,0,TAU); ctx.fill();
-    ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(18,-2,1.3,0,TAU); ctx.arc(18,2,1.3,0,TAU); ctx.fill(); ctx.restore();
-    ctx.fillStyle='rgba(255,255,255,.9)'; for(let i=0;i<3;i++){ const a=now*3+i*2.1; ctx.beginPath(); ctx.arc(w.x+Math.cos(a)*26*k,w.y+Math.sin(a)*18*k,1.8,0,TAU); ctx.fill(); }
-    geckoS={x:w.x,y:w.y,r:36*k}; }
+  function drawGecko(now){
+    geckoS=null; const g=G.st.gecko&&G.st.gecko.on; if(!g) return;
+    const p=Math.max(0,Math.min(1,g.p||0)), dir=g.dir<0?-1:1;
+    const dock=document.getElementById('toolbar'); const dockTop=dock?dock.getBoundingClientRect().top:H-72;
+    const top=78, bot=Math.max(top+48, Math.min(H-86, dockTop-10));
+    const y=top+(bot-top)*(g.y==null?.55:Math.max(0,Math.min(1,g.y)));
+    const x=dir>0?-80+(W+160)*p:W+80-(W+160)*p;
+    const sc=Math.max(1.2,Math.min(1.85,Math.min(W,H)/340));
+    const walk=(now||0)*16;
+    ctx.save(); ctx.translate(x,y); ctx.scale(dir*sc,sc);
+    ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(4,18,26,6,0,0,TAU); ctx.fill();
+    ctx.strokeStyle='#b87410'; ctx.lineWidth=6; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(-14,1); ctx.bezierCurveTo(-28,2+Math.sin(walk)*5,-40,-8+Math.sin(walk+1)*7,-52,Math.sin(walk*1.2)*6); ctx.stroke();
+    ctx.strokeStyle='#ffe08a'; ctx.lineWidth=2.2; ctx.beginPath(); ctx.moveTo(-14,-1); ctx.bezierCurveTo(-26,0,-38,-6,-48,Math.sin(walk)*4); ctx.stroke();
+    ctx.strokeStyle='#e2a31a'; ctx.lineWidth=2.6; ctx.lineCap='round';
+    [[-10,5],[8,5],[-4,-1],[12,-1]].forEach((L,i)=>{ const ph=Math.sin(walk+i*1.5); ctx.beginPath(); ctx.moveTo(L[0],L[1]); ctx.quadraticCurveTo(L[0]+ph*5,L[1]+6,L[0]+ph*8,L[1]+11); ctx.lineTo(L[0]+ph*8+5,L[1]+12); ctx.stroke(); });
+    const body=ctx.createLinearGradient(-16,-14,18,12); body.addColorStop(0,'#fff6c2'); body.addColorStop(.4,'#f2c24a'); body.addColorStop(1,'#c47c12');
+    ctx.fillStyle=body; ctx.beginPath(); ctx.ellipse(0,1,20,9,.08,0,TAU); ctx.fill();
+    ctx.fillStyle='rgba(255,250,220,.75)'; [[-8,-2],[1,2],[9,-1],[-2,4]].forEach(([sx,sy])=>{ ctx.beginPath(); ctx.ellipse(sx,sy,2.4,1.5,.5,0,TAU); ctx.fill(); });
+    const head=ctx.createLinearGradient(10,-10,28,8); head.addColorStop(0,'#fff8d0'); head.addColorStop(1,'#e0a020');
+    ctx.fillStyle=head; ctx.beginPath(); ctx.ellipse(18,0,9,6.5,.15,0,TAU); ctx.fill();
+    ctx.fillStyle='#24180c'; ctx.beginPath(); ctx.ellipse(22,-3,1.8,2.2,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(22.5,-3.7,.65,0,TAU); ctx.fill();
+    ctx.restore();
+    geckoS={x,y,r:20*sc};
+  }
   // the mentor badge shows whoever speaks for the current story goal (Unko Kuli, Kai, Malia, Keoni, Auntie Lani, Uncle Ikaika)
   const busts={}; function bustOf(n){ const c=window.CHARACTERS&&window.CHARACTERS[n]; const src=c&&c.bust||'art/portraits/unko-kuli-bust.webp'; if(!busts[src]){ busts[src]=new Image(); busts[src].src=src; } return busts[src]; }
   function drawMentor(){ mentorS=null; const q=G.curQuest&&G.curQuest(); let bust=bustOf(q&&q.who||'Unko Kuli'); if(!bust.complete||!bust.naturalWidth) bust=bustOf('Unko Kuli'); if(!G.F.storyGoals||!bust.complete||!bust.naturalWidth) return; const m=MENTOR[loc]; if(loc==='farm'&&!G.st.land) return; const p=toS(m[0],m[1]); const r=loc==='garage'?Math.max(12,Math.min(17,40*cam.z)):Math.max(20,Math.min(34,30*cam.z));
@@ -1183,40 +1197,8 @@ window.R=(function(){
   function themeFX(dt){ const th=TH[G.st.theme]; if(!th) return; ctx.save(); ctx.globalCompositeOperation='overlay'; ctx.fillStyle=th.c; ctx.fillRect(0,0,W,H); ctx.restore();
     if(!th.p||!G.st.settings.hq) return; while(tp.length<28) tp.push({x:Math.random()*W,y:Math.random()*H,v:20+Math.random()*30,a:Math.random()*6}); 
     ctx.fillStyle=th.p; for(const q of tp){ q.y+=q.v*dt; q.a+=dt; q.x+=Math.sin(q.a)*12*dt; if(q.y>H){ q.y=-8; q.x=Math.random()*W; } ctx.globalAlpha=.7; ctx.beginPath(); if(th.petal) ctx.ellipse(q.x,q.y,4,2.2,q.a,0,TAU); else ctx.arc(q.x,q.y,G.st.theme==='neon'?1.6:2.2,0,TAU); ctx.fill(); } ctx.globalAlpha=1; }
-  // weather + day tint on the open-air farm
-  const flies=[], WIN=[['house',-.12,.42,.16],['house',.18,.4,.14],['hale',0,.3,.2],['shed',-.05,.35,.15],['stand',0,.45,.3]];
-  const drops=[], splash=[], PUDDLES=[[760,1215,40],[1110,1290,28],[520,1225,24],[1600,1080,34],[1000,1205,22]]; let wet=0, flash=-2;
-
-  function weather(now,dt){ const w=G.st.weather.type, ph=G.dayPhase(); const night=ph<.2||ph>.8?1:ph<.27?(.27-ph)/.07:ph>.73?(ph-.73)/.07:0;
-    if(night>0){ ctx.fillStyle='rgba(10,20,60,'+(.42*night)+')'; ctx.fillRect(0,0,W,H);
-      if(G.st.ghBuilt&&G.lv('supp')){ const c=toS(GH.x+400*GH.s,GH.y+420*GH.s); const g=ctx.createRadialGradient(c.x,c.y,10,c.x,c.y,300*cam.z); g.addColorStop(0,'rgba(255,200,120,'+(.35*night)+')'); g.addColorStop(1,'rgba(255,200,120,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); } }
-    // sunrise / sunset colour grade
-    const sr=Math.max(0,1-Math.abs(ph-.26)/.07), ss=Math.max(0,1-Math.abs(ph-.74)/.07), dim=w==='rain'||w==='storm'?.4:1;
-    if(sr>0||ss>0){ const morn=sr>ss, k=Math.max(sr,ss)*dim; ctx.save(); ctx.globalCompositeOperation='overlay'; ctx.fillStyle=morn?'rgba(255,150,130,'+(.38*k)+')':'rgba(255,115,35,'+(.45*k)+')'; ctx.fillRect(0,0,W,H); ctx.restore();
-      const g=ctx.createLinearGradient(0,0,0,H*.55); g.addColorStop(0,morn?'rgba(255,175,195,'+(.3*k)+')':'rgba(200,70,140,'+(.3*k)+')'); g.addColorStop(1,'rgba(255,160,90,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H*.55); }
-    // lit windows + fireflies at night
-    if(night>.3){ ctx.save(); ctx.globalCompositeOperation='lighter'; for(const [k,dx,dy,r] of WIN){ const b=BLD[k]; if(!b||(b.need&&!b.need())||!ok(b.img)) continue; const im=IM[b.img], bw=im.naturalWidth*b.s, bh=im.naturalHeight*b.s, q=toS(b.x+dx*bw,b.y-dy*bh), rr2=r*bw*cam.z;
-        const fl=.85+.15*Math.sin(now*3+dx*9); const g=ctx.createRadialGradient(q.x,q.y,1,q.x,q.y,rr2); g.addColorStop(0,'rgba(255,190,90,'+(.55*night*fl)+')'); g.addColorStop(1,'rgba(255,150,60,0)'); ctx.fillStyle=g; ctx.fillRect(q.x-rr2,q.y-rr2,rr2*2,rr2*2); }
-      if(w!=='rain'&&w!=='storm'){ const n=G.st.settings.hq?26:8; while(flies.length<n) flies.push({x:Math.random()*2400,y:720+Math.random()*620,a:Math.random()*6,s:.5+Math.random()}); flies.length=n;
-        for(const f of flies){ f.a+=dt*f.s; f.x+=Math.cos(f.a*.7)*12*dt; f.y+=Math.sin(f.a)*8*dt; const q=toS(f.x,f.y-30-Math.sin(f.a*1.3)*15); if(q.x<-10||q.x>W+10||q.y<-10||q.y>H+10) continue; const bl=Math.max(0,Math.sin(f.a*2.3))*night;
-          const g=ctx.createRadialGradient(q.x,q.y,0,q.x,q.y,7); g.addColorStop(0,'rgba(230,255,120,'+bl+')'); g.addColorStop(1,'rgba(180,255,80,0)'); ctx.fillStyle=g; ctx.fillRect(q.x-7,q.y-7,14,14); } } ctx.restore(); }
-    // vog: volcanic haze, warm grey and thicker toward the horizon
-    if(w==='vog'){ ctx.fillStyle='rgba(205,190,150,.22)'; ctx.fillRect(0,0,W,H); const g=ctx.createLinearGradient(0,0,0,H*.6); g.addColorStop(0,'rgba(215,200,160,.45)'); g.addColorStop(1,'rgba(215,200,160,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H*.6); }
-    if(w==='storm'){ ctx.fillStyle='rgba(20,30,40,.25)'; ctx.fillRect(0,0,W,H); }
-    if(w==='rain'||w==='storm'){ const n=w==='storm'?140:80; while(drops.length<n) drops.push({x:Math.random()*W,y:Math.random()*H,v:500+Math.random()*300}); drops.length=n;
-      ctx.strokeStyle='rgba(200,225,255,.45)'; ctx.lineWidth=1; ctx.beginPath(); for(const d of drops){ d.y+=d.v*dt; d.x-=d.v*.15*dt; if(d.y>H){ d.y=-10; d.x=Math.random()*W*1.2; } ctx.moveTo(d.x,d.y); ctx.lineTo(d.x+3,d.y-14); } ctx.stroke(); }
-    // wet ground lingers after showers; splashes + puddle sheen; storm lightning (off with reduced motion)
-    const rainy=w==='rain'||w==='storm'; wet+=((rainy?1:0)-wet)*Math.min(1,dt*(rainy?.4:.04));
-    if(wet>.02){ const gy=Math.max(0,toS(0,640).y); ctx.fillStyle='rgba(15,35,55,'+(.16*wet)+')'; ctx.fillRect(0,gy,W,H-gy);
-      for(const [px,py,r] of PUDDLES){ const q=toS(px,py); ctx.fillStyle='rgba(170,200,230,'+(.35*wet)+')'; ctx.beginPath(); ctx.ellipse(q.x,q.y,r*cam.z,r*.3*cam.z,0,0,TAU); ctx.fill(); ctx.fillStyle='rgba(255,255,255,'+(.25*wet)+')'; ctx.beginPath(); ctx.ellipse(q.x-r*.3*cam.z,q.y-r*.06*cam.z,r*.35*cam.z,r*.06*cam.z,0,0,TAU); ctx.fill(); }
-      if(rainy&&G.st.settings.hq){ const gy2=Math.max(gy,0); for(let i=0;i<(w==='storm'?6:3);i++) splash.push({x:Math.random()*W,y:gy2+Math.random()*(H-gy2),t:0});
-        ctx.strokeStyle='rgba(220,235,255,.6)'; ctx.lineWidth=1; for(const q of splash){ q.t+=dt; const k=q.t/.35; ctx.globalAlpha=Math.max(0,1-k); ctx.beginPath(); ctx.ellipse(q.x,q.y,2+k*7,(2+k*7)*.35,0,0,TAU); ctx.stroke(); } ctx.globalAlpha=1; for(let i=splash.length-1;i>=0;i--) if(splash[i].t>.35) splash.splice(i,1); } }
-    if(w==='storm'&&G.st.settings.motion!==false){ flash-=dt; if(flash<-4-Math.random()*6) flash=.25; if(flash>0){ ctx.fillStyle='rgba(235,240,255,'+(flash*1.4)+')'; ctx.fillRect(0,0,W,H); } }
-    if(G.st.weather.rainbow>0){ const r=G.st.weather.rainbow, a=Math.min(1,(60-r)/6,r/10)*.42; const hz=Math.min(H*.62,Math.max(H*.3,toS(0,640).y)); const rad=Math.max(W*.42,H*.55), cx=W*.58, cy=hz+rad*.35;
-      ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,hz); ctx.clip(); ctx.globalCompositeOperation='screen'; const bw=Math.max(5,rad*.018);
-      ['#ff4d4d','#ffa64d','#fff04d','#4dff6a','#4db8ff','#8a4dff'].forEach((col,i)=>{ ctx.strokeStyle=col; ctx.lineWidth=bw*1.15; ctx.globalAlpha=a; ctx.beginPath(); ctx.arc(cx,cy,rad-i*bw,Math.PI*1.05,Math.PI*1.95); ctx.stroke(); });
-      ctx.globalAlpha=a*.35; ctx.strokeStyle='#ffffff'; ctx.lineWidth=bw*7; ctx.beginPath(); ctx.arc(cx,cy,rad-2.5*bw,Math.PI*1.05,Math.PI*1.95); ctx.stroke(); ctx.restore(); }
-  }
+  // Day, night, rain, storms and rainbows are gone. The rooms stay in steady daylight.
+  function weather(){}
   // ================= FARM LIFE: ground decor, props, chickens, cloud shadows, harvest flyers =================
   // All sizes in metres at FARM_PPM (50 px/m) so props match the 1.7 m people.
   const M=FARM_PPM; let groundC=null;
@@ -1399,9 +1381,9 @@ window.R=(function(){
   }
   function pick(sx,sy){
     if(bedLay){
-      if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r+4) return {type:'gecko'};
       let bq=null, bd=22; for(const b of qbub){ const d=Math.hypot(sx-b.x,sy-b.y); if(d<bd){ bd=d; bq=b; } } if(bq) return bq.act;
       if(bedLay.build&&sx>=bedLay.build.x&&sx<=bedLay.build.x+bedLay.build.w&&sy>=bedLay.build.y&&sy<=bedLay.build.y+bedLay.build.h) return bedLay.build.act;
+      if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r) return {type:'gecko'};
       for(let i=bedLay.cells.length-1;i>=0;i--){ const c=bedLay.cells[i]; if(sx<c.x||sx>c.x+c.w||sy<c.y||sy>c.y+c.h) continue;
         if(c.expand) return {type:'expand',kind:c.expand};
         if(c.owned&&c.p){ sel=c.p; return {type:'plot',p:c.p}; }

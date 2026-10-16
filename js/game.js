@@ -86,7 +86,7 @@ window.G = (function(){
     lightdep:{loc:'farm', name:'Light-dep blackout tarps', desc:'Force flowering on schedule: +15% greenhouse growth per level (Lv3-4: automated light-dep greenhouse roof)', costs:[0,1200,3360,90000,180000], need:'gh'},   // Lv3-4 = level 9-11 cash sink
     loupe:   {loc:'farm', name:'Jeweler\'s loupe', desc:'Bigger Inspect lens, and hidden eggs show as orange dots on screen while you inspect', base:40, mul:1, max:1},
     cooler:  {loc:'farm', name:'Exhaust fans + swamp cooler', desc:'-40% greenhouse mold, +3% quality', base:1800, mul:1, max:1, need:'gh'},
-    catch:   {loc:'farm', name:'Rain catchment tank', desc:'Terraces and greenhouse beds hold water about 40% longer. Rain still refills the open terraces.', base:2500, mul:1, max:1, need:'land'},
+    catch:   {loc:'farm', name:'Catchment tank', desc:'Terraces and greenhouse beds hold water about 40% longer.', base:2500, mul:1, max:1, need:'land'},
     supp:    {loc:'farm', name:'Supplemental lights', desc:'Greenhouse keeps growing at night', base:4500, mul:1, max:1, need:'gh'},
     shutters:{loc:'farm', name:'Storm shutters + hoop covers', desc:'Trade-wind storms no longer hurt ripe farm plants', base:3500, mul:1, max:1, need:'land'},
     // --- indoor facility gear ---
@@ -307,8 +307,8 @@ window.G = (function(){
   const GECKO=[{k:'grow',name:'Growth rush',desc:'2x growth for 60s',t:60,w:3},{k:'price',name:'Market buzz',desc:'+50% sale prices for 60s',t:60,w:3},{k:'cash',name:'Lucky find',desc:'Instant cash',t:0,w:2},{k:'hint',name:'Old seed journal',desc:'+1 hint token',t:0,w:1}];
   function boostOn(k){ const b=st.gecko&&st.gecko.boost; return !!b&&b.k===k&&b.t>0; }
   function tickGecko(dt){ if(!F.gecko||st.level<GATE.gecko) return; const g=st.gecko; if(g.boost){ g.boost.t-=dt; if(g.boost.t<=0) g.boost=null; }
-    if(g.on){ g.on.t-=dt; if(g.on.t<=0||g.on.loc!==st.loc){ g.on=null; g.next=180+Math.random()*240; } return; }
-    g.next-=dt; if(g.next<=0){ g.on={loc:st.loc,t:12,u:Math.random(),v:Math.random()}; emit('gecko',g.on); } }
+    if(g.on){ const dur=g.on.dur||8; g.on.p=(g.on.p||0)+dt/dur; g.on.t=(g.on.t||dur)-dt; if(g.on.p>=1||g.on.t<=0){ g.on=null; g.next=36+Math.random()*40; } return; }
+    g.next-=dt; if(g.next<=0){ const dur=6+Math.random()*4; g.on={t:dur,dur,p:0,y:0.28+Math.random()*0.38,dir:Math.random()<.5?1:-1}; emit('gecko',g.on); } }
   function geckoTap(){ const g=st.gecko; if(!g.on) return false; g.on=null; g.next=200+Math.random()*260; let r=Math.random()*GECKO.reduce((a,b)=>a+b.w,0), pick=GECKO[0]; for(const x of GECKO){ r-=x.w; if(r<=0){ pick=x; break; } }
     let extra=''; if(pick.k==='cash'){ const v=Math.round(25*Math.pow(st.level,2.1)); addCash(v,'gecko'); extra=fmt(v); } else if(pick.k==='hint'){ st.hints++; } else g.boost={k:pick.k,t:pick.t,max:pick.t};
     bump('geckos'); emit('geckotap',{b:pick,extra}); return pick; }
@@ -451,7 +451,6 @@ window.G = (function(){
   function upkeepFrac(p,k){ let f=ZONE[p.zone].up[k]||0;
     if(p.zone==='garage'&&k==='power') f*=[1,1.1,1.05,.95][lv('light')]*(1+.04*lv('dehu'))*(1-.1*lv('timer'));
     if((p.zone==='gh'||p.zone==='field')&&k==='water') f*=1-.6*lv('catch');
-    if(p.zone==='gh'&&k==='upkeep'&&lv('supp')) f+=.03;
     if(p.zone==='in'&&k==='power') f*=(1+.05*lv('led'))*(1-.15*lv('solar'));
     if(p.zone==='in'&&k==='climate') f*=(1-.1*lv('hvac'))*(1+.6*lv('co2'));
     if(k==='nutrients') return 0;
@@ -459,8 +458,8 @@ window.G = (function(){
   function cycleCost(){ return {total:0}; }
   function upkeepRates(){ return {garage:{total:0,parts:{}},farm:{total:0,parts:{}},indoor:{total:0,parts:{}}}; }
   // ---------- growth ----------
-  function isNight(){ const t=(st.time%DAY_LEN)/DAY_LEN; return t<.2||t>.8; }
-  function dayPhase(){ return (st.time%DAY_LEN)/DAY_LEN; }
+  function isNight(){ return false; }
+  function dayPhase(){ return 0.45; }
   function growRate(p,offline){
     const s=strain(p.strain); let r=1/s.game.growSec; { const K=keeperRec(p.strain); if(K&&typeof K.g==='number') r*=K.g; }
     const z=ZONE[p.zone];
@@ -468,7 +467,7 @@ window.G = (function(){
     if(p.zone==='garage') r*=(1+.125*lv('light'))*(1+.05*lv('timer'));
     if(p.zone==='gh') r*=1+.15*lv('lightdep');
     if(p.zone==='in') r*=(1+.15*lv('led'))*(1+.2*lv('co2'))*(1+.06*lv('solar'));
-    if(z.outdoor){ let w; if(offline) w=.85; else { w=WEATHER[st.weather.type].out*(st.weather.type==='sunny'&&isNight()?.77:1); if(isNight()&&!(p.zone==='gh'&&lv('supp'))) w*=.6; } r*=Math.pow(w,z.outdoor); }
+    if(z.outdoor) r*=1;
     r*=1+.08*mana('thumb'); if(setDone('purple')) r*=1.1; if(boostOn('grow')) r*=2; if(boostLeft('grow')>0) r*=2; if(festOn('monarch')) r*=1.2;
     if(p.water<=0) r*=.15;
     if(p.food>0) r*=1.15; else if(isHungry(p)) r*=.8;
@@ -485,9 +484,8 @@ window.G = (function(){
     if(!p.strain||p.prog<.1) return {pests:0,mold:0};
     if(p.zone==='in') return {pests:.0004, mold:.0028*Math.max(.15,1-.22*lv('hvac'))};
     if(p.zone==='garage'){ const f=1-.25*lv('fan'); return {pests:.0008*f, mold:.0014*f*(1-.15*lv('oscfan'))*(1-.35*lv('dehu'))}; }
-    const wet=st.weather.type==='rain'||st.weather.type==='storm';
-    if(p.zone==='gh') return {pests:.0009, mold:(wet?.0006:.0003)*(1-.4*lv('cooler'))*(season()==='wet'?1.3:1)};
-    return {pests:.0012*(st.weather.type==='sunny'?1.2:1), mold:(wet?.0012:.0002)*(season()==='wet'?1.6:1)};
+    if(p.zone==='gh') return {pests:.0009, mold:.0003*(1-.4*lv('cooler'))};
+    return {pests:.0012, mold:.0002};
   }
   function treatCost(p){ const s=strain(p.strain); return Math.max(.5,Math.round(s.game.payout*.06*ZONE[p.zone].yield*100)/100); }
   // training in veg (prog 0.15-0.5): prune the lower branches (+12% yield, once) and, for tall outdoor/greenhouse plants, tie them to a trellis (+8%)
@@ -509,12 +507,11 @@ window.G = (function(){
     if(!p.strain) return;
     if(p.prog>=1){ p.readyT+=dt; if(p.pest) p.q=Math.max(.55,p.q-.01*dt*(60/strain(p.strain).game.growSec)); return; }
     const s=strain(p.strain), gs=s.game.growSec;
-    if(!offline&&WEATHER[st.weather.type].waters&&p.zone==='field') p.water=1;
     if(lv('water')>=4&&p.water<.6) p.water=1;
     let dp=growRate(p,offline)*dt*(p.train==='top'?1/1.1:1);
     if(!offline&&!st.stats.pruneHint&&canPrune(p)){ st.stats.pruneHint=1; emit('tip','Your first plant is ready for training. Tap it to prune, top or tie it down for a bigger harvest.'); }
     p.prog=Math.min(1,p.prog+dp);
-    const wdrain=dt/(gs*.5)*(st.stats.harvests?1:.3)*(lv('water')>=2?.625:1)*(p.zone==='garage'&&lv('trays')?.8:1)*(lv('catch')&&(p.zone==='field'||p.zone==='gh')?.7:1)*(((p.zone==='field')||(p.zone==='gh'&&!lv('shade')))&&!offline&&st.weather.type==='sunny'?1.3:1)*((p.zone==='field'||p.zone==='gh')&&season()==='dry'?1.3:1);
+    const wdrain=dt/(gs*.5)*(st.stats.harvests?1:.3)*(lv('water')>=2?.625:1)*(p.zone==='garage'&&lv('trays')?.8:1)*(lv('catch')&&(p.zone==='field'||p.zone==='gh')?.7:1);
     p.water=Math.max(0,p.water-wdrain); if(!(p.food>0)) p.food=0;
     const hurt=(p.water<=0?.006:0)+(isHungry(p)?.0015:0)+(p.pest?.012:0);
     p.q=Math.max(.55,Math.min(1.15,p.q+(p.food>0?.16:0)*dp-hurt*dt*(26/gs)));
@@ -548,7 +545,7 @@ window.G = (function(){
     }
   }
   // ---------- market ----------
-  function price(id,g,stg,q){ const s=strain(id); return (boostLeft('price')>0?2:1)*s.game.budValue*(QMULT[q]||1)*st.market.f[id]*STAGE_MULT[stg]*GRADE[g||0]*mastery(id).m*earnMult()*(st.market.hot===id?2:1)*(st.weather.rainbow>0?1.1:1)*(evFx('swell')?1.25:1)*(boostOn('price')?1.5:1)*(festOn('leiday')?1.15:1); }
+  function price(id,g,stg,q){ const s=strain(id); return (boostLeft('price')>0?2:1)*s.game.budValue*(QMULT[q]||1)*st.market.f[id]*STAGE_MULT[stg]*GRADE[g||0]*mastery(id).m*earnMult()*(st.market.hot===id?2:1)*(evFx('swell')?1.25:1)*(boostOn('price')?1.5:1)*(festOn('leiday')?1.15:1); }
   function sell(stg,k,n,bonus){
     const have=st.inv[stg][k]||0; n=Math.min(n==null?have:n,have); if(n<=0) return 0;
     const {id,g,q}=unkey(k); const v=price(id,g,stg,q)*n*(bonus||1);
@@ -620,27 +617,14 @@ window.G = (function(){
     dry:{name:'Dry season',fav:'Sativa',tip:'Long sunny days. Outdoor plants drink 30% faster. Sativas get +10% outdoor yield.'},
     makahiki:{name:'Makahiki',fav:null,tip:'The harvest festival: stalls on the farm, customers come 1.5x as often and you earn +25% XP.'}};
   function season(){ const d=dayNum()%24; return d<10?'wet':d<22?'dry':'makahiki'; }
-  function seasonYield(p){ const z=ZONE[p.zone]; if(!z.outdoor) return 1; const f=SEASONS[season()].fav; return f&&strain(p.strain).type===f?1+.1*z.outdoor:1; }
+  function seasonYield(){ return 1; }
   let lastSeason=null;
   // Weekly market day (every 7th in-game day): customers arrive 2.5x as often and pay +10%
   function dayNum(){ return Math.floor(st.time/DAY_LEN); }
   function marketDay(){ return F.customers!==false&&st.level>=GATE.customers&&dayNum()%7===6; }
   let lastDay=-1; function tickDay(){ const d=dayNum(); if(lastDay>=0&&d!==lastDay&&marketDay()) emit('marketday'); lastDay=d; const se=season(); if(lastSeason&&se!==lastSeason) emit('season',SEASONS[se]); lastSeason=se; }
   // ---------- weather ----------
-  function tickWeather(dt){
-    tickDay(); const w=st.weather; w.t+=dt; if(w.rainbow>0) w.rainbow-=dt;
-    if(w.t>=w.dur){
-      const prev=w.type; let r=Math.random(), acc=0, nt='sunny';
-      const se=season(), SW={wet:{sunny:.6,partly:1.1,rain:1.9,storm:1.6,vog:1},dry:{sunny:1.35,partly:1,rain:.45,storm:.4,vog:1.3},makahiki:{sunny:1.2,partly:1,rain:.7,storm:.3,vog:.5}}[se];
-      const tot=Object.entries(WEATHER).reduce((a,[k,v])=>a+v.w*(SW[k]||1),0); r*=tot;
-      for(const [k,v] of Object.entries(WEATHER)){ acc+=v.w*(SW[k]||1); if(r<=acc){nt=k;break;} }
-      if(prev==='storm'&&nt==='storm') nt='rain';
-      w.type=nt; w.t=0; w.dur=nt==='storm'?45+Math.random()*30:70+Math.random()*90;
-      if((prev==='rain'||prev==='storm')&&nt!=='rain'&&nt!=='storm'&&!isNight()) { w.rainbow=60; emit('rainbow'); }
-      if(nt==='storm'&&!lv('shutters')) st.plots.forEach(p=>{ if((p.zone==='field'||p.zone==='gh')&&p.strain&&p.prog>=1) p.q=Math.max(.6,p.q-(p.zone==='gh'?.05:.1)); });
-      emit('weather',nt);
-    }
-  }
+  function tickWeather(){ if(!st.weather) return; st.weather.type='sunny'; st.weather.rainbow=0; st.weather.t=0; }
   // ---------- automation ----------
   const auto={r:0,m:0,w:0,f:0};
   function tickAuto(dt,offline){
@@ -886,7 +870,7 @@ window.G = (function(){
   function claimAch(id){ const a=ACH.find(x=>x.id===id); if(!a||st.ach[id]!==1) return false; st.ach[id]=2; addGems(a.gems); emit('achclaim',a); return true; }
   function bump(k,n){ if(n==null) n=1; if(n) st.stats[k]=(st.stats[k]||0)+n; }
   const EVENTS={ moon:{name:'Lucky Pheno Hunt',desc:'3x mutation chance, +1 hint token',dur:120}, festival:{name:'Island Festival',desc:'2x XP',dur:120}, swell:{name:'Big Swell',desc:'Surfers in town: +25% prices',dur:100} };
-  function mutChance(p){ return (p&&p.zone==='garage'&&garageRole()==='pheno'?2:1)*(st.breedLab?2:1)*.035*(st.weather.type==='vog'?1.5:1)*(evFx('moon')?3:1)*(1+.25*mana('pheno')); }
+  function mutChance(p){ return (p&&p.zone==='garage'&&garageRole()==='pheno'?2:1)*(st.breedLab?2:1)*.035*(evFx('moon')?3:1)*(1+.25*mana('pheno')); }
   function tickEvent(dt){ if(!F.events||st.level<GATE.events) return; const e=st.event; if(e.id){ e.t-=dt; if(e.t<=0){ e.id=null; e.next=240+Math.random()*240; emit('eventend'); } } else { e.next-=dt; if(e.next<=0){ if(Math.random()<.4){ const se=seasonEv(); e.id='season'; e.t=se.dur; if(se.fx==='moon') st.hints++; bump('seasonEv'); emit('event',se); } else { const ks=Object.keys(EVENTS); const id=ks[Math.floor(Math.random()*ks.length)]; e.id=id; e.t=EVENTS[id].dur; if(id==='moon') st.hints++; emit('event',EVENTS[id]); } } } }
   function tierWeight(tier){ return tier>=3?1:tier===2?3:6; }
   // Same filter and weights as pickSeed. packOdds reads this so the shop table cannot drift from the roll.
