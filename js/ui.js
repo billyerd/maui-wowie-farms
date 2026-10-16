@@ -145,10 +145,9 @@ window.UI = (function(){
         if(box) box.setAttribute('aria-label','Level '+lv+', '+Math.round(pct*100)+'% to next'); } }
     const m=G.earnMult(); $('#multBadge').textContent='x'+(m<10?m.toFixed(1):Math.round(m)); $('#multBadge').style.display=m>1.001?'':'none';
     const ph=G.dayPhase(), hh=Math.floor(ph*24), mm=Math.floor((ph*24-hh)*60), w=G.WEATHER[st.weather.type];
-    const U=G.upkeepRates()[st.loc]; const upk=U.total>0?` · ${fmt(U.total)}/h upkeep${st.upkeepWarn[st.loc]>0?' ⚠ slowed':''}`:'';
     { const sm=innerWidth<520, se=G.SEASONS[G.season()], extra=(sm&&(G.marketDay()||G.evFx('swell'))?'':' · '+(sm?se.name.split(' ')[0]:se.name))+(G.marketDay()?(sm?' · Market':' · Market day'):'')+(G.evFx('swell')?(sm?' · Swell':' · Big swell'):''), wn=st.weather.rainbow>0?(sm?'Rainbow':'Rainbow +10%'):w.name;
-      $('#clockTxt').textContent=`${sm?'D':'Day '}${Math.floor(st.time/G.DAY_LEN)+1} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${sm&&extra?wn.split(' ')[0]:wn}${extra}${sm?(extra?'':upk.replace(' upkeep','')):upk}`; }
-    $('#clock').classList.toggle('warn',st.upkeepWarn[st.loc]>0);
+      $('#clockTxt').textContent=`${sm?'D':'Day '}${Math.floor(st.time/G.DAY_LEN)+1} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${sm&&extra?wn.split(' ')[0]:wn}${extra}`; }
+    $('#clock').classList.remove('warn');
     const wet=G.invCount('wet'), sellable=G.invCount('dry')+G.invCount('cured')+G.goodsCount();
     $('#procBadge').textContent=wet?G.num(wet):''; const qr=G.questsReady()+(G.st.questDone?1:0); $('#qBadge').textContent=qr||'';
     const ords=Array.isArray(st.orders)?st.orders:[];
@@ -194,14 +193,14 @@ window.UI = (function(){
     if(!st.permit&&st.level>=G.INDOOR.permitLevel) acts.push({label:'Buy permit '+fmt(G.INDOOR.permitCost),cls:'',v:'permit'});
     if(st.permit&&!st.found&&st.level>=G.INDOOR.foundLevel) acts.push({label:'Pour foundation '+fmt(G.INDOOR.foundCost),cls:'',v:'found'});
     if(ready) acts.push({label:(st.cash>=G.INDOOR.build?'Build ':'Need ')+fmt(G.INDOOR.build),cls:st.cash>=G.INDOOR.build?'gold':'sec',v:st.cash>=G.INDOOR.build?'build':0});
-    modal(`<img src="art/indoor.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor facility checklist</h3><p>Sealed veg and flower rooms on rolling benches: double yield and AAA grade, but power, climate and rent cost money every hour. Pour the foundation before the build.</p>${reqList(ck)}`,acts)
+    modal(`<img src="art/indoor.webp" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor facility checklist</h3><p>Sealed veg and flower rooms on rolling benches: double yield and AAA grade. Pour the foundation before the build.</p>${reqList(ck)}`,acts)
       .then(v=>{ if(v==='permit'){ if(G.buyPermit()) indoorModal(); } else if(v==='found'){ if(G.buyFoundation()) indoorModal(); } else if(v==='build'&&G.buildIndoor()){ G.setLoc('indoor'); } }); }
   // ---------- tools ----------
   function setTool(t){ tool=t; $$('.tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===t)); Sound.play('tap'); }
   // ---------- plot interaction ----------
   function tapPlot(p,sx,sy){
     const st=G.st, again=popPlot===p||lastSel===p; hidePop();
-    if(!p.strain){ lastSel=null; if(st.seeds[st.selSeed]>0) G.plant(p); else { toast('No '+(G.strain(st.selSeed)?.name||'')+' seeds. Open your seed bag or the seed shop!','bad'); open('seeds'); } return; }
+    if(!p.strain){ lastSel=null; if(st.seeds[st.selSeed]>0) G.plant(p); return; }
     if(p.prog>=1){ G.harvest(p); lastSel=null; return; }
     // one tap = highlighted with quick-action bubbles; tap the same plant again for the full plant card
     if(again){ lastSel=null; showPop(p,sx,sy); return; }
@@ -318,7 +317,7 @@ window.UI = (function(){
     const M={garage:['assets/new-art/backgrounds/garage.jpg','Garage','One hanging light over stacked pots.'],gh:['assets/new-art/backgrounds/greenhouse.jpg','Greenhouse','Daylight, dirt beds, no grow lights.'],facility:['assets/new-art/backgrounds/indoor-facility.jpg','Indoor Facility','Forty plots under one ceiling light.']};
     if(M[room]) return `<div class="ubanner" style="background-image:url('${M[room][0]}')"><div><b>${M[room][1]}</b><span>${M[room][2]}</span></div></div>`;
     if(room==='lines') return `<div class="ubanner soft"><img alt="" src="assets/new-art/sprites/water-barrel.png"><div><b>Water + feed</b><span>The hose unlocks Water all. Feed all stays free.</span></div></div>`;
-    return `<div class="ubanner soft">${portraitImg('Kai','wport','bust')}<div><b>Helpers</b><span>One note when the crew finishes. They stay off the map.</span></div></div>`;
+    return `<div class="ubanner soft"><div><b>Upgrades</b><span>Gear lives on these cards.</span></div></div>`;
   }
 
   // Seeds
@@ -330,9 +329,9 @@ window.UI = (function(){
       return row(s,`<div class="stats"><span>⏱ ${sec(s.game.growSec)}</span><span>${s.game.buds} buds</span><span>~${fmt(s.game.payout)}/plant</span><span>${fmt(ph)}/h</span><span>${thc(s)}</span></div><p>Seed ${fmt(pr)} · own <b>${st.seeds[s.id]||0}</b>${m.lvl?` · Mastery x${m.m}`:''}${m.next&&st.level>=3?` · ${m.n}/${m.next} harvests to x${m.nextM}`:''}</p>`,
       `<div style="display:flex;flex-direction:column;gap:4px"><button class="btn sm" data-a="buy" data-id="${s.id}" data-n="1" ${st.cash<pr?'disabled':''}>Buy 1</button><button class="btn sm sec" data-a="buy" data-id="${s.id}" data-n="5" ${st.cash<pr*5?'disabled':''}>×5</button>${st.selSeed===s.id?'<span class="chip selchip">✓ Selected</span>':''}</div>`,st.selSeed===s.id).replace('<div class="row','<div data-pickseed="'+s.id+'" class="row '+((st.seeds[s.id]||0)>0?'pickable':'')); }).join('')
       +`<div class="note">Grow times run from 30 seconds (Common) to 3 days (Legendary). Plants keep growing while you're away. Long grows pay a little more per hour. More strains unlock by level, breeding and island festivals.</div>`;
-    const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length;
+    const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length, have=(st.seeds[st.selSeed]||0)>0;
     return {title:'Seed Shop',sub:'Pick a strain, then tap an empty bucket, pot or bed.',tabs:[['all','All'],['fast','Under 30m'],['island','Island'],['top','Epic+']],body,
-      foot:`<div style="flex:1;font-size:12px;color:var(--mut)">Selected: <b style="color:#fff">${esc(sel?.name||'-')}</b> (${st.seeds[st.selSeed]||0})</div><button class="btn" data-a="plantall" ${!empty?'disabled':''}>Plant ${empty} here</button>`};
+      foot:`<div style="flex:1;font-size:12px;color:var(--mut)">Selected: <b style="color:#fff">${esc(sel?.name||'-')}</b> (${st.seeds[st.selSeed]||0})</div><button class="btn" data-a="plantall" ${!empty||!have?'disabled':''}>Plant ${empty} here</button>`};
   };
   // Dry, cure and craft
   PANELS.process=()=>{
@@ -405,13 +404,11 @@ window.UI = (function(){
     if(!n) return ucard({key:'step_'+kind,theme:'step',state:'owned',img,title:esc(label)+': all space bought',desc:'This room is at its plant cap.',action:'<span class="uchip">MAX</span>'});
     const state=G.st.cash<n.cost?'short':'canbuy';
     return ucard({key:'step_'+kind,theme:'step',state,img,title:esc(n.name),desc:esc(n.desc||('+'+n.add+' plant spaces')),action:`<button class="btn gold" data-a="step" data-k="${kind}" ${state==='short'?'disabled':''}>${fmt(n.cost)}</button>`}); }
-  function upkeepBox(l){ const U=G.upkeepRates()[l]; const parts=Object.entries(U.parts).filter(([k,v])=>v>.005);
-    return `<div class="upkeep"><h4>Upkeep now: ${fmt(U.total)}/hour ${G.st.upkeepWarn[l]>0?'<span class="tag" style="background:#ff8a5c">Cash short: growth slowed to 30%</span>':''}</h4>${parts.length?`<dl class="kv">${parts.map(([k,v])=>`<dt>${esc(G.UPK_NAME[k]||k)}</dt><dd>${fmt(v)}/h</dd>`).join('')}</dl>`:'<p>Nothing growing here right now.</p>'}<p>Charged while plants grow. If cash runs out you never go into debt: plants just grow slower until you can pay.</p></div>`; }
   PANELS.upgrades=()=>{
-    const st=G.st; const cur=G.currentRoom(); tab=tab||(cur==='benches'?'facility':cur==='facility'?'facility':cur==='gh'?'gh':'garage'); if(tab==='farm') tab='facility'; if(tab==='indoor') tab='facility'; let body='';
-    const tabs=[['garage','Garage'],['gh','Greenhouse'],['facility','Indoor Facility'],['lines','Water + feed'],['hands','Helpers']];
+    const st=G.st; const cur=G.currentRoom(); tab=tab||(cur==='benches'?'facility':cur==='facility'?'facility':cur==='gh'?'gh':'garage'); if(tab==='farm') tab='facility'; if(tab==='indoor') tab='facility'; if(tab==='hands') tab='garage'; let body='';
+    const tabs=[['garage','Garage'],['gh','Greenhouse'],['facility','Indoor Facility'],['lines','Water + feed']];
     if(tab==='garage'){ const g=G.GARAGE[st.garage];
-      body+=upBanner('garage')+`<div class="section-t">Grow space · ${G.capOf('garage')}/25 plants</div><div class="note">Now: <b>${esc(g.name)}</b>. Beds stay in the room. Gear you buy shows up here, not on the floor.</div>`+stepCard('garage','Garage')+upkeepBox('garage');
+      body+=upBanner('garage')+`<div class="section-t">Grow space · ${G.capOf('garage')}/25 plants</div><div class="note">Now: <b>${esc(g.name)}</b>. Beds stay in the room. Gear you buy shows up here, not on the floor.</div>`+stepCard('garage','Garage');
       body+=`<div class="section-t">Garage gear</div>`+['light','fan','oscfan','dehu','timer','phkit','trays'].map(k=>upRow(k)).join('');
       const labImg=window.UpgIcons?`<img class="upico" alt="" src="${UpgIcons.url('labPollen','garage')}">`:'';
       body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the Indoor Facility it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':ucard({key:'lab',theme:'indoor',state:G.st.inBuilt&&G.st.cash>=G.LAB.cost?'canbuy':'locked',img:labImg,title:'Indoor Breeding Pheno Room',desc:'Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the sealed benches.',action:`<button class="btn gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button>`})); }
@@ -420,21 +417,20 @@ window.UI = (function(){
       if(!st.land){ const L=landReq(); body+=`<div class="note">The greenhouse sits on the family land. Buy the Indoor Facility first.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
       else { const ghImg=`<img class="upico" alt="" src="assets/new-art/sprites/hoop-house.png">`; const ghLock=!G.gate('gh');
         body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):ucard({key:'ghbuild',theme:'farm',state:ghLock||st.cash<G.GH_BUILD.cost?'locked':'canbuy',img:ghImg,title:'Build the greenhouse',desc:'Steel poles and a plastic topper over dirt beds. Weather still matters. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||ghLock?'disabled':''}>${ghLock?ico('lock')+' Lv '+G.GH_BUILD.level:fmt(G.GH_BUILD.cost)}</button>`}));
-        body+=upkeepBox('farm')+`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); } }
+        body+=`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); } }
     else if(tab==='facility'){
       body+=upBanner('facility');
       if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. Your plants carry over when you buy it.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
-      else { body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div>`+stepCard('field','Plots')+upkeepBox('farm');
+      else { body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div>`+stepCard('field','Plots');
         body+=`<div class="section-t">Facility gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
         body+=`<div class="section-t">Sealed benches</div>`;
         if(!st.inBuilt){ body+=`<div class="note">A later sealed room with its own pots. Finish the checklist when you are ready. Plants already in that room stay on their benches.</div>`+reqList(G.indoorChecklist());
           if(!st.permit) body+=`<button class="btn wide" data-a="permit" ${st.level<G.INDOOR.permitLevel||st.cash<G.INDOOR.permitCost?'disabled':''}>${st.level<G.INDOOR.permitLevel?ico('lock')+'Permit at Lv '+G.INDOOR.permitLevel:'Buy County Agricultural Permit · '+fmt(G.INDOOR.permitCost)}</button>`;
           if(st.permit&&!st.found) body+=`<button class="btn wide" data-a="found" style="margin-top:8px" ${st.level<G.INDOOR.foundLevel||st.cash<G.INDOOR.foundCost?'disabled':''}>${st.level<G.INDOOR.foundLevel?ico('lock')+'Foundation at Lv '+G.INDOOR.foundLevel:'Pour the foundation · '+fmt(G.INDOOR.foundCost)}</button>`;
           body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build sealed benches · ${fmt(G.INDOOR.build)}</button>`; }
-        else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches')+upkeepBox('indoor')+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); }
+        else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches')+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); }
     }
-    else if(tab==='lines'){ body+=upBanner('lines')+`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
-    else { body+=upBanner('hands')+`<div class="note">Helpers do not walk the rooms. When they finish work you get one short note, not a popup per plant. Each hire is once, with no wages.</div>`+Object.keys(G.WORKERS).map(k=>upRow(k,true)).join('')+(st.vip?'<div class="note">VIP active: auto-load and auto-sell run even without helpers.</div>':''); }
+    else { body+=upBanner('lines')+`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
     return {title:'Upgrades',sub:'Gear lives on these cards. Rooms stay clear.',tabs,body};
   };
   // Pheno Room: pheno-hunting mystery
@@ -571,8 +567,8 @@ window.UI = (function(){
     } else if(tab==='board'){ body+=`<div class="note">Offline island rankings: your best scores against fictional island growers (computer rivals). Online rankings (Game Center / Google Play Games) arrive with the app versions.</div><div id="lbBox"><div class="empty">Loading…</div></div>`; setTimeout(fillBoard,0);
     } else { const need=G.rebirthNeed(), pct=Math.min(1,st.runEarn/need), gain=G.manaGain();
       body+=`<div class="row" style="display:block"><h4>New Season ${st.rebirths?'#'+(st.rebirths+1):''}</h4><p>Season earnings ${fmt(st.runEarn)} of ${fmt(need)}</p>${bar(pct,'amber')}<p>Starting a new season now earns <b>${gain} Island Spirit</b>. Unspent spirit adds +1% to all prices each.</p></div>`;
-      body+=`<div class="section-t">Island Spirit tree · ${st.mana} to spend</div>`+Object.entries(G.MANA_UPG).map(([k,d])=>{ const l=G.mana(k), mx=l>=d.max, c=mx?0:G.manaCost(k); return `<div class="row"><div class="grow"><h4>${esc(d.name)} ${pips(l,d.max)}</h4><p>${esc(d.desc)}</p></div>${mx?'<span class="chip">MAX</span>':`<button class="btn sm gem" data-a="mana" data-k="${k}" ${st.mana<c?'disabled':''}>${c} spirit</button>`}</div>`; }).join('');
-      body+=`<div class="note"><b>You keep:</b> strains, recipes, hints, clones, level, gems, packs, themes, perks, mastery, sets and reputation.<br><b>Resets:</b> cash, garage tables and buckets, land, greenhouse, indoor facility, upgrades, helpers, seeds and inventory.</div>`;
+      body+=`<div class="section-t">Island Spirit tree · ${st.mana} to spend</div>`+Object.entries(G.MANA_UPG).map(([k,d])=>{ if(k==='crew') return `<div class="row"><div class="grow"><h4>${esc(d.name)}</h4><p>${esc(d.desc)}</p></div><span class="chip">Retired</span></div>`; const l=G.mana(k), mx=l>=d.max, c=mx?0:G.manaCost(k); return `<div class="row"><div class="grow"><h4>${esc(d.name)} ${pips(l,d.max)}</h4><p>${esc(d.desc)}</p></div>${mx?'<span class="chip">MAX</span>':`<button class="btn sm gem" data-a="mana" data-k="${k}" ${st.mana<c?'disabled':''}>${c} spirit</button>`}</div>`; }).join('');
+      body+=`<div class="note"><b>You keep:</b> strains, recipes, hints, clones, level, gems, packs, themes, perks, mastery, sets and reputation.<br><b>Resets:</b> cash, garage tables and buckets, land, greenhouse, indoor facility, upgrades, seeds and inventory.</div>`;
       foot=`<button class="btn gold wide" data-a="rebirth" ${pct<1?'disabled':''}>${ico('star')}${pct<1?'Earn '+fmt(need-st.runEarn)+' more':'Start New Season (+'+gain+' spirit)'}</button>`; }
     return {title:'Story & Quests',sub:'Daily, weekly and lifetime rewards. All free.',tabs,body,foot};
   };
@@ -693,7 +689,7 @@ window.UI = (function(){
       if(st.rarePacks||st.legPacks) body+=`<div class="section-t">Your seed packs</div><div class="row"><div class="grow"><h4>Rare packs: ${st.rarePacks} · Legendary packs: ${st.legPacks}</h4></div>${st.rarePacks?'<button class="btn sm" data-a="openpack" data-k="rare">Open rare</button>':''}${st.legPacks?'<button class="btn sm gold" data-a="openpack" data-k="leg">Open legendary</button>':''}</div>`;
       body+=`<div class="section-t">Gems</div>`+list(['gems_s','gems_m','gems_l','gems_xl']);
     } else if(tab==='gemstore'){
-      body+=adsCard()+piggyCard()+`<div class="section-t">Boosts (1 hour each, they stack)</div>`+list(['boost_grow','boost_price','boost_pheno'])+rushCard()+`<div class="section-t">Extra manager</div>`+list(['mgr_slot','mgr_slot_g']);
+      body+=adsCard()+piggyCard()+`<div class="section-t">Boosts (1 hour each, they stack)</div>`+list(['boost_grow','boost_price','boost_pheno'])+rushCard();
       body+=`<div class="section-t">More gem items</div><div class="note">Gems are also earned free: level-ups (+10), goals, daily and weekly quests, achievements, login streaks, new strain discoveries and golden buds.</div>`+list(['skip15','skip60','skip240','pack_rare','pack_leg','pass2x_g','vip_g']);
       if(st.rarePacks||st.legPacks) body+=`<div class="row"><div class="grow"><h4>Packs to open: ${st.rarePacks} rare · ${st.legPacks} legendary</h4></div>${st.rarePacks?'<button class="btn sm" data-a="openpack" data-k="rare">Open rare</button>':''}${st.legPacks?'<button class="btn sm gold" data-a="openpack" data-k="leg">Open legendary</button>':''}</div>`;
     } else if(tab==='pass'){ body+=passTab(); } else if(tab==='style'){ body+=styleTab(); } else if(tab==='strains'){ body+=strainsTab(); } else {
@@ -780,7 +776,7 @@ window.UI = (function(){
     switch(a){
       case 'buy': if(G.buySeeds(d.id,+d.n)){ Sound.play('buy'); toast('+'+d.n+' '+G.strain(d.id).name+' seeds','good'); } break;
       case 'sel': st.selSeed=d.id; setTool('seed'); toast('Tap empty buckets or beds to plant '+G.strain(d.id).name); break;
-      case 'plantall': { let n=0; st.plots.forEach(p=>{ if(p.loc===st.loc&&p.owned&&!p.strain&&st.seeds[st.selSeed]>0&&G.plant(p)) n++; }); if(!n) toast('No seeds left','bad'); break; }
+      case 'plantall': { if(!(st.seeds[st.selSeed]>0)) break; st.plots.forEach(p=>{ if(p.loc===st.loc&&p.owned&&!p.strain) G.plant(p); }); break; }
       case 'load': G.loadDryer(); break;
       case 'sell': G.sell(d.stg,d.k); break;
       case 'sellgood': G.sellGood(d.k); break;
@@ -844,8 +840,7 @@ window.UI = (function(){
       case 'savedown': { const pack=exportPack||G.exportBackup(); const blob=new Blob([pack.json],{type:pack.corrupt?'text/plain':'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=pack.file; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500); toast('Backup file downloaded','good'); break; }
       case 'saveimportgo': { const ta=document.querySelector('textarea[data-savecode="in"]'); const text=ta?ta.value:importDraft; let save;
         try{ save=G.parseBackup(text); }catch(err){ toast(err.message||'That backup is not valid','bad'); break; }
-        const crew=save.workers&&typeof save.workers==='object'?Object.keys(save.workers).filter(k=>save.workers[k]>0).length:0;
-        const ok=await modal(`<h3>Replace this farm?</h3><p>The backup becomes the farm on this device: level ${Math.floor(save.level||1)}, ${esc(G.fmt(typeof save.cash==='number'?save.cash:0))}${crew?', '+crew+' hired helper'+(crew===1?'':'s'):''}. Store purchases on this device stay.</p>`,[{label:'Cancel',cls:'sec',v:false},{label:'Replace farm',cls:'pink',v:true}]);
+        const ok=await modal(`<h3>Replace this farm?</h3><p>The backup becomes the farm on this device: level ${Math.floor(save.level||1)}, ${esc(G.fmt(typeof save.cash==='number'?save.cash:0))}. Store purchases on this device stay.</p>`,[{label:'Cancel',cls:'sec',v:false},{label:'Replace farm',cls:'pink',v:true}]);
         if(!ok) break;
         const r=G.installBackup(save); if(!r.ok){ toast(r.error||'Could not store that backup','bad long'); break; }
         saveUi=null; importDraft=''; exportPack=null; R.rebuild(); close(); toast('Farm restored','good'); break; }

@@ -10,7 +10,6 @@ window.Tutorial=(function(){
     {id:'dry'},
     {id:'sell'},
     {id:'order'},
-    {id:'hire'},
     {id:'land'}
   ];
   function tut(){ const st=window.G&&G.st; const t=st&&st.tut; return t&&typeof t==='object'&&!Array.isArray(t)?t:null; }
@@ -51,7 +50,6 @@ window.Tutorial=(function(){
     if(step.id==='dry'){ if(sheetOpen()&&panel()==='process') return document.querySelector('#sheet [data-a="load"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="process"]'); }
     if(step.id==='sell'){ if(sheetOpen()&&(panel()==='market'||panel()==='stand')) return document.querySelector('#sheet [data-a="sell"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="market"]'); }
     if(step.id==='order') return document.getElementById('orderBoard');
-    if(step.id==='hire'){ if(sheetOpen()&&panel()==='upgrades'){ const tab=document.querySelector('#sheetTabs [data-tab="hands"]'); if(tab&&!tab.classList.contains('on')) return tab; return hireBtn()||tab; } if(sheetOpen()) return closeBtn(); return document.getElementById('upgBtn'); }
     if(step.id==='land') return document.querySelector('#locTabs [data-room="facility"]');
     return null;
   }
@@ -70,7 +68,6 @@ window.Tutorial=(function(){
     if(step.id==='dry') return (st.stats.dryLoads|0)>(b.dry|0);
     if(step.id==='sell') return (st.stats.sold|0)>(b.sold|0);
     if(step.id==='order') return (st.stats.orders|0)>(b.orders|0);
-    if(step.id==='hire') return crew()>(b.crew|0);
     if(step.id==='land') return !!st.land&&!b.land;
     return false;
   }
@@ -86,7 +83,6 @@ window.Tutorial=(function(){
     if(step.id==='dry') return 'Open Dry & Cure and load the racks. Curing jars raise the price later. You do not have to wait for them now.';
     if(step.id==='sell') return 'Open Market and sell what you grew. Fresh, dried, or cured buds all count.';
     if(step.id==='order') return 'The order board sits just above the bottom bar. Neighbors pay extra, and it opens at level '+G.GATE.orders+'. Fill one when you can, or tap Next.';
-    if(step.id==='hire'){ const h=kai(); const name=h?h.d.name.split(',')[0]:'Kai'; const lv=h?h.d.level:2; const price=h?G.fmt(G.cost(h.d,0)):G.fmt(300); return 'Open Upgrades, then Helpers. '+name+' is a one-time hire with no wages. That needs level '+lv+' and '+price+'. Tap Next to move on.'; }
     if(step.id==='land') return 'The Indoor Facility tab is the old family land, 40 plots. It opens at level '+G.LAND_LEVEL+' for '+G.fmt(G.LAND_COST)+'. Buying it turns this garage into your Pheno Room. The Greenhouse tab is the daylight room. Tap Next to move on.';
     return "That's the loop. Plant, water, one free feed, harvest, dry, then sell. I'll stay on the goal card when you want the longer story.";
   }
@@ -190,7 +186,7 @@ window.Tutorial=(function(){
     if(!st.tut||typeof st.tut!=='object'||Array.isArray(st.tut)) st.tut={v:1,step:0,on:false,done:false,skip:false,bought:0};
     start();
   }
-  if(window.G&&G.on) ['seeds','plant','water','feed','harvest','dryload','sold','order','hire','land'].forEach(n=>G.on(n,sync));
+  if(window.G&&G.on) ['seeds','plant','water','feed','harvest','dryload','sold','order','land'].forEach(n=>G.on(n,sync));
   function follow(){ try{ const el=document.getElementById('tutc'); if(!el||el.classList.contains('hidden')) return; if(active()) sync(); else place(); }catch(e){} }
   const watch=new MutationObserver(follow);
   ['sheet','pop'].forEach(id=>{ const n=document.getElementById(id); if(n) watch.observe(n,{attributes:true,attributeFilter:['class']}); });

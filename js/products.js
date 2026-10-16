@@ -69,8 +69,8 @@ for(const [sl,g] of Object.entries(window.COSMETICS)) for(const [id,c] of Object
   window.PRODUCTS['cos_'+sl+'_'+id+'_g']={id:'cos_'+sl+'_'+id+'_g', kind:'gems', priceGems:c.gems, once:true, name:c.name, desc:c.desc+' (cosmetic)', grants:{cos:k}, cos:k};
 }
 /* ---- Premium manager slot: real money once, or gems (earnable) ---- */
-window.PRODUCTS.mgr_slot  ={id:'mgr_slot',  kind:'usd',  priceUSD:4.99, once:true, name:'Extra manager: Lani', desc:'Lani is a roaming manager who works every location you own. Also earnable for 1,800 gems.', grants:{mgrSlot:true}, art:'mgr'};
-window.PRODUCTS.mgr_slot_g={id:'mgr_slot_g',kind:'gems', priceGems:1800, once:true, name:'Extra manager: Lani', desc:'Same roaming manager, earned with gems', grants:{mgrSlot:true}, art:'mgr'};
+window.PRODUCTS.mgr_slot  ={id:'mgr_slot',  kind:'usd',  priceUSD:4.99, once:true, name:'Extra manager: Lani', desc:'This extra-manager perk no longer hires anyone. VIP still auto-loads the dryer and auto-sells.', grants:{mgrSlot:true}, art:'mgr'};
+window.PRODUCTS.mgr_slot_g={id:'mgr_slot_g',kind:'gems', priceGems:1800, once:true, name:'Extra manager: Lani', desc:'This extra-manager perk no longer hires anyone. VIP still auto-loads the dryer and auto-sells.', grants:{mgrSlot:true}, art:'mgr'};
 
 /* ---- Exclusive premium strains (original names). Also drop rarely in play: legendary packs and finished pheno hunts (chances live in game.js DROP). ---- */
 window.PREMIUM_STRAINS={'menehune-mint':{usd:2.99,gems:450},'lilikoi-pop':{usd:2.99,gems:450},'honu-blue':{usd:2.99,gems:450}};

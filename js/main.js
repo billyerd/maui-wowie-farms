@@ -71,7 +71,6 @@
   G.on('gems',fx(({n,why})=>{ if(n>0&&why) UI.toast('+'+n+' gems · '+why,'gemt'); }));
   G.on('nocash',fx(()=>{ Sound.play('error'); UI.toast('Not enough cash','bad'); }));
   G.on('nogems',fx(()=>{ Sound.play('error'); UI.toast('Not enough gems. Earn more by leveling up!','bad'); }));
-  G.on('noseed',fx(()=>{ UI.toast('Out of those seeds. Visit the seed shop','bad'); }));
   G.on('toast',fx(({t,k})=>UI.toast(t,k)));
   G.on('discover',fx(({s,quiet,how})=>{ if(quiet==='lvl') return; if(how==='bred'&&s.mystery) return; Sound.play('discover'); UI.toast((quiet?'Unlocked: ':'New strain: ')+s.name+'!','good'); }));
   G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.modal(`<img data-cu="${s.id}" data-sz="160" data-h="0" alt="" style="width:150px;height:150px;border-radius:22px"><h3>${fresh?'New strain bred!':'Cross complete'}</h3><p><b>${s.name}</b> (${s.rarity})<br>${(s.parents||[]).join(' × ')}</p><p>+3 seeds added to your seed bag.</p>`,[{label:'Thanks!',cls:'gold'}]); }));
@@ -82,7 +81,6 @@
   G.on('rainbow',fx(()=>UI.toast('Rainbow! +10% sale prices','good')));
   G.on('questclaim',fx(()=>{ UI.toast('Goal reward claimed!','good'); const q=G.curQuest(); if(q) setTimeout(()=>UI.storyLine(q),400); }));
   G.on('worker',()=>{ /* helpers stay off the map; jobs are grouped into one portrait */ });
-  G.on('upkeepwarn',fx(l=>{ UI.toast(G.LOC_NAME[l]+': not enough cash for upkeep. Plants grow slower until you can pay','bad','upk'); }));
   G.on('expand',fx(({kind,n})=>{ Sound.play('level'); buzz(15); UI.confetti(50); UI.toast(n.name+'!','good'); R.rebuild(); if(kind==='garage'&&G.st.loc==='garage') R.fit(); }));
   G.on('land',()=>{ R.rebuild(); R.unlockPan&&R.unlockPan('farm'); UI.bigCel('land'); });
   G.on('ghbuilt',()=>{ R.rebuild(); R.unlockPan&&R.unlockPan('farm'); UI.bigCel('ghbuilt'); });
@@ -96,14 +94,14 @@
   G.on('neworder',fx(o=>{ if(G.st.orders.length===1) UI.toast('New order on the board from '+o.who); }));
   G.on('customer',fx(c=>{ UI.toast(c.who+' is at the farm stand: "'+c.pref.t+'"'); }));
   G.on('served',fx(({c,v,tip,mood,auto})=>{ saleFx(v+(tip||0)); buzz(10); R.custReact(c.id,'served',{v,tip,mood});
-    if(G.st.loc!=='farm') UI.toast((auto?'Malia served ':'')+c.who+(auto?'':' paid')+': +'+G.fmt(v+(tip||0))+(tip?' (with tip)':''),'good'); }));
+    if(G.st.loc!=='farm') UI.toast(c.who+' paid: +'+G.fmt(v+(tip||0))+(tip?' (with tip)':''),'good'); }));
   G.on('custno',fx(c=>{ Sound.play('error'); R.custReact(c.id,'none'); if(G.st.loc!=='farm') UI.toast('No '+c.pref.t.toLowerCase()+' in stock for '+c.who,'bad'); else UI.toast('Dry or cure something that fits: '+c.pref.t); }));
   G.on('custleft',fx(c=>{ R.custReact(c.id,'grumpy'); if(G.st.loc==='farm') UI.toast(c.who+' got tired of waiting (-1 reputation)','bad'); }));
   G.on('gecko',fx(()=>{ Sound.play('gem'); UI.toast('A golden gecko! Tap it quickly','gemt','gecko'); }));
   G.on('geckotap',fx(({b,extra})=>{ Sound.play('discover'); buzz([10,30,10]); UI.confetti(40); UI.toast('Golden gecko: '+b.name+(extra?' '+extra:' · '+b.desc),'gemt'); }));
   G.on('crafted',fx(j=>{ Sound.play('gem'); UI.toast(G.CRAFT[j.t].name+' ×'+j.n+' ready to sell','good'); }));
   G.on('festclaim',fx(({f,s})=>{ UI.reveal(s); }));
-  G.on('skip',r=>{ UI.modal(`<h3>Time skipped</h3><p>Your farm worked ${G.dur(r.seconds)}.</p><div class="big-n">${r.cash>=0?'+':''}${G.fmt(r.cash)}</div><p>${r.harvests} harvests · ${r.sold} buds sold${r.upkeep>0?' · '+G.fmt(r.upkeep)+' upkeep':''}</p>`,[{label:'Thanks!',cls:'gold'}]); });
+  G.on('skip',r=>{ UI.modal(`<h3>Time skipped</h3><p>Your farm worked ${G.dur(r.seconds)}.</p><div class="big-n">${r.cash>=0?'+':''}${G.fmt(r.cash)}</div><p>${r.harvests} harvests · ${r.sold} buds sold</p>`,[{label:'Thanks!',cls:'gold'}]); });
 
   // ---------- input ----------
   const ptrs=new Map(); let downAt=null, moved=0, pinchD=0;
@@ -170,11 +168,11 @@
     if(!r){ showCrew(jobs); return; }
     const li=[]; if(r.days>0) li.push(`<b>${r.days}</b> game day${r.days===1?'':'s'} went by (1 real hour = 1 game day). It's the <b>${r.season}</b> now.`);
     if(r.seasons&&r.seasons.length) li.push('Season changes: '+r.seasons.join(' → ')+'.'); if(r.markets) li.push(`${r.markets} market day${r.markets===1?'':'s'} came and went.`);
-    li.push(`${r.harvests} harvests by your crew · ${r.sold} buds sold${r.upkeep>0?' · '+G.fmt(r.upkeep)+' upkeep paid':''}.`);
+    li.push(`${r.harvests} harvests · ${r.sold} buds sold.`);
     if(jobs.length) li.push(crewLine(jobs)+'.');
     if(r.ripe) li.push(`${r.ripe} plants are ripe and waiting.`); if(r.pests) li.push(`${r.pests} plants need treatment for pests or mold.`); if(r.thirsty) li.push(`${r.thirsty} plants are out of water.`);
     if(r.huntDone) li.push('Your pheno hunt finished. Open Breed to pick a mother.');
-    UI.modal(`${portraitImg('Unko Kuli','dport')}<h3>While you were away</h3><p>You were gone ${G.dur(el)}${el>cap?' (catch-up capped at '+G.dur(cap)+')':''}.</p><div class="big-n">${r.cash>=0?'+':''}${G.fmt(r.cash)}</div><ul class="away">${li.map(t=>`<li>${t}</li>`).join('')}</ul>${r.cash>0?'<p style="font-size:13px;color:#cfe">Watch a short ad to double what your crew earned. It\'s optional.</p>':''}`,[...(r.cash>0?[{label:'Watch ad: 2x',cls:'pink',v:'ad'}]:[]),{label:'Back to the farm',cls:'gold'}]).then(async v=>{ if(v!=='ad') return; const a=await window.Ads.show(); if(a&&a.completed){ G.addCash(r.cash,'away'); Sound.play('cash',5); Haptics.success(); UI.toast('Doubled! +'+G.fmt(r.cash),'good'); } else UI.toast('No reward, the ad was closed early.'); });
+    UI.modal(`${portraitImg('Unko Kuli','dport')}<h3>While you were away</h3><p>You were gone ${G.dur(el)}${el>cap?' (catch-up capped at '+G.dur(cap)+')':''}.</p><div class="big-n">${r.cash>=0?'+':''}${G.fmt(r.cash)}</div><ul class="away">${li.map(t=>`<li>${t}</li>`).join('')}</ul>${r.cash>0?'<p style="font-size:13px;color:#cfe">Watch a short ad to double what the farm earned. It\'s optional.</p>':''}`,[...(r.cash>0?[{label:'Watch ad: 2x',cls:'pink',v:'ad'}]:[]),{label:'Back to the farm',cls:'gold'}]).then(async v=>{ if(v!=='ad') return; const a=await window.Ads.show(); if(a&&a.completed){ G.addCash(r.cash,'away'); Sound.play('cash',5); Haptics.success(); UI.toast('Doubled! +'+G.fmt(r.cash),'good'); } else UI.toast('No reward, the ad was closed early.'); });
   }
 
   // ---------- age gate, ad consent, splash ----------

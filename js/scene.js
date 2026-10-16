@@ -258,9 +258,9 @@ window.R=(function(){
   const mo=()=>G.st.settings.motion!==false, hq=()=>G.st.settings.hq!==false;
   // Managers: dedicated full-body art if present (art/staff_*.webp, see tools/process_art.py), else tinted stand-ins
   const HAVE=window.ART_HAVE||{};
-  const STAFF={garage:{name:'Kai',art:'staff_kai',sub:'npc_tank',tint:'rgba(214,84,52,.45)',need:()=>G.wk('mgrG')>0||G.wk('farmhand')>0},
-               farm:{name:'Malia',art:'staff_malia',sub:'npc_sundress',tint:'rgba(61,110,168,.5)',need:()=>G.wk('mgrF')>0&&G.st.land},
-               indoor:{name:'Nick',art:'staff_nick',sub:'npc_crate',tint:'rgba(20,20,26,.6)',need:()=>G.wk('mgrI')>0&&G.st.inBuilt}};
+  const STAFF={garage:{name:'Kai',art:'staff_kai',sub:'npc_tank',tint:'rgba(214,84,52,.45)',need:()=>false},
+               farm:{name:'Malia',art:'staff_malia',sub:'npc_sundress',tint:'rgba(61,110,168,.5)',need:()=>false},
+               indoor:{name:'Nick',art:'staff_nick',sub:'npc_crate',tint:'rgba(20,20,26,.6)',need:()=>false}};
   ['sunset','teal','matte','hibiscus','s1_truck','s2_truck','s3_truck','s4_truck','s5_truck','s6_truck'].forEach(k=>{ NAMES.push('truck_'+k); if(['sunset','teal','matte','hibiscus'].includes(k)) NAMES.push('truckcard_'+k); });
   Object.values(STAFF).forEach(s=>{ if(HAVE[s.art]&&!NAMES.includes(s.art)) NAMES.push(s.art); });
   for(const t of 'sih') for(let i=0;i<5;i++){ const n='gs_'+t+i; if(HAVE[n]&&!NAMES.includes(n)) NAMES.push(n); }
