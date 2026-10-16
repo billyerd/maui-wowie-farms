@@ -40,7 +40,7 @@ window.G = (function(){
   const UPK_NAME={power:'Electricity',fan:'Fan + filter',water:'Water',upkeep:'Glass + vents upkeep',climate:'AC + dehumidifier',nutrients:'Nutrients',fixed:'Rent + insurance'};
   const LOCS=['garage','farm','indoor'];
   const LOC_NAME={get garage(){ return locName('garage'); },farm:'Greenhouse',indoor:'Indoor'};
-  function locName(l){ if(l!=='garage') return {farm:'Greenhouse',indoor:'Indoor'}[l]; const r=st?garageRole():'grow'; return r==='pheno'?'Pheno Room':r==='storage'?'Garage storage':"Grandpa's Garage"; }
+  function locName(l){ if(l!=='garage') return {farm:'Greenhouse',indoor:'Indoor'}[l]; const r=st?garageRole():'grow'; return r==='pheno'?'Pheno Room':r==='storage'?'Garage storage':'Garage'; }
   // Garage capacity steps (hard max 25). Real tent sizes and street prices (tent + matching light), see SETUPS.md:
   // 2x2 = 1-2 plants, 3x3 = up to 4, 4x4 = 6 (9 with a SCROG net), 5x5 = up to 13 SCROG, 4x8 = 8. The main tent is swapped up in place.
   // Save migration (garage v2): capacities per level are unchanged (2,4,6,9,13,17,21,25), so old levels map 1:1 and no plant is lost;
@@ -106,7 +106,7 @@ window.G = (function(){
     cure:    {loc:'all', name:'Curing jars', desc:'Dried buds cure automatically (+45% value). Faster each level', base:150, mul:2.6, max:4},
     press:   {loc:'all', name:'Rosin press', desc:'Heat + pressure, no solvents: unlocks Live rosin crafting and +1 craft slot', base:1500, mul:1, max:1, lvl:10},
     kitchen: {loc:'all', name:'Licensed commercial kitchen', desc:'Permitted kitchen for infused edibles: unlocks edibles and +1 craft slot', base:150000, mul:1, max:1, lvl:14},
-    sign:    {loc:'all', name:'Farm stand sign', desc:'+8% sale prices per level', base:500, mul:1.8, max:6},
+    sign:    {loc:'all', name:'Sale sign', desc:'+8% sale prices per level', base:500, mul:1.8, max:6},
   };
   // Managers (one per location) + two farm-wide helpers.
   const WORKERS_ALL = {
@@ -128,7 +128,7 @@ window.G = (function(){
     {id:'water',  who:'Unko Kuli', t:'Water your plant (tap it, or use the Water tool)', r:{cash:5}},
     {id:'harvest',who:'Unko Kuli', t:'Harvest a ripe plant', r:{cash:10}},
     {id:'dry',    who:'Unko Kuli', t:'Load fresh buds onto the drying racks (Dry & Cure)', r:{cash:10}},
-    {id:'sell',   who:'Unko Kuli', t:'Sell buds at the farm stand (Market)', r:{gems:10}},
+    {id:'sell',   who:'Unko Kuli', t:'Sell buds at the Market', r:{gems:10}},
     {id:'gcap',   who:'Unko Kuli', t:'Garage: add buckets to your grow table (Upgrades > Garage)', r:{cash:30}},
     {id:'feed',   who:'Unko Kuli', t:'Feed a plant once it is halfway grown', r:{cash:20}},
     {id:'hose',   who:'Unko Kuli',  t:'Buy a garden hose (Upgrades > Water + feed)', r:{cash:40}},
@@ -358,7 +358,7 @@ window.G = (function(){
   const MILES={2:['Halfway feed: one free feeding per plant (+15% speed, +20% yield). Skip it and that plant grows 20% slower','Order Board: neighbors post contracts for bonus cash and reputation'],
     3:['Family land on the hill is for sale','Watch for the golden gecko: tap it for a short boost'],
     4:['Uncommon strains (10-30 min grows) reach the seed shop','Outdoor greenhouse can be built','Island festivals: limited-time events with exclusive strains'],
-    5:['Pheno Room opens: hunt mystery phenos','Walk-in customers visit the farm stand','Island leaderboard'],
+    5:['Pheno Room opens: hunt mystery phenos','Island leaderboard'],
     6:['Craft bubble hash from dried buds','Collection sets: finish a set for a permanent bonus'],
     7:['Greenhouse gear (beds, shade, cooler) is in Upgrades'],8:['New Season (prestige) unlocks once you earn enough'],9:['Rare strains (1-4 hour grows) reach the seed shop','County Agricultural Permit can be bought'],
     10:['Rosin press (craft rosin)','Golden Hour theme (free)'],

@@ -62,7 +62,7 @@ window.R=(function(){
   // building scale s = FARM_PPM / (image px per metre measured on a door/post), see the calibration notes above
   const BLD={ house:{img:'b_house',x:2080,y:640,s:1.35,panel:'quests',label:'Family house'}, tank:{img:'b_tank',x:1700,y:690,s:.55,panel:'upgrades',label:'Water tank',need:()=>G.lv('catch')>0},
     shed:{img:'b_shed',x:2080,y:1100,s:1.0,panel:'process',label:'Drying shed'}, hale:{img:'b_hale',x:1560,y:1285,s:1.2,panel:'lab',label:'Breeding shed'},
-    stand:{img:'b_stand',x:800,y:1250,s:.156,panel:'market',label:'Farm stand'}, cart:{img:'b_cart',x:1080,y:1260,s:.45,panel:'seeds',label:'Seed cart'} };
+    stand:{img:'b_stand',x:800,y:1250,s:.156}, cart:{img:'b_cart',x:1080,y:1260,s:.45,panel:'seeds',label:'Seed cart'} };
   function farmSlots(){
     const S=[];
     // terraces: 2 rows x 5 plants per patch, ~1.1 m apart (outdoor in-ground spacing)
@@ -1252,7 +1252,7 @@ window.R=(function(){
         ctx.fillStyle=h.c; ctx.beginPath(); ctx.ellipse(0,-11,9,7,0,0,TAU); ctx.fill(); ctx.fillStyle='#1e3a2a'; ctx.beginPath(); ctx.moveTo(-7,-13); ctx.quadraticCurveTo(-15,-24,-12,-9); ctx.fill();
         ctx.fillStyle=h.c; ctx.beginPath(); ctx.arc(8,-17+bob,4.2,0,TAU); ctx.fill(); ctx.fillStyle='#e02a2a'; ctx.beginPath(); ctx.arc(8,-21.5+bob,2.2,0,TAU); ctx.fill(); ctx.fillStyle='#f0b020'; ctx.beginPath(); ctx.moveTo(12,-18+bob); ctx.lineTo(15.5,-16.5+bob); ctx.lineTo(12,-15.5+bob); ctx.fill(); ctx.fillStyle='#111'; ctx.fillRect(9,-18.5+bob,1.4,1.4); ctx.restore(); }}); } }
   function farmProps(list,now,dt){ for(const [x,y,k] of PROPS) list.push({y,draw:()=>prop(k,x,y,now)});
-    const sl=G.lv('stand'); if(sl>=2&&ok('b_coldcase')) list.push({y:1262,draw:()=>{ const im=IM.b_coldcase, w=1.1*FARM_PPM, h=w*im.naturalHeight/im.naturalWidth; ctx.drawImage(im,712-w/2,1262-h,w,h); }}); if(sl>=3) list.push({y:1251,draw:()=>standSign()}); chickens(list,dt,now); if((G.marketDay&&G.marketDay())||G.season()==='makahiki') list.push({y:1330,draw:()=>bunting(now)}); if(G.season()==='makahiki'||(G.marketDay&&G.marketDay())) list.push({y:1318,draw:()=>festStall(1090,1318,now)}); }
+    chickens(list,dt,now); if((G.marketDay&&G.marketDay())||G.season()==='makahiki') list.push({y:1330,draw:()=>bunting(now)}); if(G.season()==='makahiki'||(G.marketDay&&G.marketDay())) list.push({y:1318,draw:()=>festStall(1090,1318,now)}); }
   // stand upgrades: cold case (Lv2) and a painted sign over the awning (Lv3)
 
   function coldCase(x,y){ ctx.save(); ctx.translate(x,y); ctx.fillStyle='rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(2,1,.45*M,.12*M,0,0,TAU); ctx.fill(); ctx.fillStyle='#e8eef2'; ctx.fillRect(-.4*M,-.85*M,.8*M,.85*M); ctx.fillStyle='#9fd6f0'; ctx.fillRect(-.33*M,-.78*M,.66*M,.45*M);
@@ -1399,7 +1399,7 @@ window.R=(function(){
     for(const p of G.st.plots){ if(p.loc!==loc||!p.owned) continue; const sl=slotOf.get(p.id); if(!sl) continue; const hh=p.strain?Math.max(.45,plantSize(G.strain(p.strain).type,p.prog,sl).h)*sl.ppm:.5*sl.ppm; const hw=Math.max(Math.min(.35,sl.sp*.45)*sl.ppm,(sl.cls==='out'||sl.cls==='gh'?12:22)/cam.z);
       if(wx>sl.x-hw&&wx<sl.x+hw&&wy>sl.y-hh-14/cam.z&&wy<sl.y+Math.max(.25*sl.ppm,16/cam.z)&&sl.y>by){ best=p; by=sl.y; } }
     if(best){ sel=best; return {type:'plot',p:best}; }
-    if(loc==='farm') for(const k in BLD){ const b=BLD[k]; if(b.need&&!b.need()) continue; const im=IM[b.img]; if(!ok(b.img)) continue; const w=im.naturalWidth*b.s, h=im.naturalHeight*b.s; if(wx>b.x-w/2&&wx<b.x+w/2&&wy>b.y-h&&wy<b.y) return {type:'bld',id:k,panel:b.panel}; }
+    if(loc==='farm') for(const k in BLD){ const b=BLD[k]; if(!b.panel||(b.need&&!b.need())) continue; const im=IM[b.img]; if(!ok(b.img)) continue; const w=im.naturalWidth*b.s, h=im.naturalHeight*b.s; if(wx>b.x-w/2&&wx<b.x+w/2&&wy>b.y-h&&wy<b.y) return {type:'bld',id:k,panel:b.panel}; }
     if(loc==='farm'&&st().land&&!st().ghBuilt&&wx>GH.x&&wx<GH.x+GHW*GH.s&&wy>GH.y&&wy<GH.y+GHH*GH.s) return {type:'ghbuild'};
     sel=null; return null;
   }

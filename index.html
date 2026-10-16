@@ -46,27 +46,28 @@
 <canvas id="confetti"></canvas>
 <button id="orderBoard" aria-label="Order board"><span class="ob-pin l"></span><span class="ob-pin r"></span><b class="ob-t">ORDERS <em id="obN">0</em></b><small id="obTop">No orders yet</small></button>
 <button id="seedBag" aria-label="Seed bag: switch seeds"><span class="sb-bag"><img src="art/seed_96.webp" alt=""></span><b id="sbName">Seeds</b><small id="sbCount">0</small></button>
-<button id="scoutBtn" class="sidebtn" aria-label="Inspect plants" title="Inspect: magnify plants to find pest eggs and mold"><span class="sb-mag"><span class="ico ico-scout"></span></span><b>Inspect</b></button>
 <button id="upgBtn" class="sidebtn" data-panel="upgrades" aria-label="Upgrades"><span class="sb-up"><span class="ico ico-up"></span></span><b>Upgrades</b></button>
 <div id="seedPick" class="hidden" role="dialog" aria-label="Pick a seed"></div>
-<nav id="locTabs" aria-label="Locations"></nav>
+<nav id="locTabs" aria-hidden="true"></nav>
 
-<div id="qaFab">
-  <div id="qaMenu" class="qa-menu hidden">
-    <button type="button" class="qbtn qa-act" id="harvestAll"><span class="ico ico-scythe"></span><small>Harvest all</small></button>
-    <button type="button" class="qbtn qa-act" id="waterAll"><span class="ico ico-drop"></span><small>Water all</small></button>
-    <button type="button" class="qbtn qa-act" id="feedAll"><span class="ico ico-feed"></span><small>Feed all</small></button>
-  </div>
-  <button type="button" class="qa-main" id="qaMain" aria-label="Harvest, water, and feed" aria-expanded="false"><span class="qa-arrow"></span></button>
-</div>
 <div id="toolbar">
+  <div id="qaFab">
+    <div id="qaMenu" class="qa-menu hidden">
+      <button type="button" class="qbtn qa-act" id="harvestAll"><span class="ico ico-scythe"></span><small>Harvest all</small></button>
+      <button type="button" class="qbtn qa-act" id="waterAll"><span class="ico ico-drop"></span><small>Water all</small></button>
+      <button type="button" class="qbtn qa-act" id="feedAll"><span class="ico ico-feed"></span><small>Feed all</small></button>
+    </div>
+    <button type="button" class="qa-main" id="qaMain" aria-label="Harvest, water, and feed" aria-expanded="false"><span class="qa-arrow"></span></button>
+  </div>
+  <button type="button" id="locBtn" class="dockbtn" aria-label="Garage"><span class="li" aria-hidden="true">🏠</span><small>Garage</small></button>
   <nav class="menu" id="menu">
-    <button data-panel="seeds"><span class="ico ico-seed"></span><small>Seeds</small></button>
-    <button data-panel="process"><span class="ico ico-jar"></span><small>Dry &amp; Cure</small><em class="badge" id="procBadge"></em></button>
-    <button data-panel="market"><span class="ico ico-cart"></span><small>Market</small><em class="badge" id="mktBadge"></em></button>
-    <button data-panel="lab"><span class="ico ico-dna"></span><small>Breed</small></button>
-    <button data-panel="book"><span class="ico ico-book"></span><small>Strains</small></button>
-    <button data-panel="quests"><span class="ico ico-quest"></span><small>Story</small><em class="badge" id="qBadge"></em></button>
+    <button type="button" data-panel="pass"><span class="ico ico-gem"></span><small>Game Pass</small></button>
+    <button type="button" data-panel="seeds"><span class="ico ico-seed"></span><small>Seeds</small></button>
+    <button type="button" data-panel="process"><span class="ico ico-jar"></span><small>Dry &amp; Cure</small><em class="badge" id="procBadge"></em></button>
+    <button type="button" data-panel="market"><span class="ico ico-cart"></span><small>Market</small><em class="badge" id="mktBadge"></em></button>
+    <button type="button" data-panel="lab"><span class="ico ico-dna"></span><small>Breed</small></button>
+    <button type="button" data-panel="book"><span class="ico ico-book"></span><small>Strains</small></button>
+    <button type="button" data-panel="quests"><span class="ico ico-quest"></span><small>Story</small><em class="badge" id="qBadge"></em></button>
   </nav>
 </div>
 

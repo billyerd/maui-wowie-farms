@@ -8,7 +8,7 @@ window.GAME_CONFIG = {
   // One address for Settings → Help & Support and for privacy.html.
   SUPPORT_EMAIL: '808games@mail.grokbot.com',
   // Genre mechanics (owner-approved checklist, see MECHANICS.md). Each unlocks gradually by level / story.
-  features: { orders:true, managers:true, mastery:true, prestigeTree:true, customers:true, sets:true, repTiers:true, storyGoals:true, events:true, gecko:true, crafting:true, leaderboards:true },
+  features: { orders:true, managers:true, mastery:true, prestigeTree:true, customers:false, sets:true, repTiers:true, storyGoals:true, events:true, gecko:true, crafting:true, leaderboards:true },
   // Tester panel kill switch. See docs/tester-panel.md.
   // true  — website and local test builds. ?dev=1 can open the panel.
   // false — App Store, Google Play, and production-store builds. Required before those ship.

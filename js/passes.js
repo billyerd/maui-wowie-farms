@@ -93,7 +93,7 @@ const SEASON_EV={
 // [stat key, goal, task text, giver, line]
 const SQ_RAW={
  s1:[['harvests',40,'Harvest 40 plants for the whale-watch crowd','Malia','Tour boats leave at dawn. Let us have buds ready for the visitors.'],
-     ['sold',150,'Sell 150 buds at the farm stand','Keoni','Whale season brings big crowds. Keep the stand stocked.'],
+     ['sold',150,'Sell 150 buds at the Market','Keoni','Whale season brings big crowds. Keep the jars stocked.'],
      ['customers',10,'Serve 10 walk-in customers','Auntie Lani','Brah, da tourists stay lining up already. Go help them.'],
      ['cured',60,'Cure 60 buds','Malia','Slow-cured buds sell best to the visitors.'],
      ['bred',3,'Try 3 crossbreeds','Uncle Ikaika','Winter is a good time to plan new lines.'],

@@ -43,14 +43,14 @@ window.Tutorial=(function(){
     const world=step.id==='plant'||step.id==='water'||step.id==='feed'||step.id==='harvest'||step.id==='order'||step.id==='land';
     if(sheetOpen()&&world) return closeBtn();
     if(step.id==='seeds'){ if(sheetOpen()&&panel()==='seeds') return buyBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="seeds"]'); }
-    if(step.id==='plant'){ if(!(G.st.seeds[G.st.selSeed]>0)) return document.getElementById('seedBag'); const p=plotFor('plant'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.querySelector('#locTabs [data-room="'+(p.zone==='field'?'facility':p.zone==='gh'?'gh':p.zone==='in'?'benches':'garage')+'"]'); return null; }
-    if(step.id==='water'){ if(popOpen()) return document.querySelector('#pop [data-pa="water"]'); const p=plotFor('water'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.querySelector('#locTabs [data-room="'+(p.zone==='field'?'facility':p.zone==='gh'?'gh':p.zone==='in'?'benches':'garage')+'"]'); return null; }
-    if(step.id==='feed'){ if(popOpen()) return document.querySelector('#pop [data-pa="feed"]'); const p=plotFor('feed'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.querySelector('#locTabs [data-room="'+(p.zone==='field'?'facility':p.zone==='gh'?'gh':p.zone==='in'?'benches':'garage')+'"]'); return null; }
+    if(step.id==='plant'){ if(!(G.st.seeds[G.st.selSeed]>0)) return document.getElementById('seedBag'); const p=plotFor('plant'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
+    if(step.id==='water'){ if(popOpen()) return document.querySelector('#pop [data-pa="water"]'); const p=plotFor('water'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
+    if(step.id==='feed'){ if(popOpen()) return document.querySelector('#pop [data-pa="feed"]'); const p=plotFor('feed'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
     if(step.id==='harvest'){ const menu=document.getElementById('qaMenu'); if(menu&&menu.classList.contains('hidden')) return document.querySelector('#qaFab .qa-main'); return document.getElementById('harvestAll'); }
     if(step.id==='dry'){ if(sheetOpen()&&panel()==='process') return document.querySelector('#sheet [data-a="load"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="process"]'); }
     if(step.id==='sell'){ if(sheetOpen()&&(panel()==='market'||panel()==='stand')) return document.querySelector('#sheet [data-a="sell"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="market"]'); }
     if(step.id==='order') return document.getElementById('orderBoard');
-    if(step.id==='land') return document.querySelector('#locTabs [data-room="facility"]');
+    if(step.id==='land') return document.getElementById('locBtn');
     return null;
   }
   function snap(){
@@ -107,7 +107,7 @@ window.Tutorial=(function(){
     if(window.R&&R._qb){ try{ const cv=document.getElementById('game'), cr=cv?cv.getBoundingClientRect():{left:0,top:0}; for(const b of R._qb()){ if(!b||!isFinite(b.x)||!isFinite(b.y)) continue; hard.push({left:b.x+cr.left-26,top:b.y+cr.top-26,right:b.x+cr.left+26,bottom:b.y+cr.top+26}); } }catch(e){} }
     const tr=domBox(targetEl(),12); if(tr) hard.push(tr);
     const gear=domBox(document.getElementById('settingsBtn'),6); if(gear) soft.push(gear);
-    ['seedBag','scoutBtn','upgBtn','orderBoard','goal','toolbar','locTabs','hud','qaFab'].forEach(id=>{ const b=domBox(document.getElementById(id),4); if(b) soft.push(b); });
+    ['seedBag','upgBtn','orderBoard','goal','toolbar','locBtn','hud','qaFab'].forEach(id=>{ const b=domBox(document.getElementById(id),4); if(b) soft.push(b); });
     const pop=document.getElementById('pop'); if(pop&&!pop.classList.contains('hidden')){ const pr=domBox(pop,6); if(pr) hard.push(pr); }
     return {hard, soft};
   }

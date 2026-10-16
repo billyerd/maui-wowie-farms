@@ -63,7 +63,7 @@
   G.on('qbonus',fx(w=>{ Sound.play('discover'); UI.confetti(60); UI.toast(w==='w'?'All weekly quests done! Legendary Seed Pack added':'All daily quests done! Rare Seed Pack added','gemt'); }));
   G.on('regular',fx(r=>UI.toast(r.who+(r.tier===1?' is now a regular at your stand (+5% pay, more patience)':' is a loyal regular now (tier '+r.tier+')'),'good')));
   G.on('contest',fx(r=>{ Sound.play('level'); UI.toast('Best Bud of the Week! '+r.who+' judged your grade-A cured bud the best on the island: +10 gems, +10 reputation','gemt'); }));
-  G.on('marketday',fx(()=>{ Sound.play('discover'); UI.toast('Market day! Customers come twice as often and pay 10% more at the farm stand','gemt'); }));
+  G.on('marketday',fx(()=>{ Sound.play('discover'); UI.toast('Market day! Buyers pay 10% more','gemt'); }));
   G.on('certstart',fx(id=>UI.toast(G.strain(id).name+' is in the seed bank for certification (24 h)','good')));
   G.on('heirloom',fx(e=>{ Sound.play('discover'); UI.toast('🏅 '+G.strain(e.id).name+' is now a certified Heirloom! ('+e.n+' in the Seed Vault)','gemt'); }));
   G.on('vault',fx(v=>UI.toast('Seed Vault milestone: '+v.name+'. Claim it in the Pheno Room','gemt')));
@@ -92,7 +92,7 @@
   G.on('set',fx(({d})=>{ Sound.play('level'); UI.confetti(90); UI.toast('Set complete: '+d.name+' · '+d.bonus,'gemt'); }));
   G.on('order',fx(({o,v})=>{ Sound.play('cash'); R.coinsTo(null,'cashPill',8); UI.toast('Order filled for '+o.who+': +'+G.fmt(v),'good'); }));
   G.on('neworder',fx(o=>{ if(G.st.orders.length===1) UI.toast('New order on the board from '+o.who); }));
-  G.on('customer',fx(c=>{ UI.toast(c.who+' is at the farm stand: "'+c.pref.t+'"'); }));
+  G.on('customer',fx(()=>{}));
   G.on('served',fx(({c,v,tip,mood,auto})=>{ saleFx(v+(tip||0)); buzz(10); R.custReact(c.id,'served',{v,tip,mood});
     if(G.st.loc!=='farm') UI.toast(c.who+' paid: +'+G.fmt(v+(tip||0))+(tip?' (with tip)':''),'good'); }));
   G.on('custno',fx(c=>{ Sound.play('error'); R.custReact(c.id,'none'); if(G.st.loc!=='farm') UI.toast('No '+c.pref.t.toLowerCase()+' in stock for '+c.who,'bad'); else UI.toast('Dry or cure something that fits: '+c.pref.t); }));

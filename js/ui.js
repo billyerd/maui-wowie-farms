@@ -161,21 +161,28 @@ window.UI = (function(){
     el.innerHTML=`<div class="sp-h">Seed bag</div>`+(own.length?own.map(s=>`<button class="sp-row${st.selSeed===s.id?' on':''}" data-pick="${s.id}"><img src="art/seed_48.webp" alt=""><span class="sp-n"><b>${esc(s.name)}</b><small>⏱ ${sec(s.game.growSec)}</small></span><em>${st.seeds[s.id]}×</em></button>`).join(''):`<p class="sp-e">Bag's empty. Grab seeds at the shop.</p>`)+`<button class="sp-shop" data-pick="__shop">Seed shop</button>`;
     el.classList.remove('hidden'); Sound.play('open'); }
   function locTabs(){
-    const st=G.st, el=$('#locTabs'); if(!el) return;
+    const st=G.st, el=$('#locTabs');
     const rooms=['garage','gh','facility']; if(st.inBuilt) rooms.push('benches');
     const cur=G.currentRoom();
-    if(el.dataset.rooms!==rooms.join(',')){ el.dataset.rooms=rooms.join(',');
-      el.innerHTML=rooms.map(r=>`<button class="loctab" data-room="${r}"><span class="li"></span><span class="lt"><b></b><small></small></span><em class="badge"></em></button>`).join(''); }
-    const label={garage:'Garage',gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
+    const short={garage:'Garage',gh:'Greenhouse',facility:'Facility',benches:'Benches'};
+    const full={garage:'Garage',gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
     const ico={garage:'🏠',gh:'🌿',facility:'🏭',benches:'💡'};
-    rooms.forEach((r,i)=>{ const btn=el.children[i]; const open=r==='gh'?!!st.land:r==='benches'?!!st.inBuilt:r==='facility'?!!st.land:true;
-      const ripe=G.roomRipe(r); const z=G.roomZone(r);
-      const tot=st.plots.filter(q=>q.zone===z&&q.owned).length, grow=st.plots.filter(q=>q.zone===z&&q.owned&&q.strain).length;
-      let sub=open?(r==='gh'&&!st.ghBuilt?'Tap to build':grow+'/'+tot):'Locked';
-      const cls='loctab'+(cur===r?' on':'')+(open?'':' locked')+(r==='benches'?' chip':''); if(btn.className!==cls) btn.className=cls;
-      const bn=btn.querySelector('b'); if(bn.textContent!==label[r]) bn.textContent=label[r];
-      const set=(sel,v)=>{ const e=btn.querySelector(sel); if(e&&e.textContent!==v) e.textContent=v; };
-      set('.li',open?ico[r]:'🔒'); set('small',sub); set('.badge',ripe?String(ripe):''); });
+    const lb=$('#locBtn');
+    if(lb){
+      const ripe=G.roomRipe?G.roomRipe(cur):0;
+      const name=short[cur]||'Garage';
+      const sm=lb.querySelector('small'), ic=lb.querySelector('.li');
+      if(sm&&sm.textContent!==name) sm.textContent=name;
+      if(ic) ic.textContent=ico[cur]||'🏠';
+      const al=(full[cur]||'Location')+(ripe?' · '+ripe+' ready':'');
+      if(lb.getAttribute('aria-label')!==al) lb.setAttribute('aria-label',al);
+      lb.classList.toggle('ripe',!!ripe);
+    }
+    if(el){
+      if(el.dataset.rooms!==rooms.join(',')){ el.dataset.rooms=rooms.join(',');
+        el.innerHTML=rooms.map(r=>`<button class="loctab" data-room="${r}"><span class="li"></span><span class="lt"><b></b><small></small></span></button>`).join(''); }
+      rooms.forEach((r,i)=>{ const btn=el.children[i]; if(!btn) return; const bn=btn.querySelector('b'); if(bn&&bn.textContent!==(full[r]||r)) bn.textContent=full[r]||r; });
+    }
     const tb=$('#toolbar'); if(tb){ const b=(tb.offsetHeight+10)+'px'; if(document.documentElement.style.getPropertyValue('--toastb')!==b) document.documentElement.style.setProperty('--toastb',b); }
   }
   function hud(dt){
@@ -232,6 +239,18 @@ window.UI = (function(){
     if(r==='facility'){ if(!G.st.land) landModal(); else G.setRoom('facility'); return; }
     if(r==='gh'){ if(!G.st.land) landModal(); else G.setRoom('gh'); return; }
     if(r==='benches'){ if(!G.st.inBuilt) indoorModal(); else G.setRoom('benches'); } }
+  // One location control, beside the green circle. Tap cycles owned rooms, or opens the next place when it is still locked.
+  function cycleRoom(){ Sound.play('tap'); hidePop();
+    const st=G.st, open=['garage'];
+    if(st.land){ open.push('gh'); open.push('facility'); }
+    if(st.inBuilt) open.push('benches');
+    const cur=G.currentRoom(), i=open.indexOf(cur);
+    if(open.length>1&&i>=0&&i<open.length-1){ G.setRoom(open[i+1]); return; }
+    if(open.length>1&&i===open.length-1){ G.setRoom(open[0]); return; }
+    if(!st.land){ landModal(); return; }
+    if(!st.ghBuilt){ G.setRoom('gh'); return; }
+    if(!st.inBuilt){ indoorModal(); return; }
+    G.setRoom('garage'); }
   function tapLoc(l){ if(l==='indoor') tapRoom('benches'); else if(l==='farm') tapRoom('facility'); else tapRoom('garage'); }
   function reqList(L){ return `<div class="reqs">${L.map(c=>`<div class="req ${c.ok?'ok':''}"><span>${c.ok?'✅':'⬜'}</span><div class="grow"><b>${esc(c.t)}</b>${c.p!=null&&!c.ok?bar(c.p,'thin'):''}${c.v&&!c.ok?`<small>${esc(c.v)}</small>`:''}</div></div>`).join('')}</div>`; }
   function landModal(){ const L=landReq(); const ready=L.every(c=>c.ok);
@@ -411,10 +430,15 @@ window.UI = (function(){
   // Market: sell, orders, customers
   function spark(id){ const h=G.st.market.hist[id]||[]; if(h.length<2) return ''; const mn=.5,mx=1.85; const pts=h.map((v,i)=>`${(i/(h.length-1)*60).toFixed(1)},${(18-(v-mn)/(mx-mn)*18).toFixed(1)}`).join(' ');
     const up=h[h.length-1]>=h[h.length-2]; return `<svg width="60" height="18" style="vertical-align:middle"><polyline points="${pts}" fill="none" stroke="${up?'#7dffa6':'#ff8a8a'}" stroke-width="1.6"/></svg>`; }
-  PANELS.stand=()=>{ const o=PANELS.market(); return {...o, title:'Farm Stand', sub:'Fresh island buds, sold right off the stand', body:`<div class="stand-hero"><img src="art/stand_hero.webp" alt="Farm stand"></div>`+o.body}; };
+  PANELS.stand=()=>PANELS.market();
+  PANELS.pass=()=>{
+    const P=window.PRODUCTS;
+    const body=passTab()+`<div class="section-t">VIP Grower</div><div class="prod-grid">`+prodCard(P.vip)+prodCard(P.vip_g)+`</div>`;
+    return {title:'Game Pass',sub:'Grower Pass and VIP. Prices are the ones already in the shop.',body};
+  };
   PANELS.market=()=>{
     const st=G.st; tab=tab||'sell'; let total=0, body='', foot='';
-    const tabs=[['sell','Sell']]; if(st.level>=G.GATE.orders) tabs.push(['orders','Orders ('+st.orders.length+')']); if(st.level>=G.GATE.customers) tabs.push(['cust','Customers ('+st.cust.length+')']);
+    const tabs=[['sell','Sell']]; if(st.level>=G.GATE.orders) tabs.push(['orders','Orders ('+st.orders.length+')']);
     const rt=G.repTier(), R0=G.REP[rt], R1=G.REP[rt+1];
     const repLine=st.level>=G.GATE.orders?`<div class="row" style="display:block"><h4>Reputation: ${esc(R0.n)} ${R0.b?`<span class="chip">+${Math.round(R0.b*100)}% prices</span>`:''}</h4>${R1?`${bar((st.rep-R0.at)/(R1.at-R0.at),'amber')}<p>${Math.floor(st.rep)} / ${R1.at} to ${esc(R1.n)}: better buyers (${esc(G.BUYERS[Math.min(4,rt+1)].n)}) and +${Math.round(R1.b*100)}% prices</p>`:'<p>Top tier reached. Island royalty!</p>'}</div>`:'';
     if(tab==='sell'){
@@ -430,11 +454,8 @@ window.UI = (function(){
       body+=`<div class="note">Contracts from local buyers. Deliver dried or cured buds before the timer runs out for bonus cash, XP and reputation. Better reputation brings better buyers.</div>`;
       body+=(Array.isArray(st.orders)&&st.orders.length)?st.orders.map(o=>{ const s=o&&G.strain(o.s), have=G.orderHave(o), ok=have>=o.n; return row(s,`<p><b>${esc(o.who)}</b> wants <b>${o.n}</b> ${esc(s?s.name:'a strain')} (dried or cured)</p>${bar(Math.min(1,have/o.n))}<div class="stats"><span>${have}/${o.n} in stock</span><span>⏱ ${sec(o.t-o.T)}</span><span>+${o.rep} rep</span></div>`,`<button class="btn sm ${ok?'gold':'sec'}" data-a="order" data-id="${o.id}" ${ok?'':'disabled'}>${fmt(G.orderValue(o))}</button>`); }).join(''):'<div class="empty">No orders right now. New ones arrive every minute or so.</div>';
       body+=repLine;
-    } else {
-      body+=`<div class="note">Walk-in customers at the farm stand. Match their taste for a 30-70% tip. They leave after a few minutes.</div>`;
-      body+=st.cust.length?st.cust.map(c=>{ const m=G.custMatch(c); return `<div class="row"><div class="grow"><h4>${esc(c.who)}</h4><p>"${esc(c.pref.t)}" · wants ${c.n} · pays +${Math.round((c.bonus-1)*100)}%</p><p>${m.length?'You have: '+esc(G.strain(G.unkey(m[0].k).id).name):'<span class="down">Nothing in stock matches</span>'} · leaves in ${sec(c.t-c.T)}</p></div><button class="btn sm ${m.length?'gold':'sec'}" data-a="serve" data-id="${c.id}" ${m.length?'':'disabled'}>Serve</button></div>`; }).join(''):'<div class="empty">No customers right now.</div>';
     }
-    return {title:'Farm Stand',sub:'Thanks for supporting local farms!',tabs:tabs.length>1?tabs:null,body,foot};
+    return {title:'Market',sub:'Sell dried and cured buds',tabs:tabs.length>1?tabs:null,body,foot};
   };
   // Upgrades / build
   function upRow(k,isW){
@@ -480,7 +501,7 @@ window.UI = (function(){
           body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build sealed benches · ${fmt(G.INDOOR.build)}</button>`; }
         else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches')+['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join(''); }
     }
-    else { body+=upBanner('lines')+`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes')+upRow('stand'); }
+    else { body+=upBanner('lines')+`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes'); }
     return {title:'Upgrades',sub:'Gear lives on these cards. Rooms stay clear.',tabs,body};
   };
   // Pheno Room: pheno-hunting mystery
@@ -907,14 +928,15 @@ window.UI = (function(){
   // ---------- wiring ----------
   function init(){
     document.title=T(); $('#gTitle').textContent=T(); $('#gTag').textContent=window.GAME_CONFIG.tagline;
-    $$('#menu button').forEach(b=>b.onclick=()=>open(b.dataset.panel));
+    $$('#menu button').forEach(b=>b.onclick=()=>{ if(b.dataset.panel==='pass') open('pass'); else open(b.dataset.panel); });
     $('#upgBtn').onclick=()=>{ Sound.play('tap'); open('upgrades'); };
-    $('#orderBoard').onclick=()=>{ Sound.play('tap'); if(G.st.level<G.GATE.orders){ toast('The order board opens at level '+G.GATE.orders+'. Keep growing!'); return; } open('stand','orders'); };
+    $('#orderBoard').onclick=()=>{ Sound.play('tap'); if(G.st.level<G.GATE.orders){ toast('The order board opens at level '+G.GATE.orders+'. Keep growing!'); return; } open('market','orders'); };
     $('#sheetBody').addEventListener('click',e=>{ const r=e.target.closest('[data-pickseed]'); if(!r||e.target.closest('button,a,input')) return; const id=r.dataset.pickseed; if(!(G.st.seeds[id]>0)){ toast('Buy a seed first, then tap the card to pick it'); return; } if(G.st.selSeed!==id){ G.st.selSeed=id; Sound.play('tap'); seedBag(); render(); toast('Tap empty buckets or beds to plant '+G.strain(id).name); } });
     $('#seedBag').onclick=e=>{ e.stopPropagation(); Sound.play('tap'); seedPick(); };
     $('#seedPick').onclick=e=>{ e.stopPropagation(); const b=e.target.closest('[data-pick]'); if(!b) return; $('#seedPick').classList.add('hidden'); if(b.dataset.pick==='__shop'){ open('seeds'); return; } G.st.selSeed=b.dataset.pick; setTool('seed'); seedBag(); Sound.play('tap'); toast('Tap empty buckets or beds to plant '+G.strain(b.dataset.pick).name); };
     document.addEventListener('pointerdown',e=>{ if(!e.target.closest('#seedPick,#seedBag')) $('#seedPick').classList.add('hidden'); });
-    $('#locTabs').addEventListener('click',e=>{ const b=e.target.closest('[data-room]'); if(b) tapRoom(b.dataset.room); });
+    const locEl=$('#locTabs'); if(locEl) locEl.addEventListener('click',e=>{ const b=e.target.closest('[data-room]'); if(b) tapRoom(b.dataset.room); });
+    const locBtn=$('#locBtn'); if(locBtn) locBtn.onclick=e=>{ e.stopPropagation(); cycleRoom(); };
     const qa=$('#qaMain'), qm=$('#qaMenu');
     if(qa&&qm){ qa.onclick=e=>{ e.stopPropagation(); const closed=qm.classList.toggle('hidden'); qa.classList.toggle('open', !closed); qa.setAttribute('aria-expanded', closed?'false':'true'); Sound.play('tap'); };
       document.addEventListener('pointerdown',e=>{ if(e.target.closest('#qaFab')) return; qm.classList.add('hidden'); qa.classList.remove('open'); qa.setAttribute('aria-expanded','false'); }); }
@@ -929,7 +951,6 @@ window.UI = (function(){
     $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
     $('#goal').onclick=()=>{ const g=$('#goal'); if(!g.classList.contains('open')){ goalPeek(5000); return; } if(G.st.questDone){ if(G.claimQuest()) Sound.play('level'); } else open('quests','story'); };
     document.addEventListener('click',e=>{ const b=e.target.closest('[data-buylab]'); if(!b) return; if(!G.buyLab()) toast(G.st.inBuilt?'Not enough cash':'Build the indoor facility first','bad'); else render(true); });
-    $('#scoutBtn').onclick=()=>{ const on=!R.lens.on; R.setLens(on,innerWidth/2,innerHeight*.45); $('#scoutBtn').classList.toggle('on',on); hidePop(); toast(on?'Inspect: drag the lens over plants. Tap to remove any eggs or spores you find.':'Scouting off'); };
     const foldQa=()=>{ const m=$('#qaMenu'), b=$('#qaMain'); if(m) m.classList.add('hidden'); if(b){ b.classList.remove('open'); b.setAttribute('aria-expanded','false'); } };
     $('#harvestAll').onclick=()=>{ let n=0; G.plotsHere().forEach(p=>{ if(p.owned&&p.strain&&p.prog>=1&&G.harvest(p)) n++; }); if(!n) toast('Nothing ripe here yet'); foldQa(); };
     $('#waterAll').onclick=()=>{ if(G.lv('water')<1){ toast('Water all needs a garden hose','bad'); open('upgrades','lines'); return; } let n=0; G.plotsHere().forEach(p=>{ if(p.owned&&p.strain&&p.prog<1&&p.water<.95){ G.water(p); n++; } }); if(!n) toast('Everything here is watered'); foldQa(); };

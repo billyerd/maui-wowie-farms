@@ -19,7 +19,7 @@ window.STORY_SAY={
   water:"Plants get thirsty fast. Tap a plant to water it, or pick up the watering tool.",
   harvest:"See the gold glow? That means it's ripe. Tap it to harvest. Don't wait too long.",
   dry:"Fresh buds sell cheap. Hang them on the drying racks first. Patience pays.",
-  sell:"Take your dried buds to the farm stand. Your first money out of Grandpa's garage. Shoots, nice job!",
+  sell:"Take your dried buds to the Market. Your first money out of the garage. Shoots, nice job!",
   gcap:"Two plants won't buy the land. Let's get you more buckets. Look under Upgrades, Garage tab.",
   feed:"Halfway through, each plant wants one feeding. It is free. Skip it and they grow slower and yield less.",
   hose:"A watering can is fine for two plants, not for twenty. Get a hose so you can water everything at once.",

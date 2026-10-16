@@ -39,9 +39,9 @@ window.THEMES = {
 
 /* ---- Cosmetics: real money OR gems, no gameplay effect, every item is drawn in game (scene.js) ---- */
 window.COSMETICS = {
-  stand:  {label:'Farm stand decor', items:{
-    tiki:{name:'Tiki torches', desc:'Two flickering torches at the farm stand', usd:1.99, gems:220},
-    lei:{name:'Lei garland', desc:'A plumeria and orchid lei strung across the stand', usd:0.99, gems:120},
+  stand:  {label:'Lei and torch decor', items:{
+    tiki:{name:'Tiki torches', desc:'Two flickering torches by the path', usd:1.99, gems:220},
+    lei:{name:'Lei garland', desc:'A plumeria and orchid lei strung across the awning', usd:0.99, gems:120},
     surf:{name:'Surfboard sign', desc:'A hand-painted longboard sign: ALOHA, FRESH FROM KAUAI', usd:1.99, gems:220} }},
   truck:  {label:'Kahuna K4 paint', items:{
     sunset:{name:'Sunset orange', desc:'Glossy orange paint for the Kahuna K4 in the garage', usd:1.99, gems:240, c:[255,122,42]},
