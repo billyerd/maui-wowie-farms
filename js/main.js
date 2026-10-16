@@ -66,11 +66,10 @@
   G.on('qbonus',fx(w=>{ Sound.play('discover'); UI.confetti(60); UI.toast(w==='w'?'All weekly quests done! Legendary Seed Pack added':'All daily quests done! Rare Seed Pack added','gemt'); }));
   G.on('regular',fx(r=>UI.toast(r.who+(r.tier===1?' is a regular buyer now':' is a loyal buyer now (tier '+r.tier+')'),'good')));
   G.on('contest',fx(r=>{ Sound.play('level'); UI.toast('Best Bud of the Week! '+r.who+' judged your grade-A cured bud the best on the island: +10 gems, +10 reputation','gemt'); }));
-  G.on('marketday',fx(()=>{ Sound.play('discover'); UI.toast('Market day! Buyers pay 10% more','gemt'); }));
   G.on('certstart',fx(id=>UI.toast(G.strain(id).name+' is in the seed bank for certification (24 h)','good')));
   G.on('heirloom',fx(e=>{ Sound.play('discover'); UI.toast('🏅 '+G.strain(e.id).name+' is now a certified Heirloom! ('+e.n+' in the Seed Vault)','gemt'); }));
   G.on('vault',fx(v=>UI.toast('Seed Vault milestone: '+v.name+'. Claim it in the Pheno Room','gemt')));
-  G.on('event',fx(e=>{ Sound.play('discover'); UI.toast(e.name+' started! '+e.desc,'gemt'); }));
+  // Festivals, timed events, tourist rush, rainbow sales, and market day do not announce themselves.
   G.on('gems',fx(({n,why})=>{ if(n>0&&why) UI.toast('+'+n+' gems · '+why,'gemt'); }));
   G.on('nocash',fx(()=>{ Sound.play('error'); UI.toast('Not enough cash','bad'); }));
   G.on('nogems',fx(()=>{ Sound.play('error'); UI.toast('Not enough gems. Earn more by leveling up!','bad'); }));
@@ -79,9 +78,7 @@
   G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.toast((fresh?'New strain bred: ':'Cross complete: ')+s.name+' ('+s.rarity+'). +3 seeds','good long'); }));
   G.on('dud',fx(({hint,back})=>{ Sound.play('tap'); UI.toast('No stable pheno from that cross.'+(back?' You saved a '+back.name+' seed.':'')+(hint?' +1 hint token for your persistence!':''),hint?'gemt':''); }));
   G.on('hint',fx(({s})=>{ Sound.play('gem'); UI.toast('Hint used: a parent of a '+s.rarity+' mystery revealed','gemt'); }));
-  G.on('hot',fx(s=>UI.toast('Tourist rush! '+s.name+' sells 2x','good')));
   G.on('weather',fx(w=>{ if(!G.st.land) return; if(w==='storm') UI.toast('Trade-wind storm rolling in!'+(G.lv('shutters')?'':' Ripe farm plants may get hurt'),'bad'); else if(w==='rain') UI.toast('Rain showers: free water for the terraces'); else if(w==='vog') UI.toast('Vog haze from the volcano: outdoor growth -10%, odd phenotypes more likely'); }));
-  G.on('rainbow',fx(()=>UI.toast('Rainbow! +10% sale prices','good')));
   G.on('questclaim',fx(()=>{ UI.toast('Goal reward claimed!','good'); const q=G.curQuest(); if(q) setTimeout(()=>UI.storyLine(q),400); }));
   G.on('worker',()=>{ /* helpers stay off the map; jobs are grouped into one portrait */ });
   G.on('expand',fx(({kind,n})=>{ Sound.play('level'); buzz(15); UI.confetti(50); UI.toast(n.name+'!','good'); R.rebuild(); if(kind==='garage'&&G.st.loc==='garage') R.fit(); }));

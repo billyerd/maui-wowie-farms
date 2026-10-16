@@ -232,15 +232,10 @@ window.UI = (function(){
     const wet=G.invCount('wet'), sellable=G.invCount('dry')+G.invCount('cured')+G.goodsCount();
     $('#procBadge').textContent=wet?G.num(wet):''; const qr=G.questsReady()+(G.st.questDone?1:0); $('#qBadge').textContent=qr||'';
     $('#mktBadge').textContent=sellable?G.num(sellable):'';
-    const chips=[]; const b=st.gecko&&st.gecko.boost; if(b&&b.t>0) chips.push(`🦎 ${b.k==='grow'?'2x growth':'+50% prices'} · ${sec(b.t)}`);
-    if(st.event.id){ const E=st.event.id==='season'?G.seasonEv():G.EVENTS[st.event.id]; chips.push(`${E.name} · ${E.desc} · ${sec(st.event.t)}`); }
-    else if(st.market&&st.market.hot&&st.market.hotT>0){ const hs=G.strain(st.market.hot); if(hs) chips.push(`Tourist rush · ${hs.name.split(' ')[0]} 2x · ${sec(st.market.hotT)}`); }
-    // The weekend festival lasts for days. It stays on the Story card. It does not sit in the pink chip, which never faded.
-    const ec=$('#eventChip'); const ct=chips.join('  |  '); if(ct){ if(ec.textContent!==ct) ec.textContent=ct; ec.classList.remove('hidden'); } else ec.classList.add('hidden');
-    { let bh=$('#boostHud'); if(!bh){ bh=document.createElement('div'); bh.id='boostHud'; document.body.appendChild(bh); bh.addEventListener('click',e=>{ const t=e.target.closest('[data-go]'); if(t) open('shop',t.dataset.go); }); }
-      const B=G.BOOSTS, parts=Object.keys(B).filter(k=>G.boostLeft(k)>0).map(k=>`<span class="bpill b-${k}" data-go="gemstore">${B[k].icon} ${B[k].name} <b>${sec(G.boostLeft(k))}</b></span>`), ad=G.adState();
-      /* ads counter lives in the shop now */
-      const hh=parts.join(''); if(bh._h!==hh){ bh._h=hh; bh.innerHTML=hh; }  const ecv=$('#eventChip'), ref=ecv&&!ecv.classList.contains('hidden')&&ecv.getBoundingClientRect().top<innerHeight/2?ecv:$('#clock'); if(ref){ const r=ref.getBoundingClientRect(); bh.style.top=Math.round(r.bottom+6)+'px'; } }
+    // Nothing pink announces itself. The festival stays on the Story card, the tourist
+    // rush stays on the Market panel, and boost timers stay in the shop.
+    const ec=$('#eventChip'); if(ec){ if(ec.textContent) ec.textContent=''; ec.classList.add('hidden'); }
+    const bh=$('#boostHud'); if(bh){ bh.textContent=''; bh.classList.add('hidden'); }
     const s=G.strain(st.selSeed);
     if(s&&$('#seedLbl')){ $('#seedLbl').textContent=(st.seeds[s.id]||0)+'× '+s.name.split(' ')[0]; }
     const q=G.curQuest(), g=$('#goal');
@@ -674,6 +669,7 @@ window.UI = (function(){
       body+=`<div class="section-t">The road from garage to facility</div>`+G.QUESTS.map((x,i)=>`<div class="row ${i<st.quest?'ach-done':''}"><div class="grow"><p>${i<st.quest?'✅':i===st.quest?'👉':'⬜'} ${i<=st.quest+1?esc(x.t):'???'}</p></div></div>`).join('');
       const fs=G.festState(); if(fs){ const s=G.strain(fs.f.strain); body+=`<div class="section-t">🌺 Festival now: ${esc(fs.f.name)}</div><div class="row">${cu(s,96,!st.discovered[s.id])}<div class="grow"><h4>${esc(fs.f.desc)}</h4><p>Goal: ${fs.f.k==='harvests'?'harvest':'sell'} ${fs.f.goal} ${fs.f.k==='harvests'?'plants':'buds'} during the festival. Reward: exclusive <b>${esc(s.name)}</b> seeds + 25 gems.</p>${bar(fs.prog/fs.f.goal,'amber')}<p>${fs.prog}/${fs.f.goal} · ends ${new Date(fs.f.ends).toLocaleDateString([], {weekday:'long'})}</p></div>${fs.claimed?'<span class="chip">Done</span>':`<button class="btn sm gold" data-a="fest" ${fs.prog>=fs.f.goal?'':'disabled'}>Claim</button>`}</div>`; }
       else if(st.level>=G.GATE.events) body+=`<div class="note">Island festivals run Thursday to Sunday, rotating weekly: ${G.FESTS.map(f=>esc(f.name)).join(', ')}. Each has an exclusive strain.</div>`;
+      if(st.event&&st.event.id){ const E=st.event.id==='season'?G.seasonEv():G.EVENTS[st.event.id]; if(E) body+=`<div class="note">${esc(E.name)} · ${esc(E.desc)} · ${sec(st.event.t)} left</div>`; }
     } else if(tab==='sq'){ body+=sqHTML();
     } else if(tab==='daily'){
       body+=`<div class="section-t">Login streak · Day ${st.streak.n||0}</div>${streakHTML(false)}`;
@@ -809,6 +805,8 @@ window.UI = (function(){
       if(st.rarePacks||st.legPacks) body+=`<div class="section-t">Your seed packs</div><div class="row"><div class="grow"><h4>Rare packs: ${st.rarePacks} · Legendary packs: ${st.legPacks}</h4></div>${st.rarePacks?'<button class="btn sm" data-a="openpack" data-k="rare">Open rare</button>':''}${st.legPacks?'<button class="btn sm gold" data-a="openpack" data-k="leg">Open legendary</button>':''}</div>`;
       body+=`<div class="section-t">Gems</div>`+list(['gems_s','gems_m','gems_l','gems_xl']);
     } else if(tab==='gemstore'){
+      const live=Object.keys(G.BOOSTS).filter(k=>G.boostLeft(k)>0);
+      if(live.length) body+=`<div class="note">Running now: ${live.map(k=>esc(G.BOOSTS[k].name)+' · '+sec(G.boostLeft(k))).join(' · ')}</div>`;
       body+=adsCard()+piggyCard()+`<div class="section-t">Boosts (1 hour each, they stack)</div>`+list(['boost_grow','boost_price','boost_pheno'])+rushCard();
       body+=`<div class="section-t">More gem items</div><div class="note">Gems are also earned free: level-ups (+10), goals, daily and weekly quests, achievements, login streaks, new strain discoveries and golden buds.</div>`+list(['skip15','skip60','skip240','pack_rare','pack_leg','pass2x_g','vip_g']);
       if(st.rarePacks||st.legPacks) body+=`<div class="row"><div class="grow"><h4>Packs to open: ${st.rarePacks} rare · ${st.legPacks} legendary</h4></div>${st.rarePacks?'<button class="btn sm" data-a="openpack" data-k="rare">Open rare</button>':''}${st.legPacks?'<button class="btn sm gold" data-a="openpack" data-k="leg">Open legendary</button>':''}</div>`;
