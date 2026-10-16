@@ -971,6 +971,18 @@ window.G = (function(){
   if(window.Store&&Store.onWriteFail) Store.onWriteFail((k,r)=>{ if(k===CFG.saveKey) warnSave(r); });
   function save(){
     if(st._holdSave){ warnSave('The save on this device could not be read, so it was not overwritten. Export it from Settings.'); return false; }
+    try{
+      const prev=Store.get(CFG.saveKey);
+      if(prev){
+        let old=null; try{ old=JSON.parse(prev); }catch(e){ old=null; }
+        if(old&&typeof old==='object'&&!Array.isArray(old)&&playerIdOk(old.pid)&&playerIdOk(st.pid)&&old.pid!==st.pid){
+          const ahead=(old.level|0)>(st.level|0)
+            ||((old.level|0)===(st.level|0)&&typeof old.cash==='number'&&old.cash>st.cash+1)
+            ||(Array.isArray(old.plots)&&old.plots.some(p=>p&&p.strain)&&!(Array.isArray(st.plots)&&st.plots.some(p=>p&&p.strain))&&(old.level|0)>=(st.level|0));
+          if(ahead){ warnSave('A further-along farm is already saved on this device, so it was not overwritten.'); return false; }
+        }
+      }
+    }catch(e){}
     st.lastSave=Date.now();
     let json; try{ json=JSON.stringify(st); }catch(e){ warnSave('Could not save the farm. Export a backup from Settings before you leave.'); return false; }
     const r=Store.set(CFG.saveKey,json);

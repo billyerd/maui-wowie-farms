@@ -173,7 +173,8 @@
   function resume(){ if(!paused) return; paused=false; const el=(Date.now()-pausedAt)/1000; last=performance.now(); Sound.setPaused(false);
     if(el>30){ const cap=G.OFFLINE_CAP(); const r=G.simulate(Math.min(el,cap),true); showAway(r,el,cap); } }
   document.addEventListener('visibilitychange',()=>{ if(document.hidden) pause(); else resume(); });
-  window.addEventListener('pagehide',()=>G.save());
+  window.addEventListener('pagehide',()=>{ try{ G.save(); }catch(e){} });
+  window.addEventListener('beforeunload',()=>{ try{ G.save(); }catch(e){} });
   try{ const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App; if(A){ A.addListener('pause',pause); A.addListener('resume',resume); A.addListener('appStateChange',s=>{ s.isActive?resume():pause(); }); } }catch(e){}
   function showAway(r,el,cap){
     if(!r||(r.harvests===0&&r.sold===0&&Math.abs(r.cash)<1&&el<600)) return;
