@@ -497,7 +497,7 @@ window.G = (function(){
   function trellis(p,auto){ if(!canTrellis(p)) return false; const c=Math.round(strain(p.strain).game.budValue*.15); if(!auto&&!spend(c)) return false; if(auto){ if(st.cash<c) return false; st.cash-=c; } p.trellis=true; bump('trellis'); emit('trellis',{p,auto}); return true; }
   function trellisCost(p){ return Math.round(strain(p.strain).game.budValue*.15); }
   // scouting: early eggs/spores can be found with the magnifier before they hatch; removing them is free and keeps quality up
-  function eggHint(off){ if(off||st.stats.eggHint) return; st.stats.eggHint=1; emit('tip','Something is laying eggs on your plants. Tap Inspect and look closely to remove them before they hatch.'); }
+  function eggHint(off){ if(off||st.stats.eggHint) return; st.stats.eggHint=1; emit('tip','Something is laying eggs on your plants. Press and hold on a plant to look, then wipe the eggs before they hatch.'); }
   function scout(p){ if(!p||!(p.eggs>0)) return false; p.eggs=0; p.q=Math.min(1.15,p.q+.02); bump('scouted'); st.scoutStreak=(st.scoutStreak||0)+1; emit('scouted',p);
     if(st.scoutStreak%5===0){ const g=2+Math.min(8,st.scoutStreak/5|0); addGems(g,'scout'); emit('scoutstreak',{n:st.scoutStreak,g}); } return true; }
   // training choice in veg (one per plant): topping = +15% yield but 10% slower growth; low-stress training (LST) = +8% yield, +3% quality, no slowdown
@@ -507,10 +507,8 @@ window.G = (function(){
   function stage(p){ if(!p.strain) return -1; const x=p.prog; return x>=1?5:x<.08?0:x<.25?1:x<.45?2:x<.65?3:4; }
   function tickPlot(p,dt,offline){
     if(!p.strain) return;
-    if(p.prog>=1&&offline&&!mgrCovers(p.loc)&&(st.offCol||0)<offColCap()){ const id=p.strain; st._half=1; harvest(p); st._half=0; st.stats.offCollected=(st.stats.offCollected||0)+1; if((st.seeds[id]||0)>0) plant(p,id); return; }   // neighbour collects ripe buds while you're away (50% yield)
     if(p.prog>=1){ p.readyT+=dt; if(p.pest) p.q=Math.max(.55,p.q-.01*dt*(60/strain(p.strain).game.growSec)); return; }
     const s=strain(p.strain), gs=s.game.growSec;
-    if(offline&&p.water<.3&&!mgrCovers(p.loc)&&(st.offCol||0)<offColCap()) p.water=1;   // the neighbour also waters while you're away
     if(!offline&&WEATHER[st.weather.type].waters&&p.zone==='field') p.water=1;
     if(lv('water')>=4&&p.water<.6) p.water=1;
     let dp=growRate(p,offline)*dt*(p.train==='top'?1/1.1:1);
@@ -805,7 +803,7 @@ window.G = (function(){
   // goals are claimed automatically (rewards paid, one summary toast) and the card lands on the latest real goal.
   function questSat(q){ if(!q) return false; const t=st.stats||{};
     const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:st.garage>=2, feed:t.feed>0, hose:lv('water')>=1,
-      order:t.orders>0, tent3:st.garage>=3, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:st.plots.some(p=>p.zone==='gh'&&(p.strain||p.last))||wk('mgrG')>0||wk('farmhand')>0,
+      order:t.orders>0, tent3:st.garage>=3, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:st.plots.some(p=>p.zone==='gh'&&(p.strain||p.last)),
       breed:t.bred>0||!!st.breed, craft:(t.crafted||0)>0, ghfull:capOf('gh')>=INDOOR.ghPlants, permit:st.permit, indoor:st.inBuilt, inharv:t.inHarv>0, pheno:t.phenos>0, earn:st.runEarn>=2e6, season:false};
     if(c[q.id]) return true;
     // a later one-time milestone already reached means the player has clearly passed this step (e.g. bought land but never watered by hand)

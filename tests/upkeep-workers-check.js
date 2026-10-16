@@ -175,7 +175,7 @@ assert(mgr && mgr.t === 'Plant a seed in a greenhouse bed' && !/hire/i.test(mgr.
 assert(!G.QUESTS.find(q => q.id === 'sell').r.mgr, 'selling still grants a manager');
 G.st.quest = G.QUESTS.findIndex(q => q.id === 'mgr');
 G.st.questDone = false;
-assert(G.questSat(G.curQuest()), 'an old hired save can no longer finish the manager goal');
+assert(!G.questSat(G.curQuest()), 'hired workers still finish the manager goal');
 G.st.workers = { mgrG: 0, farmhand: 0 };
 byId('h0').strain = 'northern-lights';
 byId('h0').last = 'northern-lights';

@@ -163,7 +163,7 @@
     let dt=(now-last)/1000; last=now; if(dt>.25) dt=.25; if(window.__paused){ requestAnimationFrame(loop); return; }   // econ-sim: deterministic, sim drives time
     // while a full-screen sheet or modal covers the world, redraw the canvas at ~1/3 rate (the blurred backdrop is costly on big screens)
     const cov=sheetEl&&(!sheetEl.classList.contains('hidden')||!modalEl.classList.contains('hidden')); covAcc+=dt;
-    if(!paused){ G.tick(dt); if(!cov||(++covN%3===0)){ try{ R.frame(Math.min(.25,covAcc)); }catch(err){ if(!loop._fr){ loop._fr=1; console.error(err); } } covAcc=0; } else if(!cov) covAcc=0; try{ UI.update(dt); }catch(err){ if(!loop._hud){ loop._hud=1; console.error(err); } } if(!hudFit){ hudFit=true; R.fit(); if(!cov) R.frame(0); } saveT+=dt; lbT+=dt; perf(dt); musT+=dt; if(G.st){ if(loop._crewAt==null) loop._crewAt=G.st.playT; else if(G.st.playT-loop._crewAt>180){ loop._crewAt=G.st.playT; const jobs=G.drainCrew(); if(jobs.length&&!(window.Tutorial&&Tutorial.active&&Tutorial.active())) showCrew(jobs); } } if(musT>1){ musT=0; const ph=G.dayPhase(); Sound.setScene(G.st.loc,ph<.22||ph>.78); }
+    if(!paused){ G.tick(dt); if(!cov||(++covN%3===0)){ try{ R.frame(Math.min(.25,covAcc)); }catch(err){ if(!loop._fr){ loop._fr=1; console.error(err); } } covAcc=0; } else if(!cov) covAcc=0; try{ UI.update(dt); }catch(err){ if(!loop._hud){ loop._hud=1; console.error(err); } } if(!hudFit){ hudFit=true; R.fit(); if(!cov) R.frame(0); } saveT+=dt; lbT+=dt; perf(dt); musT+=dt; if(musT>1){ musT=0; const ph=G.dayPhase(); Sound.setScene(G.st.loc,ph<.22||ph>.78); }
       if(saveT>5){ saveT=0; G.save(); }
       if(lbT>30){ lbT=0; const st=G.st, L=window.Leaderboard; if(L&&st.level>=G.GATE.leaderboard){ L.submit('season',st.runEarn); L.submit('lifetime',st.lifetime); L.submit('strains',Object.keys(st.discovered).length); L.submit('level',st.level); L.submit('phenos',st.stats.phenos||0); } } }
     requestAnimationFrame(loop);
@@ -175,17 +175,11 @@
   document.addEventListener('visibilitychange',()=>{ if(document.hidden) pause(); else resume(); });
   window.addEventListener('pagehide',()=>G.save());
   try{ const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App; if(A){ A.addListener('pause',pause); A.addListener('resume',resume); A.addListener('appStateChange',s=>{ s.isActive?resume():pause(); }); } }catch(e){}
-  const CREW_FACE={mgrG:'Kai',farmhand:'Kai',mgrF:'Malia',mgrI:'Nick',mgrX:'Kai',runner:'Kai',merchant:'Malia'};
-  function crewLine(jobs){ const n={}; jobs.forEach(w=>{ n[w]=(n[w]||0)+1; }); return Object.entries(n).map(([w,c])=>{ const d=G.WORKERS[w]; const name=d?d.name.split(',')[0]:'Crew'; return name+' finished '+c+' job'+(c===1?'':'s'); }).join('. '); }
-  function showCrew(jobs){ if(!jobs||!jobs.length) return; UI.toast(crewLine(jobs),'good'); }
   function showAway(r,el,cap){
-    const jobs=G.drainCrew();
-    if((!r||(r.harvests===0&&r.sold===0&&Math.abs(r.cash)<1&&el<600))&&!jobs.length) return;
-    if(!r){ showCrew(jobs); return; }
+    if(!r||(r.harvests===0&&r.sold===0&&Math.abs(r.cash)<1&&el<600)) return;
     const li=[]; if(r.days>0) li.push(`<b>${r.days}</b> game day${r.days===1?'':'s'} went by (1 real hour = 1 game day). It's the <b>${r.season}</b> now.`);
     if(r.seasons&&r.seasons.length) li.push('Season changes: '+r.seasons.join(' → ')+'.'); if(r.markets) li.push(`${r.markets} market day${r.markets===1?'':'s'} came and went.`);
     li.push(`${r.harvests} harvests · ${r.sold} buds sold.`);
-    if(jobs.length) li.push(crewLine(jobs)+'.');
     if(r.ripe) li.push(`${r.ripe} plants are ripe and waiting.`); if(r.pests) li.push(`${r.pests} plants need treatment for pests or mold.`); if(r.thirsty) li.push(`${r.thirsty} plants are out of water.`);
     if(r.huntDone) li.push('Your pheno hunt finished. Open Breed to pick a mother.');
     UI.modal(`${portraitImg('Unko Kuli','dport')}<h3>While you were away</h3><p>You were gone ${G.dur(el)}${el>cap?' (catch-up capped at '+G.dur(cap)+')':''}.</p><div class="big-n">${r.cash>=0?'+':''}${G.fmt(r.cash)}</div><ul class="away">${li.map(t=>`<li>${t}</li>`).join('')}</ul>${r.cash>0?'<p style="font-size:13px;color:#cfe">Watch a short ad to double what the farm earned. It\'s optional.</p>':''}`,[...(r.cash>0?[{label:'Watch ad: 2x',cls:'pink',v:'ad'}]:[]),{label:'Back to the farm',cls:'gold'}]).then(async v=>{ if(v!=='ad') return; const a=await window.Ads.show(); if(a&&a.completed){ G.addCash(r.cash,'away'); Sound.play('cash',5); Haptics.success(); UI.toast('Doubled! +'+G.fmt(r.cash),'good'); } else UI.toast('No reward, the ad was closed early.'); });
