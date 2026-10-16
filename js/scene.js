@@ -1,7 +1,7 @@
 /* Scene renderer (window.R): painted location art + sprite plants at real-world scale.
    Garage | Farm (greenhouse + terraces in front of the island backdrop) | Indoor facility.
-   Plants: art/stage*.webp + art/mature_*.webp tinted per strain `look` (leaf/bud colour, frost, pistils, shape).
-   Falls back to procedural Art.plantSprite if images fail. People are 1.7 m tall; plants 1-2 m. */
+   Plants: painted art/gs_* growth rows, art/sig_* portraits, and art/mature_*.webp tinted per strain.
+   Rooms use those same pictures (not the procedural stand-in). People are 1.7 m tall; plants 1-2 m. */
 window.R=(function(){
   const TAU=Math.PI*2;
   let cv,ctx,W=0,H=0,dpr=1,t=0, loc='garage';
@@ -15,7 +15,7 @@ window.R=(function(){
   [...new Set(Object.values(SIG))].forEach(n=>NAMES.push('sig_'+n,'sig_'+n+'_pot')); ['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist','npc_overalls','npc_crate'].forEach(n=>NAMES.push(n));
   function loadImages(){ let left=NAMES.length; NAMES.forEach(n=>{ const im=new Image(); im.onload=()=>{ loaded++; if(--left===0) artSettled(); }; im.onerror=()=>{ im._bad=true; if(/^stage|^mature/.test(n)) imgOK=false; if(--left===0) artSettled(); }; im.src='art/'+n+'.webp'; IM[n]=im; }); }
   // Sprites finished (or failed). Drop baked thumbs so an open Seeds / Strains sheet upgrades from the stand-in plant.
-  function artSettled(){ dropCloseups(); try{ if(window.UI&&UI.artReady) UI.artReady(); }catch(e){} }
+  function artSettled(){ try{ detailC.clear(); }catch(e){} dropCloseups(); try{ if(window.UI&&UI.artReady) UI.artReady(); }catch(e){} }
   const ok=n=>IM[n]&&IM[n].complete&&IM[n].naturalWidth>0;
   const hash=s=>{ let h=2166136261; for(const c of String(s)){ h^=c.charCodeAt(0); h=Math.imul(h,16777619); } return h>>>0; };
   const rgb=h=>{ h=(h||'#6a9a3a').replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
@@ -129,21 +129,25 @@ window.R=(function(){
       tintPixels(d.data,L,s.id,mature);
       x.putImageData(d,0,0);
     }catch(e){ if(isTaint(e)) armCors(); /* tainted canvas (file:// or a CDN redirect) -> untinted, still drawn */ }
-    const out={c,w:c.width,h:c.height}; tcache.set(key,out); return out;
+    const out={c,w:c.width,h:c.height,tag:key}; tcache.set(key,out); return out;
   }
-  const sigOf=(s,pot)=>{ const n=SIG[s.id]&&'sig_'+SIG[s.id]+(pot?'_pot':''); if(!n||!ok(n)) return null; const im=IM[n]; return {c:im,w:im.naturalWidth,h:im.naturalHeight,sig:1}; };
+  const sigOf=(s,pot)=>{ const n=SIG[s.id]&&'sig_'+SIG[s.id]+(pot?'_pot':''); if(!n||!ok(n)) return null; const im=IM[n]; return {c:im,w:im.naturalWidth,h:im.naturalHeight,sig:1,tag:n}; };
   function plantImage(s,prog){
     const stg=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
     if(!imgOK) return null;
     // type art (art/gs_s*, gs_i*): sativas use the tall-narrow row, indicas the short-bushy row; hybrids keep the shared stages
-    // hybrids use the hybrid row (art/gs_h*); mature indicas pick the colour variant closest to the strain look (purple/pink keep gs_i4)
+    // hybrids use the hybrid row (art/gs_h*); a finished plant uses its shop portrait, or the closest mature picture tinted to the strain
     const tp=s.type==='Sativa'?'s':s.type==='Indica'?'i':'h';
-    if((window.ART_HAVE||{})['gs_'+tp+'0']&&ok('gs_'+tp+'4')){ const sg2=sigOf(s); if(sg2&&prog>=1) return {a:sg2};
-      const base=look(s).base||'green', IV={green:'gs_iv_green',white:'gs_iv_white',golden:'gs_iv_gold',blue:'gs_iv_blue'}[base];
-      const raw=n=>{ const m=IM[n]; return {c:m,w:m.naturalWidth,h:m.naturalHeight}; };
+    const base=look(s).base||'green';
+    const shopFin=()=>{ const sg=sigOf(s); if(sg) return sg; return tinted('mature_'+base,s,true); };
+    if((window.ART_HAVE||{})['gs_'+tp+'0']&&ok('gs_'+tp+'4')){ const sg2=sigOf(s);
+      const IV={green:'gs_iv_green',white:'gs_iv_white',golden:'gs_iv_gold',blue:'gs_iv_blue'}[base];
+      const raw=n=>{ const m=IM[n]; return {c:m,w:m.naturalWidth,h:m.naturalHeight,tag:n}; };
       const B=[.08,.25,.45,.8], gi=prog<.08?0:prog<.25?1:prog<.45?2:prog<.8?3:4, im=i=>i===4&&tp==='i'&&IV&&ok(IV)?raw(IV):tinted('gs_'+tp+i,s,i===4);
-      if(gi<4){ const f=smooth((prog-(B[gi]-.05))/.05); if(f>0) return {a:im(gi),b:sg2&&gi===3?sg2:im(gi+1),mix:f}; } return {a:im(gi)}; }
-    const sg=sigOf(s); if(sg){ if(stg===5) return {a:sg}; if(stg===4) return {a:tinted('stage4',s,false),b:sg,mix:Math.max(0,(prog-.82)/.18)}; }
+      if(prog>=.8){ const fin=sg2||tinted('mature_'+base,s,true)||im(4); if(!fin) return im(4)?{a:im(4)}:null; if(prog>=1) return {a:fin};
+        const stage=im(4); const f=stage&&fin.c!==stage.c?smooth((prog-.9)/.1):0; if(f>0) return {a:stage,b:fin,mix:f}; return {a:stage||fin}; }
+      if(gi<4){ const f=smooth((prog-(B[gi]-.05))/.05); if(f>0) return {a:im(gi),b:im(gi+1),mix:f}; } return {a:im(gi)}; }
+    const fin=shopFin(); if(fin){ if(stg===5) return {a:fin}; if(stg===4) return {a:tinted('stage4',s,false),b:fin,mix:Math.max(0,(prog-.82)/.18)}; }
     if(stg===5) return {a:tinted('mature_'+(look(s).base||'green'),s,true)};
     if(stg===4){ const m=tinted('mature_'+(look(s).base||'green'),s,true), b=tinted('stage4',s,false); return {a:b,b:m,mix:Math.max(0,(prog-.82)/.18)}; }
     const nx=[.08,.25,.45,.65][stg], f=nx?smooth((prog-(nx-.05))/.05):0;   // fade into the next stage over the last 5% of each stage
@@ -738,14 +742,55 @@ window.R=(function(){
   // ---------------- plant drawing ----------------
   // Painted growth sprites. Cached at least as many pixels as the on-screen draw, so the blit is a downscale.
   const detailC=new Map();
-  function detailSprite(st,prog,destPx){
+  let bedSprites=[];
+  function roomLight(){ let light='led'; try{ const room=G.currentRoom&&G.currentRoom(); light=room==='gh'?'day':'led'; }catch(e){} return light; }
+  function applyRoomLight(x,W,H,light){
+    x.save(); x.globalCompositeOperation='source-atop';
+    const g=x.createLinearGradient(W*.28,0,W*.7,H);
+    if(light==='day'){ g.addColorStop(0,'rgba(214,236,255,.22)'); g.addColorStop(.45,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(16,26,14,.18)'); }
+    else { g.addColorStop(0,'rgba(255,236,196,.26)'); g.addColorStop(.42,'rgba(255,244,220,0)'); g.addColorStop(1,'rgba(26,16,8,.2)'); }
+    x.fillStyle=g; x.fillRect(0,0,W,H); x.restore();
+  }
+  function cropOpaque(c){
+    const W=c.width, H=c.height, x=c.getContext('2d',{willReadFrequently:true});
+    const d=x.getImageData(0,0,W,H).data; let x0=W,y0=H,x1=0,y1=0,any=false, step=W>420?2:1;
+    for(let yy=0;yy<H;yy+=step) for(let xx=0;xx<W;xx+=step){ if(d[(yy*W+xx)*4+3]>24){ any=true; if(xx<x0)x0=xx; if(yy<y0)y0=yy; if(xx>x1)x1=xx; if(yy>y1)y1=yy; } }
+    if(!any||x1<=x0||y1<=y0) return {c,w:W,h:H,base:1};
+    x0=Math.max(0,x0-1); y0=Math.max(0,y0-1); x1=Math.min(W-1,x1+1); y1=Math.min(H-1,y1+1);
+    const w=x1-x0+1, h=y1-y0+1, o=document.createElement('canvas'); o.width=w; o.height=h;
+    o.getContext('2d').drawImage(c,x0,y0,w,h,0,0,w,h);
+    return {c:o,w,h,base:1};
+  }
+  // Shop portrait or growth-stage photo, lit for this room, cropped so the stem sits on the soil.
+  function litPlant(st,img,destPx,light){
+    if(!img||!img.c) return null;
+    const tag=img.tag||((img.sig?'sig:':'cv:')+(st&&st.id||'')+'|'+img.w+'x'+img.h);
+    const bucket=Math.min(768, Math.max(64, Math.ceil(Math.max(img.h, destPx||0)/64)*64));
+    const key=tag+'|'+bucket+'|'+light;
+    const hit=detailC.get(key); if(hit) return hit;
+    const aspect=img.w/Math.max(1,img.h);
+    let H=bucket, W=Math.max(1,Math.round(H*aspect));
+    if(W>768){ W=768; H=Math.max(1,Math.round(W/aspect)); }
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const x=c.getContext('2d',{willReadFrequently:true});
+    x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+    x.drawImage(img.c,0,0,W,H);
+    applyRoomLight(x,W,H,light);
+    let out;
+    try{ out=cropOpaque(c); }
+    catch(e){ out={c,w:W,h:H,base:1}; }
+    out.painted=1;
+    if(detailC.size>160) detailC.clear();
+    detailC.set(key,out); return out;
+  }
+  function procSprite(st,prog,destPx){
+    if(!window.Art) return null;
     const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
-    let light='led';
-    try{ const room=G.currentRoom&&G.currentRoom(); light=room==='gh'?'day':'led'; }catch(e){}
+    const light=roomLight();
     const logical=220;
     const sc=Math.max(2,Math.min(3,Math.ceil(Math.max(dpr||1,(destPx||0)/logical))));
     const base=(look(st).base)||'green';
-    const key=(st.id||st.type||'p')+'|'+stage+'|'+base+'|'+sc+'|'+light+'|'+(st.type||'')+'|'+((st.look&&st.look.leafShape)||'');
+    const key='proc|'+(st.id||st.type||'p')+'|'+stage+'|'+base+'|'+sc+'|'+light;
     const hit=detailC.get(key); if(hit) return hit;
     const LW=300, LH=380, stemY=LH-32;
     const W=Math.round(LW*sc), H=Math.round(LH*sc);
@@ -754,27 +799,17 @@ window.R=(function(){
     x.save(); x.scale(sc,sc);
     Art.drawPlant(x,st,stage,LW/2,stemY,1,0);
     x.restore();
-    // Overhead room light: warm under the garage/facility LED, cooler daylight in the greenhouse. Shadow falls to the lower right.
-    x.save(); x.globalCompositeOperation='source-atop';
-    const g=x.createLinearGradient(W*.28,0,W*.7,H);
-    if(light==='day'){ g.addColorStop(0,'rgba(214,236,255,.24)'); g.addColorStop(.42,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(16,26,14,.2)'); }
-    else { g.addColorStop(0,'rgba(255,236,196,.3)'); g.addColorStop(.4,'rgba(255,244,220,0)'); g.addColorStop(1,'rgba(26,16,8,.22)'); }
-    x.fillStyle=g; x.fillRect(0,0,W,H); x.restore();
-    const d=x.getImageData(0,0,W,H).data; let x0=W,y0=H,x1=0,y1=0,any=false;
-    for(let yy=0;yy<H;yy+=2) for(let xx=0;xx<W;xx+=2){ if(d[(yy*W+xx)*4+3]>24){ any=true; if(xx<x0)x0=xx; if(yy<y0)y0=yy; if(xx>x1)x1=xx; if(yy>y1)y1=yy; } }
-    const stemDev=stemY*sc;
-    let out={c,w:W,h:H,base:Math.min(1,stemDev/H)};
-    if(any&&x1>x0&&y1>y0){ x0=Math.max(0,x0-2); y0=Math.max(0,y0-2); x1=Math.min(W-1,x1+2); y1=Math.min(H-1,y1+2);
-      const w=x1-x0+1, h=y1-y0+1, o=document.createElement('canvas'); o.width=w; o.height=h; o.getContext('2d').drawImage(c,x0,y0,w,h,0,0,w,h);
-      out={c:o,w,h,base:Math.max(0,Math.min(1,(stemDev-y0)/h))}; }
-    if(detailC.size>64) detailC.clear(); detailC.set(key,out); return out;
+    applyRoomLight(x,W,H,light);
+    let out; try{ out=cropOpaque(c); }catch(e){ out={c,w:W,h:H,base:1}; }
+    out.painted=0;
+    if(detailC.size>160) detailC.clear(); detailC.set(key,out); return out;
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
     const hf=.1+.9*Math.min(1,Math.pow(Math.min(1,prog/.95),.85));
     const PS=plantSize(st.type,prog,sl); if(p.pruned||p.train) PS.w*=1+(p.pruned?.06:0)+(p.train==='top'?.1:p.train==='lst'?.07:0); const hpx=PS.h*(L.shape==='spear'||L.shape==='foxtail'?1.04:1)*sl.ppm, wpx=PS.w*sl.ppm;
     const fitW=img=>{ const nat=hpx*img.w/img.h; return Math.max(nat*.72,Math.min(nat*1.3,wpx)); };
-    if(hpx*cam.z*dpr<9&&ctx===mainCtx){ ctx.fillStyle=L.leaf||'#4a8a32'; ctx.beginPath(); ctx.ellipse(sl.x,sl.y-hpx*.45,Math.max(1.5,wpx*.45),Math.max(2,hpx*.5),0,0,TAU); ctx.fill(); return hpx; }
+    if(!sl.bed&&hpx*cam.z*dpr<9&&ctx===mainCtx){ ctx.fillStyle=L.leaf||'#4a8a32'; ctx.beginPath(); ctx.ellipse(sl.x,sl.y-hpx*.45,Math.max(1.5,wpx*.45),Math.max(2,hpx*.5),0,0,TAU); ctx.fill(); return hpx; }
     const pi=sl.bed?null:plantImage(st,prog), seed=hash(p.id);
     const flip=seed&1?-1:1, sway=G.st.settings.hq&&G.st.settings.motion!==false?Math.sin(now*1.3+seed%7)*.025*(p.water<=0?.3:1):0;
     // health on the plant: eased droop when thirsty, yellowing when hungry/dry, pest spots, grey mold fuzz
@@ -782,28 +817,47 @@ window.R=(function(){
     const hk=(p.prog<1&&G.isHungry(p)?'h':'')+(p.water<=0&&p.prog<1?'d':'')+(p.pest==='pests'?'p':p.pest==='mold'?'m':'');
     ctx.save(); ctx.translate(sl.x,sl.y);
     // Soft contact shadow, offset to the lower right of the overhead light.
-    ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(4,2,hpx*.32+4,hpx*.065+2,0,0,TAU); ctx.fill();
+    // Bed plants draw theirs with the painted sprite so a sprout is not a speck with a full-size shadow.
+    if(!sl.bed){ ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(4,2,hpx*.32+4,hpx*.065+2,0,0,TAU); ctx.fill(); }
     if(p.trellis){ const sx=Math.max(6,wpx*.42), th=hpx*.78; ctx.strokeStyle='#c9a86a'; ctx.lineWidth=Math.max(1.2,sl.ppm*.03); ctx.beginPath(); ctx.moveTo(-sx,0); ctx.lineTo(-sx,-th); ctx.moveTo(sx,0); ctx.lineTo(sx,-th); ctx.stroke();
       ctx.strokeStyle='rgba(240,240,230,.55)'; ctx.lineWidth=.8; ctx.beginPath(); for(let i=1;i<=3;i++){ ctx.moveTo(-sx,-th*i/3.2); ctx.lineTo(sx,-th*i/3.2); } ctx.stroke(); }
     if(p._pop>0){ const q=Math.sin(p._pop*22)*p._pop*.5; ctx.scale(1+q*.35,1-q*.45); if(G.st.settings.motion!==false) ctx.rotate(Math.sin(p._pop*48)*p._pop*.22); }
-    if((sl.cls==='out'||sl.cls==='gh')&&PS.h>1.2&&prog>.45&&prog<1.02){ const sh2=Math.min(hpx*.85,(PS.h*.85)*sl.ppm); ctx.strokeStyle='#c8b070'; ctx.lineWidth=Math.max(1.2,.025*sl.ppm); ctx.beginPath(); ctx.moveTo(3,2); ctx.lineTo(3+sway*20,-sh2); ctx.stroke();
+    if(!sl.bed&&(sl.cls==='out'||sl.cls==='gh')&&PS.h>1.2&&prog>.45&&prog<1.02){ const sh2=Math.min(hpx*.85,(PS.h*.85)*sl.ppm); ctx.strokeStyle='#c8b070'; ctx.lineWidth=Math.max(1.2,.025*sl.ppm); ctx.beginPath(); ctx.moveTo(3,2); ctx.lineTo(3+sway*20,-sh2); ctx.stroke();
       ctx.strokeStyle='#7fae4a'; ctx.lineWidth=1.4; for(const f of [.35,.6,.82]){ ctx.beginPath(); ctx.moveTo(-1,-sh2*f); ctx.lineTo(7,-sh2*f+2); ctx.stroke(); } }
     if(p._shake>0&&G.st.settings.motion!==false) ctx.rotate(Math.sin(p._shake*40)*p._shake*.14);
     ctx.rotate(sway); ctx.scale(flip,droop);
     let foot=0;
-    if(sl.bed&&window.Art){
+    if(sl.bed){
       const tr=ctx.getTransform?ctx.getTransform():null;
       const dest=Math.ceil(hpx*Math.abs(tr&&tr.a||dpr||1));
-      const sp=detailSprite(st,prog,dest);
-      const img={c:sp.c,w:sp.w,h:sp.h};
-      const painted=hk?sick(img,hk,seed):sp.c;
-      const cap=Math.max(14,(sl.cellW||wpx)-4);
-      const aspect=sp.w/Math.max(1,sp.h);
-      let hDraw=hpx, wDraw=hDraw*aspect;
-      if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; }
-      ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-      const base=sp.base==null?1:sp.base;
-      ctx.drawImage(painted,-wDraw/2,-hDraw*base,wDraw,hDraw);
+      const light=roomLight();
+      const piB=plantImage(st,prog);
+      const drawSp=(sp,alpha)=>{
+        if(!sp) return null;
+        const img={c:sp.c,w:sp.w,h:sp.h};
+        const painted=hk?sick(img,hk,seed):sp.c;
+        const cap=Math.max(14,(sl.cellW||wpx)-4);
+        const aspect=sp.w/Math.max(1,sp.h);
+        const maxH=sl.cellTop!=null?Math.max(18, sl.y-sl.cellTop-2):Math.max(18,hpx);
+        // Stage photos are framed on that age, so a sprout stays readable and a cola fills the cell.
+        const grow=Math.max(.42, Math.min(1, .42+.58*Math.pow(Math.min(1,prog/.95),.85)));
+        let hDraw=maxH*grow, wDraw=hDraw*aspect;
+        if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; }
+        if(hDraw>maxH){ hDraw=maxH; wDraw=hDraw*aspect; if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; } }
+        ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+        const base=sp.base==null?1:sp.base;
+        const prev=ctx.globalAlpha;
+        if(alpha==null||alpha>=1){ ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(Math.max(2,wDraw*.06),2,Math.max(5,wDraw*.42),Math.max(2,wDraw*.09),0,0,TAU); ctx.fill(); }
+        ctx.globalAlpha=prev*(alpha==null?1:alpha);
+        ctx.drawImage(painted,-wDraw/2,-hDraw*base,wDraw,hDraw);
+        ctx.globalAlpha=prev;
+        return {h:hDraw,w:wDraw};
+      };
+      const spA=piB&&piB.a?litPlant(st,piB.a,dest,light):null;
+      let box=null;
+      if(spA){ box=drawSp(spA,1); if(piB.b&&piB.mix>0) drawSp(litPlant(st,piB.b,dest,light),piB.mix); }
+      else if(window.Art){ const sp=procSprite(st,prog,dest); box=drawSp(sp,1); }
+      if(box) bedSprites.push({id:p.id,painted:!!(spA&&spA.painted),h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
@@ -979,7 +1033,7 @@ window.R=(function(){
     ctx.globalAlpha=1; for(let i=coins.length-1;i>=0;i--) if(coins[i].t>.7) coins.splice(i,1);
   }
   function drawBeds(dt, now){
-    ensureRoomArt(); const st=G.st; if(!st) return false;
+    ensureRoomArt(); const st=G.st; if(!st) return false; bedSprites=[];
     cam.x=0; cam.y=0; cam.z=1; loc=st.loc;
     const room=roomNow();
     ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
@@ -1036,7 +1090,7 @@ window.R=(function(){
         const stn=p.strain&&G.strain(p.strain);
         const mh=Math.max(.4,plantSize(stn?stn.type:'Hybrid',1,probe).h);
         const plantH=Math.max(18,rim-y-1); const ppm=plantH/mh; const sp=Math.max(.25,(g.cellW-4)/(ppm*1.05));
-        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW};
+        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW,cellTop:y};
         cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim,floor});
         slotOf.set(p.id,sl);
       }
@@ -1562,5 +1616,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();
