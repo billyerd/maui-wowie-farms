@@ -237,7 +237,7 @@ window.UI = (function(){
   function tapRoom(r){ Sound.play('tap'); hidePop();
     if(r==='garage'){ G.setRoom('garage'); return; }
     if(r==='facility'){ if(!G.st.land) landModal(); else G.setRoom('facility'); return; }
-    if(r==='gh'){ if(!G.st.land) landModal(); else G.setRoom('gh'); return; }
+    if(r==='gh'){ if(!G.st.ghBuilt) ghModal(); else G.setRoom('gh'); return; }
     if(r==='benches'){ if(!G.st.inBuilt) indoorModal(); else G.setRoom('benches'); } }
   // One location control, beside the green circle. Tap cycles owned rooms, or opens the next place when it is still locked.
   function cycleRoom(){ Sound.play('tap'); hidePop();
@@ -273,8 +273,19 @@ window.UI = (function(){
       else if(v==='treat'&&!G.treat(p)) toast('Not enough cash','bad');
     });
   }
+  function ghModal(){
+    const st=G.st, need=G.GH_BUILD.level, cost=G.GH_BUILD.cost;
+    const reqs=[
+      {t:'Reach level '+need, ok:st.level>=need, p:Math.min(1,(st.level-1+st.xp/G.xpNeed(st.level))/Math.max(1,need-1))},
+      {t:'Own the family land (level '+G.LAND_LEVEL+', '+fmt(G.LAND_COST)+')', ok:!!st.land},
+      {t:'Save '+fmt(cost), ok:st.cash>=cost, p:Math.min(1,st.cash/Math.max(1,cost))}
+    ];
+    const ready=reqs.every(c=>c.ok);
+    modal(`<h3>Greenhouse</h3><p>A daylight room: steel poles and a plastic topper over dirt beds. It opens with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. The Indoor Facility is a different purchase.</p>${reqList(reqs)}`,
+      [{label:'Later',cls:'sec',v:0},{label:ready?'Build for '+fmt(cost):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buildGH()) G.setRoom('gh'); });
+  }
   function landModal(){ const L=landReq(); const ready=L.every(c=>c.ok);
-    modal(`<img src="assets/new-art/backgrounds/indoor-facility.jpg" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor Facility</h3><p>Uncle Ikaika is selling the old family land. Buying it opens the Indoor Facility: 40 plots, and your plants from the old land stay put. The garage keeps producing the whole time. The greenhouse is its own daylight room.</p>${reqList(L)}`,
+    modal(`<img src="assets/new-art/backgrounds/indoor-facility.jpg" alt="" style="width:100%;border-radius:14px;max-height:150px;object-fit:cover"><h3>Indoor Facility</h3><p>The Indoor Facility is the old family land. It opens at level ${G.LAND_LEVEL} for ${fmt(G.LAND_COST)}: 40 plots, and plants already growing there stay put. The sealed bench room comes later, at level ${G.INDOOR.level}: permit ${fmt(G.INDOOR.permitCost)} at level ${G.INDOOR.permitLevel}, foundation ${fmt(G.INDOOR.foundCost)} at level ${G.INDOOR.foundLevel}, then the build for ${fmt(G.INDOOR.build)}.</p>${reqList(L)}`,
       [{label:'Later',cls:'sec',v:0},{label:ready?'Buy for '+fmt(G.LAND_COST):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buyLand()){ G.setRoom('facility'); } }); }
   function indoorModal(){ const ck=G.indoorChecklist(); const st=G.st;
     const ready=ck.slice(0,5).every(c=>c.ok);
@@ -505,13 +516,23 @@ window.UI = (function(){
       body+=`<div class="section-t">Pheno work</div><div class="note">${G.garageRole()==='grow'?"This is Grandpa's garage, your main grow for now. When you buy the Indoor Facility it becomes your Pheno Room.":G.garageRole()==='pheno'?'Pheno Room: double mutation odds on plants grown here, 30% less yield. Crossbreeding happens here.':'Pheno work has moved to the Indoor Breeding Pheno Room. The garage is now storage (+4 drying slots) and a bonus grow.'}</div>`+(G.st.breedLab?'':ucard({key:'lab',theme:'indoor',state:G.st.inBuilt&&G.st.cash>=G.LAB.cost?'canbuy':'locked',img:labImg,title:'Indoor Breeding Pheno Room',desc:'Takes over pheno work: crosses 60% faster, double mutation odds, +1 hint token per mystery found. Needs the sealed benches.',action:`<button class="btn gold" data-buylab ${G.st.inBuilt?'':'disabled'}>${fmt(G.LAB.cost)}</button>`})); }
     else if(tab==='gh'){
       body+=upBanner('gh');
-      if(!st.land){ const L=landReq(); body+=`<div class="note">The greenhouse sits on the family land. Buy the Indoor Facility first.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
-      else { const ghImg=`<img class="upico" alt="" src="assets/new-art/sprites/hoop-house.png">`; const ghLock=!G.gate('gh');
-        body+=`<div class="section-t">Greenhouse · ${Math.round(G.capOf('gh')/3)}/12 beds</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+(st.ghBuilt?stepCard('gh','Greenhouse'):ucard({key:'ghbuild',theme:'farm',state:ghLock||st.cash<G.GH_BUILD.cost?'locked':'canbuy',img:ghImg,title:'Build the greenhouse',desc:'Steel poles and a plastic topper over dirt beds. Weather still matters. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${st.cash<G.GH_BUILD.cost||ghLock?'disabled':''}>${ghLock?ico('lock')+' Lv '+G.GH_BUILD.level:fmt(G.GH_BUILD.cost)}</button>`}));
-        body+=`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); } }
+      const ghImg=`<img class="upico" alt="" src="assets/new-art/sprites/hoop-house.png">`;
+      if(!st.ghBuilt){
+        const need=G.GH_BUILD.level, cost=G.GH_BUILD.cost;
+        const reqs=[
+          {t:'Reach level '+need, ok:st.level>=need, p:Math.min(1,(st.level-1+st.xp/G.xpNeed(st.level))/Math.max(1,need-1))},
+          {t:'Own the family land (level '+G.LAND_LEVEL+', '+fmt(G.LAND_COST)+')', ok:!!st.land},
+          {t:'Save '+fmt(cost), ok:st.cash>=cost, p:Math.min(1,st.cash/Math.max(1,cost))}
+        ];
+        body+=`<div class="note">The greenhouse is a daylight room of its own: steel poles, a plastic topper, and dirt beds. It starts with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. This is not the Indoor Facility.</div>${reqList(reqs)}`;
+        body+=ucard({key:'ghbuild',theme:'farm',state:reqs.every(c=>c.ok)?'canbuy':'locked',img:ghImg,title:'Build the greenhouse',desc:'Opens with your current garage pot count. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${reqs.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:!st.land?'Needs the family land':fmt(cost)}</button>`});
+      } else {
+        body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')} pots</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+stepCard('gh','Greenhouse');
+        body+=`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); }
+    }
     else if(tab==='facility'){
       body+=upBanner('facility');
-      if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. Your plants carry over when you buy it.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
+      if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. It opens at level ${G.LAND_LEVEL} for ${fmt(G.LAND_COST)}. Plants already growing there stay put. The sealed benches are later: level ${G.INDOOR.level}, permit ${fmt(G.INDOOR.permitCost)} at level ${G.INDOOR.permitLevel}, foundation ${fmt(G.INDOOR.foundCost)} at level ${G.INDOOR.foundLevel}, build ${fmt(G.INDOOR.build)}.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`; }
       else { body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div>`+stepCard('field','Plots');
         body+=`<div class="section-t">Facility gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
         body+=`<div class="section-t">Sealed benches</div>`;

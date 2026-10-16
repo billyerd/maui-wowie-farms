@@ -930,17 +930,17 @@ window.R=(function(){
     const cells=[]; let build=null;
     if(room==='gh'&&!st.ghBuilt){
       const bw=Math.min(300,W-32), bh=132, bx=(W-bw)/2, by=Math.max(band.top, H*0.28);
-      bedCard(bx,by,bw,bh,'Greenhouse','Daylight, dirt beds, no lights');
-      const label=st.land?(G.gate('gh')?'Build · '+G.fmt(G.GH_BUILD.cost):'Level '+G.GH_BUILD.level):'Buy the land first';
+      bedCard(bx,by,bw,bh,'Greenhouse','Level '+G.GH_BUILD.level+' · '+G.fmt(G.GH_BUILD.cost)+' · same pots as the garage');
+      const label=st.land?(G.gate('gh')?'Build · '+G.fmt(G.GH_BUILD.cost):'Level '+G.GH_BUILD.level):'Needs the family land';
       ctx.fillStyle=st.land&&G.gate('gh')?'#e6b325':'#3d5244'; rr(bx+24,by+74,bw-48,44,12); ctx.fill();
       ctx.fillStyle=st.land&&G.gate('gh')?'#2a1c00':'#d7eadc'; ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,W/2,by+96);
       build={x:bx+24,y:by+74,w:bw-48,h:44,act:st.land?{type:'ghbuild'}:{type:'land'}};
     } else if(room==='facility'&&!st.land){
       const bw=Math.min(300,W-32), bh=120, bx=(W-bw)/2, by=band.top+12;
-      bedCard(bx,by,bw,bh,'Indoor Facility','40 plots on the old family land');
+      bedCard(bx,by,bw,bh,'Indoor Facility','Level '+G.LAND_LEVEL+' · '+G.fmt(G.LAND_COST)+' · 40 plots');
       build={x:bx+24,y:by+68,w:bw-48,h:40,act:{type:'land'}};
       ctx.fillStyle='#e6b325'; rr(build.x,build.y,build.w,build.h,12); ctx.fill();
-      ctx.fillStyle='#2a1c00'; ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Open the land',W/2,build.y+20);
+      ctx.fillStyle='#2a1c00'; ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Buy · '+G.fmt(G.LAND_COST),W/2,build.y+20);
     } else {
       const plots=st.plots.filter(p=>p.zone===g.zone).sort((a,b)=>a.idx-b.idx);
       const cls=room==='gh'?'gh':room==='facility'?'out':'in';
