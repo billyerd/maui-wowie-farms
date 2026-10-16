@@ -139,7 +139,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
     await boot(390, 844);
     for (const n of [5, 10, 20]) check('390x844/' + n, await evalJs(measure(n)));
     const garage = await evalJs(`(() => { G.setRoom('garage'); R.frame(0.05); const L=R.bedLayout(); return { room: L.room, light: L.light }; })()`);
-    assert(garage.room === 'garage' && !garage.light, 'garage picked up the greenhouse rail ' + JSON.stringify(garage));
+    assert(garage.room === 'garage' && garage.light && garage.light.kind === 'led', 'garage should keep its own grow light, not the daylight rail ' + JSON.stringify(garage));
 
     await boot(320, 568);
     for (const n of [5, 10, 20]) check('320x568/' + n, await evalJs(measure(n)));

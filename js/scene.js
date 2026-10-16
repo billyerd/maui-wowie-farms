@@ -971,8 +971,8 @@ window.R=(function(){
     cam.z=F.z+(T.z-F.z)*e; const fcx=F.x+W/2/F.z, fcy=F.y+H/2/F.z, tcx=T.x+W/2/T.z, tcy=T.y+H/2/T.z, cx=fcx+(tcx-fcx)*e, cy=fcy+(tcy-fcy)*e; cam.x=cx-W/2/cam.z; cam.y=cy-H/2/cam.z; if(k>=1){ Object.assign(cam,T); upan=null; } }
   // Stacked beds: one screen, no scroll. Garage 5x5 pots, Greenhouse 6x6 dirt, Indoor Facility tries 5x8 then 8x5.
   const BGSRC={garage:'assets/new-art/backgrounds/garage.jpg',gh:'assets/new-art/backgrounds/greenhouse.jpg',facility:'assets/new-art/backgrounds/indoor-facility.jpg',benches:'assets/new-art/backgrounds/indoor-facility.jpg'};
-  const bgIm={}; let ledIm=null, bedLay=null;
-  function ensureRoomArt(){ for(const k in BGSRC){ if(bgIm[k]) continue; const im=new Image(); im.src=BGSRC[k]; bgIm[k]=im; } if(!ledIm){ ledIm=new Image(); ledIm.src='assets/new-art/sprites/led-bar-light.png'; } }
+  const bgIm={}; let bedLay=null;
+  function ensureRoomArt(){ for(const k in BGSRC){ if(bgIm[k]) continue; const im=new Image(); im.src=BGSRC[k]; bgIm[k]=im; } }
   function roomNow(){ try{ return G.currentRoom(); }catch(e){ return 'garage'; } }
   function shownEl(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); if(r.width<8||r.height<8) return null; const s=getComputedStyle(e); if(s.display==='none'||s.visibility==='hidden') return null; return r; }
   function bedBand(room){
@@ -1126,18 +1126,24 @@ window.R=(function(){
           for(const c of owned){ x0=Math.min(x0,c.x); x1=Math.max(x1,c.x+c.w); y0=Math.min(y0,c.y); y1=Math.max(y1,c.y+c.h); }
           // Sit on the roof beams, just under the HUD, so the photo's short center lamp is covered.
           const lx=x0, lw=Math.max(12,x1-x0), ly=Math.max(2,roofTop-14), lh=Math.max(18,Math.min(36,band.top-ly-2));
-          ghLight={x:lx,y:ly,w:lw,h:lh,x1,y0,y1};
+          ghLight={x:lx,y:ly,w:lw,h:lh,x1,y0,y1,kind:'day'};
           const wash=ctx.createLinearGradient(0,ly+lh,0,y1);
           wash.addColorStop(0,'rgba(255,226,168,.42)'); wash.addColorStop(.42,'rgba(255,236,196,.14)'); wash.addColorStop(1,'rgba(255,236,196,0)');
           ctx.fillStyle=wash; ctx.beginPath();
           ctx.moveTo(lx+3,ly+lh); ctx.lineTo(lx+lw-3,ly+lh); ctx.lineTo(x1+6,y1); ctx.lineTo(x0-6,y1); ctx.closePath(); ctx.fill();
         }
-      } else if(lit){
-        const ly=band.top-gutter+6, lw=Math.min(168,band.w*0.46), lx=(W-lw)/2;
-        const glow=ctx.createRadialGradient(W/2,ly+18,6,W/2,ly+36,Math.min(220,band.w*0.55));
-        glow.addColorStop(0,'rgba(255,236,190,.34)'); glow.addColorStop(1,'rgba(255,236,190,0)');
-        ctx.fillStyle=glow; ctx.fillRect(band.left,ly,band.w,78);
-        if(ledIm&&ledIm.complete&&ledIm.naturalWidth) ctx.drawImage(ledIm,lx,ly,lw,16);
+      } else if(lit&&window.Art&&Art.growLight){
+        const owned=cells.filter(c=>c.owned);
+        if(owned.length){
+          let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+          for(const c of owned){ x0=Math.min(x0,c.x); x1=Math.max(x1,c.x+c.w); y0=Math.min(y0,c.y); y1=Math.max(y1,c.y+c.h); }
+          const lx=x0, lw=Math.max(12,x1-x0), ly=Math.max(2,roofTop-14), lh=Math.max(18,Math.min(36,band.top-ly-2));
+          ghLight={x:lx,y:ly,w:lw,h:lh,x1,y0,y1,kind:'led'};
+          const wash=ctx.createLinearGradient(0,ly+lh,0,y1);
+          wash.addColorStop(0,'rgba(255,232,196,.40)'); wash.addColorStop(.4,'rgba(255,236,210,.16)'); wash.addColorStop(1,'rgba(255,236,210,0)');
+          ctx.fillStyle=wash; ctx.beginPath();
+          ctx.moveTo(lx+3,ly+lh); ctx.lineTo(lx+lw-3,ly+lh); ctx.lineTo(x1+6,y1); ctx.lineTo(x0-6,y1); ctx.closePath(); ctx.fill();
+        }
       }
       const care=[];
       for(const c of cells){ if(!c.owned||!c.p||!c.p.strain||c.p.prog>=1) continue; if(c.p.pest||G.isThirsty(c.p)||G.isHungry(c.p)) care.push(c); }
@@ -1184,11 +1190,12 @@ window.R=(function(){
       if(ghLight){
         const L=ghLight;
         ctx.save(); ctx.beginPath(); ctx.rect(L.x,L.y0,L.w,L.y1-L.y0); ctx.clip();
-        ctx.globalCompositeOperation='screen'; ctx.globalAlpha=.26;
+        ctx.globalCompositeOperation='screen'; ctx.globalAlpha=L.kind==='led'?.22:.26;
         const sun=ctx.createLinearGradient(0,L.y0,0,L.y1);
-        sun.addColorStop(0,'rgba(255,236,196,.9)'); sun.addColorStop(1,'rgba(255,236,196,0)');
+        sun.addColorStop(0,L.kind==='led'?'rgba(255,244,220,.92)':'rgba(255,236,196,.9)'); sun.addColorStop(1,'rgba(255,236,196,0)');
         ctx.fillStyle=sun; ctx.fillRect(L.x,L.y0,L.w,L.y1-L.y0); ctx.restore();
-        Art.daylightRail(ctx,L.x,L.y,L.w,L.h);
+        if(L.kind==='led') Art.growLight(ctx,L.x,L.y,L.w,L.h);
+        else Art.daylightRail(ctx,L.x,L.y,L.w,L.h);
       }
     }
     bedLay={room,cells,build,band,light:ghLight};
@@ -1655,5 +1662,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1,kind:bedLay.light.kind||''}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();

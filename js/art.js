@@ -342,5 +342,58 @@ window.Art = (function(){
     bolt(ctx,x+3.4,y+beamH*.48); bolt(ctx,x+w-3.4,y+beamH*.48);
     ctx.restore();
   }
-  return {plantColors,cola,rng,hash,mix,shade,plantSprite,thumb,thumbCanvas,palm,monstera,hibiscus,banana,fanLeaf,drawPlant,daylightRail};
+  // Garage and indoor grow light. One bar, hung straight down from the ceiling
+  // and drawn in room pixels so a zoom stays sharp. No backdrop.
+  function growLight(ctx,x,y,w,h){
+    if(!(w>12)||!(h>12)) return;
+    const drop=Math.max(3.5,Math.min(7,h*.22));
+    const barY=y+drop-1.2;
+    const barH=Math.max(8,(y+h)-barY);
+    ctx.save();
+    ctx.fillStyle='rgba(24,18,10,.22)';
+    ctx.beginPath(); ctx.ellipse(x+w*.52,y+h+2.2,w*.46,Math.max(2,h*.11),0,0,TAU); ctx.fill();
+    ctx.fillStyle='rgba(255,220,160,.14)';
+    ctx.beginPath(); ctx.ellipse(x+w*.5,y+h+1,w*.38,Math.max(2.2,h*.14),0,0,TAU); ctx.fill();
+    const n=Math.max(2,Math.min(7,Math.round(w/110)));
+    for(let i=0;i<n;i++){
+      const cx=x+12+(w-24)*(n===1?.5:i/(n-1));
+      const rod=ctx.createLinearGradient(cx-1.8,0,cx+1.8,0);
+      rod.addColorStop(0,'#3c4046'); rod.addColorStop(.48,'#e8ebef'); rod.addColorStop(1,'#2c3036');
+      ctx.fillStyle=rod; ctx.fillRect(cx-1.15,y,2.3,drop+1.6);
+      const shoe=ctx.createLinearGradient(cx-4,y,cx+4,y+3);
+      shoe.addColorStop(0,'#f7f8fa'); shoe.addColorStop(1,'#8d939a');
+      ctx.fillStyle=shoe; roundBox(ctx,cx-3.6,y,7.2,2.6,0.8); ctx.fill();
+      bolt(ctx,cx,y+1.3);
+    }
+    const metal=ctx.createLinearGradient(x,barY,x,barY+barH);
+    metal.addColorStop(0,'#f7f8fa'); metal.addColorStop(.2,'#d0d4d8'); metal.addColorStop(.55,'#9aa0a6'); metal.addColorStop(1,'#3a3f44');
+    ctx.fillStyle=metal; roundBox(ctx,x,barY,w,barH,2); ctx.fill();
+    ctx.save(); roundBox(ctx,x,barY,w,barH,2); ctx.clip();
+    ctx.fillStyle='rgba(255,252,248,.78)'; ctx.fillRect(x,barY,w,1.35);
+    ctx.strokeStyle='rgba(40,44,48,.16)'; ctx.lineWidth=.45;
+    const fins=Math.max(3,Math.min(6,Math.round(barH/5)));
+    for(let i=0;i<fins;i++){ const fy=barY+2+i*((barH*.34)/fins); ctx.beginPath(); ctx.moveTo(x,fy); ctx.lineTo(x+w,fy); ctx.stroke(); }
+    ctx.restore();
+    const lensY=barY+barH*.42, lensH=Math.max(4,barH*.46);
+    const lens=ctx.createLinearGradient(x,lensY,x,lensY+lensH);
+    lens.addColorStop(0,'#fffefb'); lens.addColorStop(.3,'#fff3d2'); lens.addColorStop(1,'#f0c56e');
+    ctx.fillStyle=lens; roundBox(ctx,x+1.6,lensY,w-3.2,lensH,1.3); ctx.fill();
+    const diodes=Math.max(6,Math.min(56,Math.round(w/12)));
+    const slot=(w-8)/diodes;
+    for(let i=0;i<diodes;i++){
+      const dx=x+4+i*slot+slot*.18, dw=Math.max(1.4,slot*.55);
+      const hot=ctx.createLinearGradient(dx,lensY,dx,lensY+lensH);
+      hot.addColorStop(0,'rgba(255,255,255,.95)'); hot.addColorStop(.55,'rgba(255,236,190,.35)'); hot.addColorStop(1,'rgba(255,210,140,0)');
+      ctx.fillStyle=hot; roundBox(ctx,dx,lensY+.6,dw,lensH-1.2,0.8); ctx.fill();
+    }
+    ctx.strokeStyle='rgba(70,64,52,.28)'; ctx.lineWidth=.5; roundBox(ctx,x+1.6,lensY,w-3.2,lensH,1.3); ctx.stroke();
+    const cap=ctx.createLinearGradient(0,barY,0,barY+barH);
+    cap.addColorStop(0,'#f4f5f7'); cap.addColorStop(.45,'#b7bcc2'); cap.addColorStop(1,'#5c6268');
+    ctx.fillStyle=cap;
+    roundBox(ctx,x,barY,7,barH,1.4); ctx.fill();
+    roundBox(ctx,x+w-7,barY,7,barH,1.4); ctx.fill();
+    bolt(ctx,x+3.5,barY+barH*.42); bolt(ctx,x+w-3.5,barY+barH*.42);
+    ctx.restore();
+  }
+  return {plantColors,cola,rng,hash,mix,shade,plantSprite,thumb,thumbCanvas,palm,monstera,hibiscus,banana,fanLeaf,drawPlant,daylightRail,growLight};
 })();
