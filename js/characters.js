@@ -44,7 +44,7 @@ window.CUST_LINES={
   visitors:['Tourist Brenda','Surfer Jake'],
   ask:['Hi there! {p}, please.','Morning! I am after {p}.','What do you have today? {p} would be great.','Hello! Looking for {p}.'],
   askP:['Howzit! {p}, if you get.','Eh, you get {p}?'],
-  happy:['Perfect, thank you!','This is exactly what I wanted.','Smells amazing. See you next week!','Best stand on the island.'],
+  happy:['Perfect, thank you!','This is exactly what I wanted.','Smells amazing. See you next week!','Best buds on the island.'],
   happyP:['Ho, nice! Mahalo!','Shoots, this the one!'],
   ok:['Thanks, that works.','Good enough for today.','Thank you, see you around.'],
   grumpy:['I cannot wait any longer.','Nothing for me today, I guess.','Too slow today. Maybe next time.'],

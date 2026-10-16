@@ -79,8 +79,6 @@ window.G = (function(){
     phkit:   {loc:'garage', name:'pH / EC meter kit', desc:'Dial in the feed: +5% quality (better grades)', base:120, mul:1, max:1},
     trays:   {loc:'garage', name:'Deep drip trays', desc:'Bigger drip trays under every bucket: garage plants hold water 25% longer', base:25, mul:1, max:1},
     // --- greenhouse gear ---
-    stand:   {loc:'farm', name:'Farm stand upgrades', desc:'Lv1 shelves: customers arrive 25% faster. Lv2 cold case: +10% stand prices. Lv3 painted sign: up to 4 customers wait', base:3000, mul:3, max:3, need:'land',
-              descs:['Shelves: customers arrive 25% faster','Cold case: +10% stand prices','Painted sign: up to 4 customers wait at once']},
     beds:    {loc:'farm', name:'Raised beds + compost', desc:'+20% greenhouse and terrace yield per level', base:1500, mul:2.6, max:3, need:'land'},
     shade:   {loc:'farm', name:'Shade cloth (30%)', desc:'Cuts midday heat: +4% greenhouse quality, sunny days no longer dry plants faster', base:350, mul:1, max:1, need:'gh'},
     lightdep:{loc:'farm', name:'Light-dep blackout tarps', desc:'Force flowering on schedule: +15% greenhouse growth per level (Lv3-4: automated light-dep greenhouse roof)', costs:[0,1200,3360,90000,180000], need:'gh'},   // Lv3-4 = level 9-11 cash sink
@@ -593,35 +591,22 @@ window.G = (function(){
     {k:'flavor',v:'Citrus',t:'Something citrusy'},{k:'flavor',v:'Sweet',t:'Something sweet'},{k:'flavor',v:'Earthy',t:'Earthy and classic'},{k:'flavor',v:'Berry',t:'Berry flavors'},{k:'flavor',v:'Pine',t:'Piney and fresh'},{k:'flavor',v:'Grape',t:'Grape all day'},
   ];
   function prefOk(c,s){ const P=c.pref; if(P.k==='type') return s.type===P.v; if(P.k==='island') return s.island; if(P.k==='thc') return (s.thc||s.thcEstimate||0)>=25; if(P.k==='cbd') return (s.cbd||0)>=5; if(P.k==='flavor') return (s.flavors||[]).includes(P.v); return false; }
-  function custMatch(c){ const out=[]; for(const stg of ['cured','dry']) for(const [k,n] of Object.entries(st.inv[stg])){ const u=unkey(k); if(prefOk(c,strain(u.id))) out.push({stg,k,n,v:price(u.id,u.g,stg,u.q)}); } return out.sort((a,b)=>b.v-a.v); }
-  // Farm stand: small, frequent sales at a premium (bonus x1.25-1.5 + tip) vs the Market (instant, any amount, x1) and the
-  // Order Board (big lump sums + reputation, fixed strain). Customers wait ~2.5 min; Malia (farm manager) serves after ~25 s.
-  // regulars: 3 happy visits = regular (tier 1), 9 = tier 2, 18 = tier 3; each tier pays +5% and waits longer
+  function custMatch(c){ return []; }
   function regTier(who){ const n=(st.regs||{})[who]||0; return n>=18?3:n>=9?2:n>=3?1:0; }
-  function serveCust(id,auto){ if(!F.customers) return false; const c=st.cust.find(x=>x.id===id); if(!c) return false; const m=custMatch(c); if(!m.length){ emit('custno',c); return false; } let need=c.n, v=0, cured=false;
-    for(const l of m){ const t=Math.min(need,l.n); v+=sell(l.stg,l.k,t,c.bonus); if(l.stg==='cured') cured=true; need-=t; if(!need) break; }
-    const mood=cured||c.bonus>1.45?'happy':'ok', tip=mood==='happy'?Math.round(v*.15):0; if(tip) addCash(tip,'tip');
-    st.regs=st.regs||{}; if(mood==='happy'){ const r0=regTier(c.who); st.regs[c.who]=(st.regs[c.who]||0)+1; if(regTier(c.who)>r0) emit('regular',{who:c.who,tier:regTier(c.who)}); }
-    // market-day contest: the first grade-A cured bud sold at the stand on a market day wins Best Bud of the Week
-    if(marketDay()&&cured&&st.contestDay!==dayNum()&&m.some(l=>l.stg==='cured'&&unkey(l.k).q==='A')){ st.contestDay=dayNum(); addGems(10); addRep(10); emit('contest',{who:c.who}); }
-    addRep(3+c.n); st.stats.customers++; st.cust=st.cust.filter(x=>x!==c); emit('served',{c,v,tip,mood,auto:!!auto}); return v+tip; }
-  function tickCust(dt){ if(!F.customers){ st.cust=[]; return; } if(st.level<GATE.customers) return; st.cust.forEach(c=>c.T+=dt);
-    st.cust.filter(c=>c.T>=c.t).forEach(c=>{ addRep(-1); emit('custleft',c); }); st.cust=st.cust.filter(c=>c.T<c.t);
-    if(st.cust.length<(lv('stand')>=3?4:3)){ st.custT-=dt*(marketDay()?2.5:1)*(season()==='makahiki'?1.5:1)*(lv('stand')>=1?1.25:1); if(st.custT<=0){ st.custT=35+Math.random()*45;
-    const ok=PREFS.filter(P=>S.some(s=>st.discovered[s.id]&&prefOk({pref:P},s))); if(!ok.length) return; const P=ok[Math.floor(Math.random()*ok.length)];
-    const who=NAMES[Math.floor(Math.random()*NAMES.length)], rg=regTier(who); const c={id:Math.random().toString(36).slice(2,8),who,reg:rg,pref:P,n:1+Math.floor(Math.random()*(2+st.level/8)),bonus:1.25+Math.random()*.25+.05*repTier()+(marketDay()?.1:0)+.05*rg+(lv('stand')>=2?.1:0),t:150+15*repTier()+30*Math.min(1,rg),T:0}; st.cust.push(c); emit('customer',c); } } }
+  // Walk-in selling is gone. Stored st.cust / st.upg.stand stay on the save and do nothing.
+  function serveCust(){ if(st) st.cust=[]; return false; }
+  function tickCust(){ if(st&&st.cust&&st.cust.length) st.cust=[]; }
   // ---------- seasons (24-day island year): wet season 10 days, dry season 12 days, Makahiki harvest festival 2 days ----------
   // wet: more rain/storms, mold risk x1.6 outdoors, indicas +10% outdoor yield. dry: more sun, outdoor plants drink 30% faster,
-  // sativas +10% outdoor yield. Makahiki: festival stalls, stand customers 1.5x as often, +25% XP.
+  // Makahiki is the harvest festival: +25% XP. Selling stays on the Market.
   const SEASONS={wet:{name:'Wet season',fav:'Indica',tip:'Rain and storms are more common and mold spreads faster outdoors. Indicas get +10% outdoor yield.'},
     dry:{name:'Dry season',fav:'Sativa',tip:'Long sunny days. Outdoor plants drink 30% faster. Sativas get +10% outdoor yield.'},
-    makahiki:{name:'Makahiki',fav:null,tip:'The harvest festival: stalls on the farm, customers come 1.5x as often and you earn +25% XP.'}};
+    makahiki:{name:'Makahiki',fav:null,tip:'The harvest festival. You earn +25% XP. Sell buds at the Market.'}};
   function season(){ const d=dayNum()%24; return d<10?'wet':d<22?'dry':'makahiki'; }
   function seasonYield(){ return 1; }
   let lastSeason=null;
-  // Weekly market day (every 7th in-game day): customers arrive 2.5x as often and pay +10%
   function dayNum(){ return Math.floor(st.time/DAY_LEN); }
-  function marketDay(){ return F.customers!==false&&st.level>=GATE.customers&&dayNum()%7===6; }
+  function marketDay(){ return false; }
   let lastDay=-1; function tickDay(){ const d=dayNum(); if(lastDay>=0&&d!==lastDay&&marketDay()) emit('marketday'); lastDay=d; const se=season(); if(lastSeason&&se!==lastSeason) emit('season',SEASONS[se]); lastSeason=se; }
   // ---------- weather ----------
   function tickWeather(){ if(!st.weather) return; st.weather.type='sunny'; st.weather.rainbow=0; st.weather.t=0; }
@@ -764,7 +749,7 @@ window.G = (function(){
   }
   // ---------- upgrades / workers ----------
   function upgNeedOk(d){ return !d.need||(d.need==='gh'?st.ghBuilt:d.need==='land'?st.land:d.need==='in'?st.inBuilt:d.need==='lab'?st.breedLab:true); }
-  function buyUpg(k){ const d=UPG[k], l=lv(k); if(l>=maxLv(d)) return false; if(!upgNeedOk(d)){ emit('toast',{t:'Unlock that location first',k:'bad'}); return false; } if(d.lvl&&st.level<d.lvl){ emit('toast',{t:d.name+' unlocks at level '+d.lvl,k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.upg[k]=l+1; if(k==='water'&&l+1>=1) done('hose'); emit('upgrade',k); return true; }
+  function buyUpg(k){ if(k==='stand'||!UPG[k]) return false; const d=UPG[k], l=lv(k); if(l>=maxLv(d)) return false; if(!upgNeedOk(d)){ emit('toast',{t:'Unlock that location first',k:'bad'}); return false; } if(d.lvl&&st.level<d.lvl){ emit('toast',{t:d.name+' unlocks at level '+d.lvl,k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.upg[k]=l+1; if(k==='water'&&l+1>=1) done('hose'); emit('upgrade',k); return true; }
   function workerOk(){ return false; }
   function hire(){ return false; }
   // ---------- rebirth (New Season) ----------
@@ -819,12 +804,11 @@ window.G = (function(){
     {k:'scouted',t:n=>'Wet season: find and remove '+n+' hidden pest nests',n:()=>3,need:()=>season()==='wet'&&st.land},
     {k:'trained',t:n=>'Dry season: top or LST '+n+' plants',n:()=>4,need:()=>season()==='dry'&&st.land},
     {k:'pruned',t:n=>'Prune '+n+' plants',n:()=>5,need:()=>st.land},
-    {k:'customers',t:n=>'Makahiki: serve '+n+' festival guests',n:()=>5,need:()=>season()==='makahiki'&&F.customers},
     {k:'plant',t:n=>'Plant '+n+' seeds',n:L=>6+L},{k:'water',t:n=>'Water '+n+' plants',n:L=>8+Math.floor(L/2)},
     {k:'harvests',t:n=>'Harvest '+n+' plants',n:L=>5+L},{k:'sold',t:n=>'Sell '+n+' buds',n:L=>20+5*L},
     {k:'earned',t:n=>'Earn '+fmt(n),n:L=>Math.max(100,Math.round(60*Math.pow(L,2.6)/50)*50)},{k:'dryLoads',t:n=>'Load the drying racks '+n+' times',n:()=>3},
     {k:'feed',t:n=>'Feed '+n+' plants',n:()=>4},{k:'bred',t:()=>'Try a crossbreed',n:()=>1,need:()=>gate('breed')},
-    {k:'orders',t:n=>'Fill '+n+' orders',n:()=>2,need:()=>F.orders},{k:'customers',t:n=>'Serve '+n+' walk-in customers',n:()=>2,need:()=>F.customers},
+    {k:'orders',t:n=>'Fill '+n+' orders',n:()=>2,need:()=>F.orders},
     {k:'inHarv',t:n=>'Harvest '+n+' indoor plants',n:()=>4,need:()=>st.inBuilt},{k:'cured',t:n=>'Cure '+n+' buds',n:L=>15+2*L,need:()=>lv('cure')>0},
   ];
   const WQ_POOL=[
@@ -833,10 +817,12 @@ window.G = (function(){
     {k:'bred',t:n=>'Try '+n+' crossbreeds',n:()=>5,need:()=>gate('breed')},{k:'mutants',t:n=>'Harvest '+n+' mutant plants',n:()=>2},
   ];
   function rollQuests(pool,count,rew){ const ok=pool.filter(q=>!q.need||q.need()); const out=[]; while(out.length<count&&ok.length){ const q=ok.splice(Math.floor(Math.random()*ok.length),1)[0]; const n=q.n(st.level); out.push({k:q.k,t:q.t(n),goal:n,base:stat(q.k),r:rew(),c:false}); } return out; }
+  function retireCustQuest(q){ if(!q||q.k!=='customers') return; q.k='sold'; q.t='Sell '+(q.goal||1)+' buds at the Market'; q.base=Math.min(q.base||0, stat('sold')); }
   function ensureQuests(){
     const L=st.level;
     if(!st.dq||st.dq.day!==dayKey()) st.dq={day:dayKey(),list:rollQuests(DQ_POOL,3,()=>({gems:5+Math.floor(L/5)*2,cash:Math.round(20*Math.pow(L,2))})),bonus:false};
     if(!st.wq||st.wq.week!==weekKey()) st.wq={week:weekKey(),list:rollQuests(WQ_POOL,3,()=>({gems:30+Math.floor(L/5)*5,cash:Math.round(200*Math.pow(L,2))})),bonus:false};
+    for(const Q of [st.dq,st.wq]) if(Q&&Q.list) Q.list.forEach(retireCustQuest);
   }
   function qProg(q){ return Math.min(q.goal,stat(q.k)-q.base); }
   function claimQ(which,i){ ensureQuests(); const Q=which==='w'?st.wq:st.dq, q=Q.list[i]; if(!q||q.c||qProg(q)<q.goal) return false; q.c=true; addGems(q.r.gems); addCash(q.r.cash,'quest'); emit('qclaim',q);
@@ -854,7 +840,7 @@ window.G = (function(){
    ['island','Island Roots','All Island Strains',null,null,[3,S.filter(x=>x.island).length]],
    ['rebirths','New Season','Many Moons',null,null,[1,5]],
    ['streakMax','Week-Long Streak','Month-Long Streak',null,null,[7,30]],
-   ['sold','Market Regular','Farm Stand Star',null,null,[500,10000]],
+   ['sold','Market Regular','Market Mogul',null,null,[500,10000]],
    ['orders','Order Up','Contract Grower','Island Supplier',null,[5,50,250]],
    ['customers','Good Listener','Neighborhood Favorite',null,null,[5,50]],
    ['rep','Local Favorite','Island Famous','Pacific Legend',null,[40,1200,5000]],
@@ -1144,7 +1130,7 @@ window.G = (function(){
       if(st.land&&!st.phenoRoom) st.phenoRoom=true;
       migrateGarage(st); migrateRoom(st, raw); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
       if(st.inBuilt) st.found=true;
-      if(st.upg&&st.upg.sign==null&&st.upg.stand){ st.upg.sign=st.upg.stand; st.upg.stand=Math.min(3,st.upg.stand); }
+      // Older saves may store upg.stand. Leave the number on the save. It does not buy anything and does not change prices.
       // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)
       if(raw&&!raw.econ){ st.econ=2; st.cash=Math.min((raw.cash||0)*2,50000+Math.pow(st.level,2)*2500); st.econMigrated=true; }
       // Saves from before the tutorial stay in normal play. A brand-new game keeps the offer.

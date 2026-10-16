@@ -346,7 +346,7 @@ window.UI = (function(){
   function hidePop(keepSel){ popPlot=null; if(!keepSel) lastSel=null; $('#pop').classList.add('hidden'); closeLocPick(); }
   // ---------- panels ----------
   const PANELS={};
-  function open(name,t){ panel=name; tab=t||null; hidePop();
+  function open(name,t){ if(name==='stand') name='market'; panel=name; tab=t||null; hidePop();
     try{ render(true); }
     catch(err){ console.error(err); const body=$('#sheetBody'), foot=$('#sheetFoot'); if(body) body._h=''; if(foot) foot._h=''; const title=$('#sheetTitle'); if(title) title.textContent='Farm'; const sub=$('#sheetSub'); if(sub) sub.innerHTML=''; const tabsEl=$('#sheetTabs'); if(tabsEl) tabsEl.innerHTML='';
       const stack=String(err&&err.stack||''), hit=stack.match(/([A-Za-z0-9_.-]+\.js):(\d+)/), spot=(err&&err.name||'Error')+(hit?' '+hit[1]+':'+hit[2]:'');
@@ -472,10 +472,9 @@ window.UI = (function(){
     }
     return {title:'Drying Shed',sub:'Dry, cure and craft for top prices',tabs:tabs.length>1?tabs:null,body,foot};
   };
-  // Market: sell, orders, customers
+  // Market: sell and orders
   function spark(id){ const h=G.st.market.hist[id]||[]; if(h.length<2) return ''; const mn=.5,mx=1.85; const pts=h.map((v,i)=>`${(i/(h.length-1)*60).toFixed(1)},${(18-(v-mn)/(mx-mn)*18).toFixed(1)}`).join(' ');
     const up=h[h.length-1]>=h[h.length-2]; return `<svg width="60" height="18" style="vertical-align:middle"><polyline points="${pts}" fill="none" stroke="${up?'#7dffa6':'#ff8a8a'}" stroke-width="1.6"/></svg>`; }
-  PANELS.stand=()=>PANELS.market();
   PANELS.pass=()=>{
     const P=window.PRODUCTS;
     const body=passTab()+`<div class="section-t">VIP Grower</div><div class="prod-grid">`+prodCard(P.vip)+prodCard(P.vip_g)+`</div>`;

@@ -61,7 +61,7 @@
   G.on('ach',fx(a=>{ Sound.play('discover'); UI.toast(a.name,'gemt','ach'); }));
   G.on('qclaim',fx(q=>{ UI.toast('Quest complete: +'+q.r.gems+' gems','gemt'); }));
   G.on('qbonus',fx(w=>{ Sound.play('discover'); UI.confetti(60); UI.toast(w==='w'?'All weekly quests done! Legendary Seed Pack added':'All daily quests done! Rare Seed Pack added','gemt'); }));
-  G.on('regular',fx(r=>UI.toast(r.who+(r.tier===1?' is now a regular at your stand (+5% pay, more patience)':' is a loyal regular now (tier '+r.tier+')'),'good')));
+  G.on('regular',fx(r=>UI.toast(r.who+(r.tier===1?' is a regular buyer now':' is a loyal buyer now (tier '+r.tier+')'),'good')));
   G.on('contest',fx(r=>{ Sound.play('level'); UI.toast('Best Bud of the Week! '+r.who+' judged your grade-A cured bud the best on the island: +10 gems, +10 reputation','gemt'); }));
   G.on('marketday',fx(()=>{ Sound.play('discover'); UI.toast('Market day! Buyers pay 10% more','gemt'); }));
   G.on('certstart',fx(id=>UI.toast(G.strain(id).name+' is in the seed bank for certification (24 h)','good')));

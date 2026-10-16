@@ -41,8 +41,8 @@ window.THEMES = {
 window.COSMETICS = {
   stand:  {label:'Lei and torch decor', items:{
     tiki:{name:'Tiki torches', desc:'Two flickering torches by the path', usd:1.99, gems:220},
-    lei:{name:'Lei garland', desc:'A plumeria and orchid lei strung across the awning', usd:0.99, gems:120},
-    surf:{name:'Surfboard sign', desc:'A hand-painted longboard sign: ALOHA, FRESH FROM KAUAI', usd:1.99, gems:220} }},
+    lei:{name:'Lei garland', desc:'A plumeria and orchid lei', usd:0.99, gems:120},
+    surf:{name:'Surfboard sign', desc:'A hand-painted longboard: ALOHA, FRESH FROM KAUAI', usd:1.99, gems:220} }},
   truck:  {label:'Kahuna K4 paint', items:{
     sunset:{name:'Sunset orange', desc:'Glossy orange paint for the Kahuna K4 in the garage', usd:1.99, gems:240, c:[255,122,42]},
     teal:{name:'Ocean teal', desc:'Deep ocean teal paint', usd:1.99, gems:240, c:[20,170,176]},

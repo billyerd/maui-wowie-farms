@@ -48,7 +48,7 @@ window.Tutorial=(function(){
     if(step.id==='feed'){ if(popOpen()) return document.querySelector('#pop [data-pa="feed"]'); const p=plotFor('feed'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
     if(step.id==='harvest'){ const menu=document.getElementById('qaMenu'); if(menu&&menu.classList.contains('hidden')) return document.querySelector('#qaFab .qa-main'); return document.getElementById('harvestAll'); }
     if(step.id==='dry'){ if(sheetOpen()&&panel()==='process') return document.querySelector('#sheet [data-a="load"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="process"]'); }
-    if(step.id==='sell'){ if(sheetOpen()&&(panel()==='market'||panel()==='stand')) return document.querySelector('#sheet [data-a="sell"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="market"]'); }
+    if(step.id==='sell'){ if(sheetOpen()&&panel()==='market') return document.querySelector('#sheet [data-a="sell"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="market"]'); }
     if(step.id==='order') return document.getElementById('orderBoard');
     if(step.id==='land') return document.getElementById('locBtn');
     return null;
