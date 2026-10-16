@@ -747,27 +747,37 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 #seedPip.hidden{display:none}
 #seedPip.out{opacity:0}
 
-/* One bottom row: green circle, one location tab, Game Pass, and the other tabs, spaced evenly. */
+/* One bottom row: Game Pass, location, green circle, and Upgrades sit together, then the other tabs. Even slots, two-line labels. */
 #locTabs{display:none!important}
 #toolbar{
   position:fixed;left:0;right:0;bottom:0;z-index:14;
   display:flex;flex-wrap:nowrap;align-items:stretch;justify-content:space-evenly;
   gap:2px;pointer-events:none;
-  padding:4px calc(var(--sar) + 4px) calc(var(--sab) + 4px) calc(var(--sal) + 4px);
+  padding:4px calc(var(--sar) + 2px) calc(var(--sab) + 4px) calc(var(--sal) + 2px);
   background:linear-gradient(180deg,rgba(18,36,28,.97),rgba(8,16,12,.97));
   border-top:1px solid rgba(255,255,255,.12);
   box-shadow:0 -6px 18px rgba(0,0,0,.35);
 }
 #toolbar>*{pointer-events:auto}
 #toolbar #menu{display:contents}
+#toolbar #menu button[data-panel="pass"]{order:1}
+#toolbar #locSlot{order:2}
+#toolbar #qaFab{order:3}
+#toolbar #upgBtn{order:4}
+#toolbar #menu button[data-panel="seeds"]{order:5}
+#toolbar #menu button[data-panel="process"]{order:6}
+#toolbar #menu button[data-panel="market"]{order:7}
+#toolbar #menu button[data-panel="lab"]{order:8}
+#toolbar #menu button[data-panel="book"]{order:9}
+#toolbar #menu button[data-panel="quests"]{order:10}
 #toolbar #qaFab{
   position:relative;right:auto;bottom:auto;top:auto;left:auto;
-  flex:0 0 46px;width:46px;height:auto;min-height:0;
+  flex:1 1 0;width:auto;min-width:0;height:auto;min-height:0;
   display:flex;align-items:center;justify-content:center;
   z-index:2;
 }
-#toolbar .qa-main{width:44px;height:44px;min-width:44px;min-height:44px}
-#toolbar .qa-menu{position:absolute;left:0;bottom:calc(100% + 6px);flex-direction:column}
+#toolbar .qa-main{width:min(40px,100%);height:auto;aspect-ratio:1;min-width:0;min-height:0;max-height:44px}
+#toolbar .qa-menu{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 6px);flex-direction:column}
 #toolbar #locSlot{
   position:relative;flex:1 1 0;min-width:0;display:flex;align-items:stretch;
 }
@@ -791,39 +801,48 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 #locPick button.on{background:rgba(255,255,255,.12)}
 #locPick button.locked small{color:#ffd96a}
 #toolbar #locBtn,
-#toolbar #menu button{
+#toolbar #menu button,
+#toolbar #upgBtn.sidebtn{
   position:relative;flex:1 1 0;min-width:0;width:auto;max-width:none;
   height:auto;min-height:48px;margin:0;padding:3px 1px;
   border:0;border-radius:10px;background:transparent;box-shadow:none;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   color:#e7f6ea;
+  left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;
+  z-index:auto;
 }
 #toolbar #locSlot #locBtn{flex:1 1 auto;width:100%}
 #toolbar #locBtn .li{font-size:15px;line-height:1}
+#toolbar #upgBtn .sb-up{
+  width:16px;height:16px;min-height:0;border-radius:0;background:none;box-shadow:none;
+  display:flex;align-items:center;justify-content:center;
+}
+#toolbar #upgBtn .sb-up .ico{width:16px;height:16px;color:#d5eadc}
 #toolbar #locBtn small,
-#toolbar #menu button small{
+#toolbar #menu button small,
+#toolbar #upgBtn b{
   font-size:8px;font-weight:800;line-height:1.05;letter-spacing:-.01em;
   color:#d5eadc;white-space:normal;text-align:center;max-width:100%;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   overflow-wrap:break-word;hyphens:manual;
 }
 @media (max-width:379px){
-  #toolbar #locBtn small{font-size:7px;letter-spacing:-.04em}
+  #toolbar #locBtn small,#toolbar #upgBtn b,#toolbar #menu button small{font-size:7px;letter-spacing:-.04em}
 }
 #toolbar #menu button .ico{width:16px;height:16px;flex:none}
 #toolbar #menu button .badge{top:1px;right:1px}
 #toolbar #locBtn:active,
+#toolbar #upgBtn:active,
 #toolbar #menu button:active{background:rgba(255,255,255,.08);transform:none}
 @media (min-width:380px){
-  #toolbar #locBtn small,#toolbar #menu button small{font-size:9px}
-  #toolbar #menu button .ico{width:18px;height:18px}
+  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b{font-size:9px}
+  #toolbar #menu button .ico,#toolbar #upgBtn .sb-up,#toolbar #upgBtn .sb-up .ico{width:18px;height:18px}
 }
 @media (min-width:480px){
   #toolbar{gap:4px;padding-left:8px;padding-right:8px}
-  #toolbar #locBtn small,#toolbar #menu button small{font-size:11px}
+  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b{font-size:11px}
 }
-#seedBag,#upgBtn.sidebtn{top:auto!important;bottom:calc(var(--sab) + 64px)!important;z-index:12}
-#upgBtn.sidebtn{left:64px!important}
+#seedBag{top:auto!important;bottom:calc(var(--sab) + 64px)!important;z-index:12}
 #orderBoard{bottom:calc(var(--sab) + 68px)!important}
 #clock{display:none!important}
-body.sheet-open #qaFab{display:none}
+body.sheet-open #toolbar #qaFab{display:flex}
