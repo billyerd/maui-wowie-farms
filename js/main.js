@@ -7,7 +7,7 @@
   // settings defaults (older saves) + apply audio / motion preferences
   const S0=G.st.settings; if(S0.vMusic==null) S0.vMusic=S0.music===false?0:70; if(S0.vSfx==null) S0.vSfx=S0.sfx===false?0:80; if(S0.vAmb==null) S0.vAmb=60;
   if(S0.vib==null) S0.vib=true; if(S0.motion==null) S0.motion=!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches); if(S0.autoQ==null) S0.autoQ=true;
-  window.applySettings=()=>{ const s=G.st.settings; Sound.setVol('music',s.vMusic/100); Sound.setVol('sfx',s.vSfx/100); Sound.setVol('amb',s.vAmb/100); Sound.setMusic(s.vMusic>0); Sound.setSfx(s.vSfx>0); document.body.classList.toggle('reduce-motion',!s.motion); };
+  window.applySettings=()=>{ const s=G.st.settings; const mute=!!s.mute; Sound.setVol('music',s.vMusic/100); Sound.setVol('sfx',s.vSfx/100); Sound.setVol('amb',s.vAmb/100); Sound.setMusic(!mute&&s.vMusic>0); Sound.setSfx(!mute&&s.vSfx>0); Sound.setAmb(!mute&&s.vAmb>0); document.body.classList.toggle('reduce-motion',!s.motion); };
   applySettings();
   R.init(cv); UI.init();
   Payments.onGrant((p)=>{ G.grantProduct(p); UI.toast('Thank you! '+p.name+' added','gemt'); UI.render(); });

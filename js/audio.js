@@ -11,7 +11,12 @@ window.Sound = (function(){
   const vol={music:.7, sfx:.8, amb:.6}; let musicOn=true, sfxOn=true, ambOn=true, paused=false;
   let scene='garage', night=false, style='garage', styles={}, nextBar=0, bar=0, amb=null, ambT=0;
   const ksCache={}; const mtof=m=>440*Math.pow(2,(m-69)/12);
+  function dropCtx(){
+    try{ if(timer) clearInterval(timer); }catch(e){}
+    ctx=null; started=false; timer=null; styles={}; amb=null; master=null; comp=null; musicBus=null; sfxGain=null; ambBus=null; noiseBuf=null;
+  }
   function init(){
+    if(ctx&&ctx.state==='closed') dropCtx();
     if(ctx) return; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
     ctx=new AC(); master=ctx.createGain(); master.gain.value=.85; master.connect(ctx.destination);
     comp=ctx.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=3; comp.connect(master);
@@ -27,8 +32,12 @@ window.Sound = (function(){
     musicBus.gain.setTargetAtTime(musicOn&&!paused?.32*vol.music:0,t,.2); sfxGain.gain.setTargetAtTime(sfxOn?.6*vol.sfx:0,t,.05); ambBus.gain.setTargetAtTime(ambOn&&!paused?.5*vol.amb:0,t,.4); }
   function unlockIOS(){ try{ const b=ctx.createBuffer(1,1,22050), s=ctx.createBufferSource(); s.buffer=b; s.connect(ctx.destination); s.start(0); }catch(e){} }
   /* QC iOS: Safari can leave the context 'suspended'/'interrupted' (first load, call, app switch); re-resume inside every user gesture */
-  ['touchend','pointerdown','click','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ if(ctx&&ctx.state!=='running'&&!paused) ctx.resume(); },{capture:true,passive:true}));
-  function resume(){ init(); if(!ctx) return; unlockIOS(); if(ctx.state!=='running') ctx.resume(); if(!started){ started=true; nextBar=ctx.currentTime+.15; setStyle(pick(),true); startAmb(); timer=setInterval(sched,180); } }
+  function resume(){ try{ init(); if(!ctx) return; unlockIOS(); if(ctx.state==='closed'){ dropCtx(); init(); if(!ctx) return; } if(ctx.state!=='running'){ const p=ctx.resume(); if(p&&p.catch) p.catch(function(){}); } if(!started){ started=true; nextBar=ctx.currentTime+.15; setStyle(pick(),true); startAmb(); timer=setInterval(sched,180); } else if(!(nextBar>0)||nextBar<ctx.currentTime-.35) nextBar=ctx.currentTime+.08; }catch(e){} }
+  ['touchend','pointerdown','click','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ if(!paused) resume(); },{capture:true,passive:true}));
+  function wake(){ if(document.hidden||paused) return; resume(); }
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) wake(); });
+  window.addEventListener('pageshow',()=>wake());
+  window.addEventListener('focus',()=>wake());
   // ---------- instruments ----------
   function ksBuf(f,decay,bright){ const key=Math.round(f*10)+'|'+decay+'|'+bright; let buf=ksCache[key]; if(buf) return buf;
     const sr=ctx.sampleRate, n=Math.floor(sr*(decay>.995?2.4:1.4)), N=Math.max(2,Math.round(sr/f)); buf=ctx.createBuffer(1,n,sr); const d=buf.getChannelData(0);
@@ -84,9 +93,15 @@ window.Sound = (function(){
   function pick(){ return scene==='farm'&&night?'night':scene==='garage'&&night?'night':scene; }
   function setStyle(s,now){ if(!ctx||!STY[s]) return; const t=ctx.currentTime; for(const k in styles) styles[k].gain.setTargetAtTime(k===s?1:0,t,now?.05:1.2); if(s!==style){ style=s; } }
   function sched(){
-    if(!ctx||paused) return; const s=STY[style]; const B=60/s.bpm;
-    while(nextBar<ctx.currentTime+1.0){ if(musicOn&&vol.music>0) s.play(nextBar,bar,B,styles[style]); nextBar+=B*4; bar++; }
-    ambTick();
+    try{
+      if(!ctx||paused) return;
+      if(ctx.state==='closed'){ resume(); return; }
+      if(ctx.state!=='running') return;
+      const s=STY[style]; if(!s) return; const B=60/s.bpm;
+      if(!(nextBar>0)||nextBar<ctx.currentTime-.4) nextBar=ctx.currentTime+.05;
+      while(nextBar<ctx.currentTime+1.0){ if(musicOn&&vol.music>0) s.play(nextBar,bar,B,styles[style]); nextBar+=B*4; bar++; }
+      ambTick();
+    }catch(e){}
   }
   // ---------- ambience ----------
   function loopNoise(type,f,q,v){ const s=ctx.createBufferSource(); s.buffer=noiseBuf; s.loop=true; const fl=ctx.createBiquadFilter(); fl.type=type; fl.frequency.value=f; if(q) fl.Q.value=q; const g=ctx.createGain(); g.gain.value=v; s.connect(fl); fl.connect(g); g.connect(ambBus); s.start(); return {g,fl}; }
@@ -122,12 +137,12 @@ window.Sound = (function(){
   const DUCK={harvest:.6,cash:.6,level:.35,discover:.35,gem:.55,buy:.75};   // music ducks under big rewards, then recovers
   return { get state(){ return ctx?ctx.state:"none"; },
     resume,
-    play(n,a){ if(!ctx||!sfxOn||vol.sfx<=0) return; try{ jit=n==='cash'||n==='level'||n==='discover'?0:Math.round((Math.random()-.5)*8)/10; // ±0.4 semitone (~±2.5%) so repeats never sound robotic
+    play(n,a){ try{ if(!ctx||ctx.state==='closed'||!sfxOn||vol.sfx<=0) return; jit=n==='cash'||n==='level'||n==='discover'?0:Math.round((Math.random()-.5)*8)/10; // ±0.4 semitone (~±2.5%) so repeats never sound robotic
       if(DUCK[n]&&musicOn&&!paused){ const t=ctx.currentTime, g=musicBus.gain, base=.32*vol.music; g.cancelScheduledValues(t); g.setTargetAtTime(base*DUCK[n],t,.03); g.setTargetAtTime(base,t+.55,.35); }
       S[n]&&S[n](a); jit=0; }catch(e){} },
-    setScene(l,isNight){ scene=l; night=!!isNight; if(ctx&&started){ const s=pick(); if(s!==style) setStyle(s); } },
-    setVol(k,v){ vol[k]=Math.max(0,Math.min(1,+v)); applyVol(); },
-    setPaused(p){ paused=!!p; applyVol(); if(ctx){ if(p) ctx.suspend&&ctx.suspend(); else { ctx.resume&&ctx.resume(); nextBar=Math.max(nextBar,ctx.currentTime+.1); } } },
+    setScene(l,isNight){ try{ scene=l; night=!!isNight; if(ctx&&started&&ctx.state!=='closed'){ const s=pick(); if(s!==style) setStyle(s); } }catch(e){} },
+    setVol(k,v){ try{ vol[k]=Math.max(0,Math.min(1,+v)); applyVol(); }catch(e){} },
+    setPaused(p){ try{ paused=!!p; if(!p&&ctx&&ctx.state==='closed') dropCtx(); applyVol(); if(ctx){ if(p) ctx.suspend&&ctx.suspend(); else { const r=ctx.resume&&ctx.resume(); if(r&&r.catch) r.catch(function(){}); nextBar=Math.max(nextBar,(ctx.currentTime||0)+.1); } } else if(!p) resume(); }catch(e){} },
     setMusic(on){ musicOn=!!on; applyVol(); }, setSfx(on){ sfxOn=!!on; applyVol(); }, setAmb(on){ ambOn=!!on; applyVol(); },
     get music(){ return musicOn; }, get sfx(){ return sfxOn; }, get style(){ return style; }, get vol(){ return {...vol}; },
   };
