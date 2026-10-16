@@ -804,6 +804,33 @@ window.R=(function(){
     out.painted=0;
     if(detailC.size>160) detailC.clear(); detailC.set(key,out); return out;
   }
+  // In-room plant: the seed-shop closeup, painted once per strain and stage, then scaled into the pot.
+  function shopSprite(st,prog,destPx){
+    if(!st||!st.id) return null;
+    const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
+    const light=roomLight();
+    const size=512;
+    const key='shop|'+st.id+'|'+stage+'|'+light+'|'+size;
+    const hit=detailC.get(key); if(hit) return hit;
+    const builtKey='shop|'+st.id+'|'+light+'|'+size;
+    let built=detailC.get(builtKey);
+    if(!built){
+      const plant=closeupPlant(st,size); if(!plant) return null;
+      const c=document.createElement('canvas'); c.width=size; c.height=size;
+      const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
+      x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+      x.drawImage(plant.c,0,0);
+      if(!plant.sig){ x.save(); x.globalCompositeOperation='source-atop'; frostDots(x,st,plant.L,size); x.restore(); }
+      applyRoomLight(x,size,size,light);
+      try{ built=cropOpaque(c); }
+      catch(e){ built={c,w:size,h:size,base:1}; }
+      built.painted=1; built.closeup=1;
+      if(detailC.size>160) detailC.clear();
+      detailC.set(builtKey,built);
+    }
+    detailC.set(key,built);
+    return built;
+  }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
     const hf=.1+.9*Math.min(1,Math.pow(Math.min(1,prog/.95),.85));
@@ -830,8 +857,6 @@ window.R=(function(){
     if(sl.bed){
       const tr=ctx.getTransform?ctx.getTransform():null;
       const dest=Math.ceil(hpx*Math.abs(tr&&tr.a||dpr||1));
-      const light=roomLight();
-      const piB=plantImage(st,prog);
       const drawSp=(sp,alpha)=>{
         if(!sp) return null;
         const img={c:sp.c,w:sp.w,h:sp.h};
@@ -853,11 +878,11 @@ window.R=(function(){
         ctx.globalAlpha=prev;
         return {h:hDraw,w:wDraw};
       };
-      const spA=piB&&piB.a?litPlant(st,piB.a,dest,light):null;
+      const spA=shopSprite(st,prog,dest);
       let box=null;
-      if(spA){ box=drawSp(spA,1); if(piB.b&&piB.mix>0) drawSp(litPlant(st,piB.b,dest,light),piB.mix); }
+      if(spA) box=drawSp(spA,1);
       else if(window.Art){ const sp=procSprite(st,prog,dest); box=drawSp(sp,1); }
-      if(box) bedSprites.push({id:p.id,painted:!!(spA&&spA.painted),h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW});
+      if(box) bedSprites.push({id:p.id,painted:!!(spA&&spA.painted),closeup:!!(spA&&spA.closeup),h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
@@ -1563,7 +1588,7 @@ window.R=(function(){
   // small canvas (tint the thumb, not the full ~410px sprite) and let the page mount that canvas.
   const cups={}, cupC={}; let corsTried=false;
   function isTaint(e){ const msg=String(e&&(e.message||e)||''); return !!(e&&(e.name==='SecurityError'||e.code===18||/taint|insecure|security/i.test(msg))); }
-  function dropCloseups(){ for(const k in cups) delete cups[k]; for(const k in cupC) delete cupC[k]; }
+  function dropCloseups(){ for(const k in cups) delete cups[k]; for(const k in cupC) delete cupC[k]; plantC.clear(); }
   function armCors(){
     if(corsTried) return; corsTried=true;
     const pending=NAMES.filter(n=>ok(n)); if(!pending.length) return;
@@ -1573,27 +1598,41 @@ window.R=(function(){
       im.onerror=()=>{ if(--left===0&&upgraded){ tcache.clear(); dropCloseups(); artSettled(); } };
       im.src=IM[n].src||('art/'+n+'.webp'); });
   }
+  const plantC=new Map();
+  // The plant pixels inside a seed-shop card: signature pot portrait, or the closest mature picture tinted to the strain.
+  function closeupPlant(s,size){
+    try{
+      if(!s||!s.id) return null;
+      size=Math.max(16,Math.min(512,+size||220));
+      const key=s.id+'|'+size; const hit=plantC.get(key); if(hit) return hit;
+      const L=look(s); const sg=imgOK&&sigOf(s,true);
+      const base='mature_'+(L.base||'green');
+      const photo=sg||(!SIG[s.id]&&imgOK&&ok(base)?{c:IM[base],w:IM[base].naturalWidth,h:IM[base].naturalHeight}:null);
+      if(!photo) return null; // sprite not decoded yet: caller draws a stand-in and does not cache it
+      const sw=sg?photo.w:photo.w*.62, sh=sg?photo.h*.62:photo.h*.55, sx=(photo.w-sw)/2, sy=sg?0:photo.h*.05, k=size/Math.max(sw,sh)*1.05;
+      const dw=sw*k, dh=sh*k, dx=(size-dw)/2, dy=(size-dh)/2;
+      const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d',{willReadFrequently:true}); if(!y) return null;
+      y.drawImage(photo.c,sx,sy,sw,sh,dx,dy,dw,dh);
+      if(!sg){ try{ const d=y.getImageData(0,0,size,size); tintPixels(d.data,L,s.id,true); y.putImageData(d,0,0); }catch(e){ if(isTaint(e)) armCors(); } }
+      const out={c:t,w:size,h:size,sig:!!sg,L}; plantC.set(key,out); return out;
+    }catch(e){ if(isTaint(e)) armCors(); return null; }
+  }
+  function frostDots(x,s,L,size){
+    let sd=hash(s.id); const r=()=>((sd=(sd*16807)%2147483647)/2147483647);
+    x.fillStyle='rgba(255,255,255,.7)';
+    for(let i=0;i<(L.frost||.5)*120;i++){ x.globalAlpha=.3+r()*.6; x.beginPath(); x.arc(size*.2+r()*size*.6,size*.15+r()*size*.6,.6+r()*1.2,0,TAU); x.fill(); }
+    x.globalAlpha=1;
+  }
   function closeupCanvas(s,size,hidden){
     try{
       if(!s||!s.id) return null;
       size=Math.max(16,Math.min(512,+size||220));
       const key=s.id+'|'+size+(hidden?'|h':''); if(cupC[key]) return cupC[key];
-      const L=look(s); const sg=imgOK&&sigOf(s,true);
-      const base='mature_'+(L.base||'green');
-      const photo=sg||(!SIG[s.id]&&imgOK&&ok(base)?{c:IM[base],w:IM[base].naturalWidth,h:IM[base].naturalHeight}:null);
-      if(!photo) return null; // sprite not decoded yet: caller draws a stand-in and does not cache it
+      const plant=closeupPlant(s,size); if(!plant) return null;
       const c=document.createElement('canvas'); c.width=size; c.height=size; const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
       const grd=x.createRadialGradient(size/2,size*.45,6,size/2,size/2,size*.75); grd.addColorStop(0,hidden?'#2a2a34':'#26402a'); grd.addColorStop(1,hidden?'#101016':'#0c1a10'); x.fillStyle=grd; x.fillRect(0,0,size,size);
-      const sw=sg?photo.w:photo.w*.62, sh=sg?photo.h*.62:photo.h*.55, sx=(photo.w-sw)/2, sy=sg?0:photo.h*.05, k=size/Math.max(sw,sh)*1.05;
-      const dw=sw*k, dh=sh*k, dx=(size-dw)/2, dy=(size-dh)/2;
-      const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d',{willReadFrequently:true});
-      y.drawImage(photo.c,sx,sy,sw,sh,dx,dy,dw,dh);
-      if(hidden){ y.globalCompositeOperation='source-in'; y.fillStyle='#05050a'; y.fillRect(0,0,size,size); x.drawImage(t,0,0); x.fillStyle='rgba(255,255,255,.85)'; x.font='800 '+Math.round(size*.22)+'px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('???',size/2,size/2); }
-      else {
-        if(!sg){ try{ const d=y.getImageData(0,0,size,size); tintPixels(d.data,L,s.id,true); y.putImageData(d,0,0); }catch(e){ if(isTaint(e)) armCors(); } }
-        x.drawImage(t,0,0);
-        if(!sg){ let sd=hash(s.id); const r=()=>((sd=(sd*16807)%2147483647)/2147483647); x.fillStyle='rgba(255,255,255,.7)'; for(let i=0;i<(L.frost||.5)*120;i++){ x.globalAlpha=.3+r()*.6; x.beginPath(); x.arc(size*.2+r()*size*.6,size*.15+r()*size*.6,.6+r()*1.2,0,TAU); x.fill(); } x.globalAlpha=1; }
-      }
+      if(hidden){ const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d'); y.drawImage(plant.c,0,0); y.globalCompositeOperation='source-in'; y.fillStyle='#05050a'; y.fillRect(0,0,size,size); x.drawImage(t,0,0); x.fillStyle='rgba(255,255,255,.85)'; x.font='800 '+Math.round(size*.22)+'px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('???',size/2,size/2); }
+      else { x.drawImage(plant.c,0,0); if(!plant.sig) frostDots(x,s,plant.L,size); }
       cupC[key]=c; return c;
     }catch(e){ if(isTaint(e)) armCors(); return null; }
   }

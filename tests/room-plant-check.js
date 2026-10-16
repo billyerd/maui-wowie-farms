@@ -153,13 +153,45 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(m.calls === 0, tag + ' drew the procedural plant ' + m.calls + ' times');
       assert(m.sprites && m.sprites.length === m.n, tag + ' sprite count ' + (m.sprites && m.sprites.length) + ' vs pots ' + m.n);
       for (const s of m.sprites || []){
-        assert(s.painted, tag + ' pot ' + s.id + ' is not the painted shop art');
+        assert(s.painted && s.closeup, tag + ' pot ' + s.id + ' is not the seed-shop closeup ' + JSON.stringify(s));
         const span = (s.foot || 0) - (s.cellTop || 0);
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         assert(s.w <= (s.cellW || 0) + 0.5, tag + ' pot ' + s.id + ' is wider than its cell ' + JSON.stringify(s));
         assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' grows out of its cell ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
+      }
+    }
+
+    async function zoomCheck(tag, prep, room, zone){
+      const m = await evalJs(`(() => {
+        ${prep}
+        G.syncPlots();
+        const ids=['maui-wowie','northern-lights','granddaddy-purple'];
+        const owned=G.st.plots.filter(p=>p.zone==='${zone}'&&p.owned);
+        owned.forEach((p,i)=>{ p.strain=ids[i%ids.length]; p.prog=i%3===0?1:i%3===1?.35:.8; p.water=1; p.food=1; p.pest=null; });
+        G.setRoom('${room}');
+        if(R.resize) R.resize();
+        const feet=()=>R.bedSprites().map(s=>({id:s.id,foot:s.foot,top:s.top,h:s.h,closeup:s.closeup,cellTop:s.cellTop}));
+        R.setDprCap(1); R.resize(); R.frame(0.05);
+        const low=feet();
+        R.zoomAt(innerWidth/2, innerHeight/2, 2.4);
+        R.frame(0.05);
+        const pinched=feet();
+        R.setDprCap(3); R.resize(); R.frame(0.05);
+        const hi=feet();
+        R.setDprCap(2); R.resize(); R.frame(0.05);
+        return {low, pinched, hi, errs:(window.__errs||[]).slice(0,4)};
+      })()`);
+      console.log(tag, JSON.stringify({ n: m.low.length, hi: m.hi.length }));
+      assert(!(m.errs && m.errs.length), tag + ' console errors ' + JSON.stringify(m.errs));
+      assert(m.low.length && m.low.length === m.hi.length && m.low.length === m.pinched.length, tag + ' zoom lost plants');
+      for (let i = 0; i < m.low.length; i++){
+        const a = m.low[i], b = m.pinched[i], c = m.hi[i];
+        assert(a.closeup && b.closeup && c.closeup, tag + ' zoom left the shop closeup');
+        assert(Math.abs(a.foot - b.foot) < 0.6 && Math.abs(a.foot - c.foot) < 0.6, tag + ' zoom moved the plant off the pot ' + JSON.stringify([a,b,c]));
+        assert(Math.abs((a.top + a.h) - a.foot) < 0.6 && Math.abs((c.top + c.h) - c.foot) < 0.6, tag + ' plant is not sitting on the soil');
+        assert(a.top >= a.cellTop - 1 && c.top >= c.cellTop - 1, tag + ' zoom grew the plant out of the cell');
       }
     }
 
@@ -170,6 +202,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
     await shot('garage_20_390x844');
     check('390 greenhouse', await evalJs(scene('gh', 'gh', `G.st.ghBuilt=true; G.st.gh=0; G.st.ghMatch=12;`)));
     await shot('greenhouse_390x844');
+    await zoomCheck('zoom garage', 'G.st.garage=0; G.st.garageKeep=0;', 'garage', 'garage');
+    await zoomCheck('zoom greenhouse', 'G.st.ghBuilt=true; G.st.gh=0; G.st.ghMatch=12;', 'gh', 'gh');
+    await zoomCheck('zoom indoor', 'G.st.land=true; G.st.field=0;', 'facility', 'field');
     check('390 indoor', await evalJs(scene('facility', 'field', `G.st.land=true; G.st.field=1;`)));
     await shot('indoor_390x844');
     check('390 benches', await evalJs(scene('benches', 'in', `G.st.land=true; G.st.inBuilt=true; G.st.bench=0;`)));
