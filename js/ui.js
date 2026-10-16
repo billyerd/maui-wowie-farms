@@ -235,7 +235,7 @@ window.UI = (function(){
     const chips=[]; const b=st.gecko&&st.gecko.boost; if(b&&b.t>0) chips.push(`🦎 ${b.k==='grow'?'2x growth':'+50% prices'} · ${sec(b.t)}`);
     if(st.event.id){ const E=st.event.id==='season'?G.seasonEv():G.EVENTS[st.event.id]; chips.push(`${E.name} · ${E.desc} · ${sec(st.event.t)}`); }
     else if(st.market&&st.market.hot&&st.market.hotT>0){ const hs=G.strain(st.market.hot); if(hs) chips.push(`Tourist rush · ${hs.name.split(' ')[0]} 2x · ${sec(st.market.hotT)}`); }
-    const fs=G.festState(); if(fs&&!fs.claimed) chips.push(`🌺 ${fs.f.name} · ${fs.prog}/${fs.f.goal}`);
+    // The weekend festival lasts for days. It stays on the Story card. It does not sit in the pink chip, which never faded.
     const ec=$('#eventChip'); const ct=chips.join('  |  '); if(ct){ if(ec.textContent!==ct) ec.textContent=ct; ec.classList.remove('hidden'); } else ec.classList.add('hidden');
     { let bh=$('#boostHud'); if(!bh){ bh=document.createElement('div'); bh.id='boostHud'; document.body.appendChild(bh); bh.addEventListener('click',e=>{ const t=e.target.closest('[data-go]'); if(t) open('shop',t.dataset.go); }); }
       const B=G.BOOSTS, parts=Object.keys(B).filter(k=>G.boostLeft(k)>0).map(k=>`<span class="bpill b-${k}" data-go="gemstore">${B[k].icon} ${B[k].name} <b>${sec(G.boostLeft(k))}</b></span>`), ad=G.adState();
