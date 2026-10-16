@@ -964,7 +964,8 @@ window.R=(function(){
       upan={t:0,d:1.5,to,from:{z:z0,x:cx-W/2/z0-W*.08/z0,y:cy-H/2/z0-H*.06/z0}}; Object.assign(cam,upan.from); }
     if(!upan) return; upan.t+=dt; const k=Math.min(1,upan.t/upan.d), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2, F=upan.from, T=upan.to;
     cam.z=F.z+(T.z-F.z)*e; const fcx=F.x+W/2/F.z, fcy=F.y+H/2/F.z, tcx=T.x+W/2/T.z, tcy=T.y+H/2/T.z, cx=fcx+(tcx-fcx)*e, cy=fcy+(tcy-fcy)*e; cam.x=cx-W/2/cam.z; cam.y=cy-H/2/cam.z; if(k>=1){ Object.assign(cam,T); upan=null; } }
-  // Stacked beds: one screen, no scroll. Garage 5x5 pots, Greenhouse 6x6 dirt, Indoor Facility tries 5x8 then 8x5.
+  // Stacked beds: one screen, no scroll. Garage and the Indoor Facility are 5 across.
+  // Greenhouse is 6x6. Indoor spacing is the full 8-row grid (40 pots), same idea as the garage's 4-row grid.
   const BGSRC={garage:'assets/new-art/backgrounds/garage.jpg',gh:'assets/new-art/backgrounds/greenhouse.jpg',facility:'assets/new-art/backgrounds/indoor-facility.jpg',benches:'assets/new-art/backgrounds/indoor-facility.jpg'};
   const bgIm={}; let bedLay=null;
   function ensureRoomArt(){ for(const k in BGSRC){ if(bgIm[k]) continue; const im=new Image(); im.src=BGSRC[k]; bgIm[k]=im; } }
@@ -994,6 +995,15 @@ window.R=(function(){
     const usedH=need*cellH+(need-1)*gap, fullH=fullRows*cellH+(fullRows-1)*gap;
     return {ok:cellW>=36&&cellH>=36, cols, rows:need, cellW, cellH, gap, plantH:Math.max(18,cellH-16), n, zone:'garage', rowShift:Math.max(0,(fullH-usedH)/2)};
   }
+  // Indoor Facility uses the garage rules: 5 pots across, cell size locked to the full
+  // 8-row house (40 pots), fewer rows centered, a short last row centered.
+  function facilityLayout(band, n){
+    n=Math.max(1,n|0);
+    const cols=5, gap=2, need=Math.ceil(n/cols), fullRows=Math.max(8, need);
+    const cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(fullRows-1))/fullRows;
+    const usedH=need*cellH+(need-1)*gap, fullH=fullRows*cellH+(fullRows-1)*gap;
+    return {ok:cellW>=36&&cellH>=36, cols, rows:need, cellW, cellH, gap, plantH:Math.max(18,cellH-16), n, zone:'field', rowShift:Math.max(0,(fullH-usedH)/2)};
+  }
   function rowMajor(cols, count){
     const slots=[]; count=Math.max(0,count|0); cols=Math.max(1,cols|0);
     const rows=Math.ceil(count/cols)||1;
@@ -1008,6 +1018,7 @@ window.R=(function(){
     if(room==='garage') return garageLayout(band, 5);
     if(room==='gh') return Object.assign(gridScore(band,6,6),{n:36,zone:'gh'});
     if(room==='benches') return Object.assign(gridScore(band,8,4),{n:32,zone:'in'});
+    // A built Indoor Facility does not use this picker. It shares the garage's 5-across stack.
     const a=gridScore(band,5,8), b=gridScore(band,8,5);
     const pick=a.ok?a:(b.ok?b:(a.cellW>=40&&a.cellH>=40?a:b.cellW*b.cellH>a.cellW*a.cellH?b:a));
     return Object.assign(pick,{n:40,zone:'field'});
@@ -1052,8 +1063,15 @@ window.R=(function(){
     for(const c of coins){ c.t+=dt; if(c.t<0) continue; const k=Math.min(1,c.t/.7); ctx.globalAlpha=k>.82?Math.max(0,(1-k)/.18):1; ctx.fillStyle=c.gem?'#7af0ff':'#ffd23a'; ctx.beginPath(); ctx.arc(c.x+(c.tx-c.x)*k,c.y+(c.ty-c.y)*k,6,0,TAU); ctx.fill(); }
     ctx.globalAlpha=1; for(let i=coins.length-1;i>=0;i--) if(coins[i].t>.7) coins.splice(i,1);
   }
-  // Indoor gear sits in a side rail, one fixed spot each, the same idea as the greenhouse
-  // cooler, compost bins and shade cloth. The spots do not follow the pot count.
+  // Sealed-bench gear keeps a side rail. The Indoor Facility hangs its five spots in one
+  // fixed shelf under the light so the pots can use the full width, like the garage.
+  // Neither set of spots follows the pot count.
+  function facilityShelfAnchors(light){
+    const h=32, y=(light&&light.h?light.y+light.h:84)+4, gap=4, side=6;
+    const w=Math.max(28, Math.floor((W-side*2-gap*4)/5));
+    const keys=['led','air','hvac','fert','co2'];
+    return keys.map((k,i)=>({k, x:side+i*(w+gap), y, w, h, shelf:1}));
+  }
   function indoorGearAnchors(light, rail){
     const under=(light&&light.h?light.y+light.h:80)+6;
     const top=Math.max(84, under);
@@ -1071,10 +1089,10 @@ window.R=(function(){
       {k:'co2', x:xR, y:yAt(0.72,56), w:Math.min(w,26), h:56},
     ];
   }
-  function drawIndoorGear(now, light, rail){
-    if(!(rail>=24)) return [];
+  function drawIndoorGear(now, light, rail, mode){
+    if(mode!=='shelf' && !(rail>=24)) return [];
     const drawn=[];
-    for(const s of indoorGearAnchors(light, rail)){
+    for(const s of (mode==='shelf'?facilityShelfAnchors(light):indoorGearAnchors(light, rail))){
       const n=G.lv(s.k)|0;
       if(n<=0) continue;
       ctx.save();
@@ -1083,14 +1101,22 @@ window.R=(function(){
       if(s.k==='led'){
         const rows=Math.max(1, Math.min(3, n));
         ctx.fillStyle='#2a2c2f'; rr(s.x, s.y, s.w, s.h, 4); ctx.fill();
-        ctx.fillStyle='#3a3e44'; rr(s.x+2, s.y+2, 4, 6, 1); ctx.fill();
-        const gap=4, bh=(s.h-16-(rows-1)*gap)/rows;
-        for(let i=0;i<rows;i++){
-          const y=s.y+10+i*(bh+gap);
-          const g=ctx.createLinearGradient(s.x, y, s.x+s.w, y);
+        if(s.shelf){
+          const gy=s.y+s.h*0.28, gh=Math.max(4, s.h*0.42);
+          const g=ctx.createLinearGradient(s.x, gy, s.x+s.w, gy);
           g.addColorStop(0,'#8a8478'); g.addColorStop(.45,'#f4f1ea'); g.addColorStop(1,'#6e6a62');
-          ctx.fillStyle=g; rr(s.x+3, y, s.w-6, Math.max(6,bh), 2); ctx.fill();
-          ctx.fillStyle='rgba(255,236,196,.95)'; rr(s.x+5, y+Math.max(4,bh)-5, s.w-10, 3, 1); ctx.fill();
+          ctx.fillStyle=g; rr(s.x+4, gy, s.w-8, gh, 2); ctx.fill();
+          ctx.fillStyle='rgba(255,236,196,.95)'; rr(s.x+6, gy+gh-3, s.w-12, 2, 1); ctx.fill();
+        } else {
+          ctx.fillStyle='#3a3e44'; rr(s.x+2, s.y+2, 4, 6, 1); ctx.fill();
+          const gap=4, bh=(s.h-16-(rows-1)*gap)/rows;
+          for(let i=0;i<rows;i++){
+            const y=s.y+10+i*(bh+gap);
+            const g=ctx.createLinearGradient(s.x, y, s.x+s.w, y);
+            g.addColorStop(0,'#8a8478'); g.addColorStop(.45,'#f4f1ea'); g.addColorStop(1,'#6e6a62');
+            ctx.fillStyle=g; rr(s.x+3, y, s.w-6, Math.max(6,bh), 2); ctx.fill();
+            ctx.fillStyle='rgba(255,236,196,.95)'; rr(s.x+5, y+Math.max(4,bh)-5, s.w-10, 3, 1); ctx.fill();
+          }
         }
       } else if(s.k==='hvac'){
         const g=ctx.createLinearGradient(s.x, s.y, s.x, s.y+s.h);
@@ -1100,9 +1126,8 @@ window.R=(function(){
         for(let i=0;i<4;i++) ctx.fillRect(s.x+4, s.y+8+i*5, s.w-8, 2);
         ctx.fillStyle='#4ce07a'; ctx.beginPath(); ctx.arc(s.x+s.w-7, s.y+7, 2, 0, TAU); ctx.fill();
       } else if(s.k==='air'){
-        const cx=s.x+s.w/2, cy=s.y+18, r=14;
-        ctx.fillStyle='#1c1e22'; ctx.fillRect(cx-2, cy+8, 4, 16);
-        ctx.fillStyle='#3a3f44'; ctx.fillRect(s.x+4, s.y+s.h-6, s.w-8, 4);
+        const cx=s.x+s.w/2, cy=s.y+(s.shelf?s.h*0.48:18), r=s.shelf?Math.min(12, s.h*0.38):14;
+        if(!s.shelf){ ctx.fillStyle='#1c1e22'; ctx.fillRect(cx-2, cy+8, 4, 16); ctx.fillStyle='#3a3f44'; ctx.fillRect(s.x+4, s.y+s.h-6, s.w-8, 4); }
         ctx.fillStyle='#d7dde2'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
         ctx.fillStyle='#2a2e32'; ctx.beginPath(); ctx.arc(cx, cy, r-3, 0, TAU); ctx.fill();
         ctx.save(); ctx.translate(cx, cy); ctx.rotate((now||0)*1.6);
@@ -1145,13 +1170,19 @@ window.R=(function(){
     // Greenhouse is daylight: a roof rail over the pots, not the garage grow-light bar.
     const daylit=room==='gh'&&st.ghBuilt;
     let band=bedBand(room);
-    const gutter=daylit?Math.min(40,Math.max(30,Math.round(band.h*.055))):(lit?18:0);
     const roofTop=band.top;
+    // At a flush HUD the light tucks up to the bar. A real notch already ends at the roof line,
+    // so the light starts there instead of climbing back into the icons.
+    const lyPlan=Math.max(2, roofTop<=64?roofTop-14:roofTop-4);
+    // Facility shelf: 36px light, 4px air, 32px gear, 4px air, under that planned light.
+    const facilityShelf=room==='facility'&&st.land;
+    const facilityGutter=Math.max(62, Math.ceil(lyPlan+36+4+32+4-roofTop));
+    const gutter=daylit?Math.min(40,Math.max(30,Math.round(band.h*.055))):(facilityShelf?facilityGutter:(lit?18:0));
     if(gutter) band=Object.assign({},band,{top:band.top+gutter,h:Math.max(48,band.h-gutter),roofTop});
-    // Side rail for indoor upgrades. Width stays inside the 36px cell floor, and it does not move when pots are added.
+    // Sealed benches keep a side rail. The facility does not: its pots use the full width.
     let gearRail=0;
-    if((room==='facility'&&st.land)||(room==='benches'&&st.inBuilt)){
-      const cols=room==='benches'?8:5, gap=2;
+    if(room==='benches'&&st.inBuilt){
+      const cols=8, gap=2;
       const fit=Math.floor((band.w-gap*(cols-1)-36*cols)/2);
       gearRail=Math.max(0, Math.min(40, fit));
       if(gearRail>=24) band=Object.assign({},band,{left:band.left+gearRail,right:band.right-gearRail,w:Math.max(48,band.w-gearRail*2),rail:gearRail});
@@ -1161,7 +1192,8 @@ window.R=(function(){
     const ownedN=st.plots.filter(p=>p.zone===zoneName&&p.owned).length;
     const buyMax=window.G&&G.GARAGE?G.GARAGE[G.GARAGE.length-1].cap:20;
     const showN=room==='garage'?Math.max(1, ownedN+(ownedN<buyMax&&st.plots.some(p=>p.zone==='garage'&&!p.owned)?1:0)):0;
-    const g=room==='garage'?garageLayout(band, showN):gridFor(room,band);
+    const fieldShow=room==='facility'?Math.max(1, ownedN+(st.land&&G.nextStep('field')?1:0)):0;
+    const g=room==='garage'?garageLayout(band, showN):(room==='facility'&&st.land)?facilityLayout(band, fieldShow):gridFor(room,band);
     const cells=[]; let build=null, ghLight=null, gearDrawn=[];
     if(room==='gh'&&!st.ghBuilt){
       const bw=Math.min(300,W-32), bh=132, bx=(W-bw)/2, by=Math.max(band.top, H*0.28);
@@ -1184,8 +1216,8 @@ window.R=(function(){
       const kind=g.zone==='garage'?'garage':g.zone==='field'?'field':g.zone==='gh'?'gh':'bench';
       const owned=plots.filter(p=>p.owned);
       const nxt=plots.find(p=>!p.owned);
-      const want=room==='garage'?(owned.length+(nxt&&G.nextStep(kind)?1:0)):0;
-      const order=room==='garage'?rowMajor(g.cols, Math.max(1,want)):centerOrder(g.cols, g.rows);
+      const want=(room==='garage'||room==='facility')?(owned.length+(nxt&&G.nextStep(kind)?1:0)):0;
+      const order=(room==='garage'||room==='facility')?rowMajor(g.cols, Math.max(1,want)):centerOrder(g.cols, g.rows);
       const place=owned.map((p,i)=>({p,slot:order[i],owned:true,expand:null})).filter(x=>x.slot);
       if(nxt&&G.nextStep(kind)&&order[owned.length]) place.push({p:nxt,slot:order[owned.length],owned:false,expand:kind});
       const shown=new Set(place.map(x=>x.p.id));
@@ -1211,7 +1243,7 @@ window.R=(function(){
           let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
           for(const c of owned){ x0=Math.min(x0,c.x); x1=Math.max(x1,c.x+c.w); y0=Math.min(y0,c.y); y1=Math.max(y1,c.y+c.h); }
           // Sit on the roof beams, just under the HUD, so the photo's short center lamp is covered.
-          const lx=x0, lw=Math.max(12,x1-x0), ly=Math.max(2,roofTop-14), lh=Math.max(18,Math.min(36,band.top-ly-2));
+          const lx=x0, lw=Math.max(12,x1-x0), ly=lyPlan, lh=Math.max(18,Math.min(36,band.top-ly-2));
           ghLight={x:lx,y:ly,w:lw,h:lh,x1,y0,y1,kind:'day'};
           const wash=ctx.createLinearGradient(0,ly+lh,0,y1);
           wash.addColorStop(0,'rgba(255,226,168,.42)'); wash.addColorStop(.42,'rgba(255,236,196,.14)'); wash.addColorStop(1,'rgba(255,236,196,0)');
@@ -1223,7 +1255,7 @@ window.R=(function(){
         if(owned.length){
           let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
           for(const c of owned){ x0=Math.min(x0,c.x); x1=Math.max(x1,c.x+c.w); y0=Math.min(y0,c.y); y1=Math.max(y1,c.y+c.h); }
-          const lx=x0, lw=Math.max(12,x1-x0), ly=Math.max(2,roofTop-14), lh=Math.max(18,Math.min(36,band.top-ly-2));
+          const lx=x0, lw=Math.max(12,x1-x0), ly=lyPlan, lh=Math.max(18,Math.min(36,band.top-ly-2));
           ghLight={x:lx,y:ly,w:lw,h:lh,x1,y0,y1,kind:'led'};
           const wash=ctx.createLinearGradient(0,ly+lh,0,y1);
           wash.addColorStop(0,'rgba(255,232,196,.40)'); wash.addColorStop(.4,'rgba(255,236,210,.16)'); wash.addColorStop(1,'rgba(255,236,210,0)');
@@ -1283,7 +1315,8 @@ window.R=(function(){
         if(L.kind==='led') Art.growLight(ctx,L.x,L.y,L.w,L.h);
         else Art.daylightRail(ctx,L.x,L.y,L.w,L.h);
       }
-      if(gearRail>=24) gearDrawn=drawIndoorGear(now, ghLight, gearRail);
+      if(facilityShelf) gearDrawn=drawIndoorGear(now, ghLight, 0, 'shelf');
+      else if(gearRail>=24) gearDrawn=drawIndoorGear(now, ghLight, gearRail);
     }
     bedLay={room,cells,build,band,light:ghLight,gear:gearDrawn};
     drawGecko(now);

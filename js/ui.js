@@ -544,9 +544,9 @@ window.UI = (function(){
       if(!st.land){
         const need=G.LAND_LEVEL, cost=G.LAND_COST, L=landReq();
         body+=`<div class="note">The Indoor Facility is its own room: 40 plots under one ceiling light. It opens at level ${need} for ${fmt(cost)}. The sealed benches are later, at level ${G.INDOOR.level}.</div>${reqList(L)}`;
-        body+=ucard({key:'land',theme:'indoor',state:L.every(c=>c.ok)?'canbuy':'locked',img:roomImg,title:'Buy the Indoor Facility',desc:'Opens 40 plots. Gear mounts on the side walls after you buy the room.',action:`<button class="btn gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:fmt(cost)}</button>`});
+        body+=ucard({key:'land',theme:'indoor',state:L.every(c=>c.ok)?'canbuy':'locked',img:roomImg,title:'Buy the Indoor Facility',desc:'Opens 40 plots. Gear mounts under the ceiling light after you buy the room.',action:`<button class="btn gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:fmt(cost)}</button>`});
       } else {
-        body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div><div class="note">Climate, lights, airflow and nutrients. The ceiling light is already there. Each upgrade mounts in its own spot on the side wall.</div>`+stepCard('field','Plots');
+        body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div><div class="note">Climate, lights, airflow and nutrients. The ceiling light is already there. Each upgrade mounts in its own spot under that light.</div>`+stepCard('field','Plots');
       }
       body+=`<div class="section-t">Indoor gear</div>`+gear;
       if(st.land){
