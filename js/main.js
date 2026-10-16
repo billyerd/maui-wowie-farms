@@ -87,7 +87,7 @@
   G.on('permit',()=>{ UI.bigCel('permit'); });
   G.on('indoor',()=>{ R.rebuild(); R.unlockPan&&R.unlockPan('indoor'); UI.bigCel('indoor'); });
   G.on('loc',l=>{ R.setLoc(l); });
-  G.on('rep',fx(({r})=>{ Sound.play('level'); UI.confetti(80); UI.toast('Reputation up: '+r.n+'! Better buyers are calling','gemt'); }));
+  G.on('rep',fx(({r})=>{ Sound.play('level'); UI.confetti(80); UI.toast('Reputation up: '+r.n+'! Market prices are higher','gemt'); }));
   G.on('mastery',fx(({s,m})=>{ Sound.play('discover'); UI.toast(s.name+' mastery! Now sells x'+m.m,'gemt'); }));
   G.on('set',fx(({d})=>{ Sound.play('level'); UI.confetti(90); UI.toast('Set complete: '+d.name+' · '+d.bonus,'gemt'); }));
   G.on('order',fx(({o,v})=>{ Sound.play('cash'); R.coinsTo(null,'cashPill',8); UI.toast('Order filled for '+o.who+': +'+G.fmt(v),'good'); }));

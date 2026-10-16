@@ -23,7 +23,7 @@ window.STORY_SAY={
   gcap:"Five buckets is a start. Each upgrade adds three, up to twenty. Look under Upgrades, Garage tab.",
   feed:"Halfway through, each plant wants one feeding. It is free. Skip it and they grow slower and yield less.",
   hose:"A watering can is fine for two plants, not for twenty. Get a hose so you can water everything at once.",
-  order:"The neighbors are asking for your buds now. Fill their orders on the board. They pay extra and they tell their friends.",
+  order:"Sell what you grew at the Market. Dried and cured buds pay the best.",
   tent3:"The garage can hold more. Add another three buckets. Twenty is the top.",
   land:"I'm selling the old family terraces up on the hill. Save up, it's your future farm. When you buy it, Grandpa's garage turns into your Pheno Room for hunting new strains.",
   field:"Plant the starter terrace. Sun, rain and trade winds. Growing outdoors costs nothing to power, but the weather is in charge.",

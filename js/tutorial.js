@@ -49,7 +49,7 @@ window.Tutorial=(function(){
     if(step.id==='harvest'){ const menu=document.getElementById('qaMenu'); if(menu&&menu.classList.contains('hidden')) return document.querySelector('#qaFab .qa-main'); return document.getElementById('harvestAll'); }
     if(step.id==='dry'){ if(sheetOpen()&&panel()==='process') return document.querySelector('#sheet [data-a="load"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="process"]'); }
     if(step.id==='sell'){ if(sheetOpen()&&panel()==='market') return document.querySelector('#sheet [data-a="sell"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="market"]'); }
-    if(step.id==='order') return document.getElementById('orderBoard');
+    if(step.id==='order') return null;
     if(step.id==='land') return document.getElementById('locBtn');
     return null;
   }
@@ -67,7 +67,7 @@ window.Tutorial=(function(){
     if(step.id==='harvest') return (st.stats.harvests|0)>(b.harvests|0);
     if(step.id==='dry') return (st.stats.dryLoads|0)>(b.dry|0);
     if(step.id==='sell') return (st.stats.sold|0)>(b.sold|0);
-    if(step.id==='order') return (st.stats.orders|0)>(b.orders|0);
+    if(step.id==='order') return true;
     if(step.id==='land') return !!st.land&&!b.land;
     return false;
   }
@@ -82,7 +82,7 @@ window.Tutorial=(function(){
     if(step.id==='harvest'){ const p=plotFor('harvest'); if(!p) return 'Nothing to harvest yet. Tap Next if you already picked it.'; const menu=document.getElementById('qaMenu'); const closed=menu&&menu.classList.contains('hidden'); return (p.prog>=1?'It is ripe. ':'When it is ripe, ')+(closed?'tap the round button at the bottom right, then Harvest all.':'tap Harvest all. Feed all and Harvest all are free. Water all waits for the garden hose.'); }
     if(step.id==='dry') return 'Open Dry & Cure and load the racks. Curing jars raise the price later. You do not have to wait for them now.';
     if(step.id==='sell') return 'Open Market and sell what you grew. Fresh, dried, or cured buds all count.';
-    if(step.id==='order') return 'The order board sits just above the bottom bar. Neighbors pay extra, and it opens at level '+G.GATE.orders+'. Fill one when you can, or tap Next.';
+    if(step.id==='order') return 'Sell at the Market. That is how buds leave the farm.';
     if(step.id==='land') return 'The Indoor Facility tab is the old family land, 40 plots. It opens at level '+G.LAND_LEVEL+' for '+G.fmt(G.LAND_COST)+'. Buying it turns this garage into your Pheno Room. The Greenhouse tab is the daylight room. Tap Next to move on.';
     return "That's the loop. Plant, water, one free feed, harvest, dry, then sell. I'll stay on the goal card when you want the longer story.";
   }

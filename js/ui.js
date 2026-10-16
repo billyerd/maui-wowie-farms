@@ -231,8 +231,7 @@ window.UI = (function(){
     $('#clock').classList.remove('warn');
     const wet=G.invCount('wet'), sellable=G.invCount('dry')+G.invCount('cured')+G.goodsCount();
     $('#procBadge').textContent=wet?G.num(wet):''; const qr=G.questsReady()+(G.st.questDone?1:0); $('#qBadge').textContent=qr||'';
-    const ords=Array.isArray(st.orders)?st.orders:[];
-    const mk=sellable+(st.level>=G.GATE.orders?ords.filter(o=>o&&G.orderHave(o)>=o.n).length:0); $('#mktBadge').textContent=mk?G.num(mk):'';
+    $('#mktBadge').textContent=sellable?G.num(sellable):'';
     const chips=[]; const b=st.gecko&&st.gecko.boost; if(b&&b.t>0) chips.push(`🦎 ${b.k==='grow'?'2x growth':'+50% prices'} · ${sec(b.t)}`);
     if(st.event.id){ const E=st.event.id==='season'?G.seasonEv():G.EVENTS[st.event.id]; chips.push(`${E.name} · ${E.desc} · ${sec(st.event.t)}`); }
     else if(st.market&&st.market.hot&&st.market.hotT>0){ const hs=G.strain(st.market.hot); if(hs) chips.push(`Tourist rush · ${hs.name.split(' ')[0]} 2x · ${sec(st.market.hotT)}`); }
@@ -255,7 +254,7 @@ window.UI = (function(){
     $$('.guide').forEach(e=>{ if(!gq||!e.matches(gq)) e.classList.remove('guide'); }); if(gq){ const e=$(gq); if(e) e.classList.add('guide'); }
     // water/feed all gating
     const wa=$('#waterAll'), fa=$('#feedAll'); if(wa){ wa.classList.toggle('locked',G.lv('water')<1); const sm=wa.querySelector('small'); if(sm) sm.textContent=G.lv('water')<1?'Needs garden hose':'Water all'; } if(fa) fa.classList.remove('locked');
-    locTabs(); seedBag(); orderBoard();
+    locTabs(); seedBag();
   }
   // ---------- location tabs ----------
   function tapRoom(r){ Sound.play('tap'); hidePop();
@@ -472,7 +471,7 @@ window.UI = (function(){
     }
     return {title:'Drying Shed',sub:'Dry, cure and craft for top prices',tabs:tabs.length>1?tabs:null,body,foot};
   };
-  // Market: sell and orders
+  // Market: sell dried, cured, and crafted goods. The Orders tab is gone; saved orders stay on the file.
   function spark(id){ const h=G.st.market.hist[id]||[]; if(h.length<2) return ''; const mn=.5,mx=1.85; const pts=h.map((v,i)=>`${(i/(h.length-1)*60).toFixed(1)},${(18-(v-mn)/(mx-mn)*18).toFixed(1)}`).join(' ');
     const up=h[h.length-1]>=h[h.length-2]; return `<svg width="60" height="18" style="vertical-align:middle"><polyline points="${pts}" fill="none" stroke="${up?'#7dffa6':'#ff8a8a'}" stroke-width="1.6"/></svg>`; }
   PANELS.pass=()=>{
@@ -481,10 +480,10 @@ window.UI = (function(){
     return {title:'Game Pass',sub:'Grower Pass and VIP. Prices are the ones already in the shop.',body};
   };
   PANELS.market=()=>{
-    const st=G.st; tab=tab||'sell'; let total=0, body='', foot='';
-    const tabs=[['sell','Sell']]; if(st.level>=G.GATE.orders) tabs.push(['orders','Orders ('+st.orders.length+')']);
+    const st=G.st; tab='sell'; let total=0, body='', foot='';
+    const tabs=[['sell','Sell']];
     const rt=G.repTier(), R0=G.REP[rt], R1=G.REP[rt+1];
-    const repLine=st.level>=G.GATE.orders?`<div class="row" style="display:block"><h4>Reputation: ${esc(R0.n)} ${R0.b?`<span class="chip">+${Math.round(R0.b*100)}% prices</span>`:''}</h4>${R1?`${bar((st.rep-R0.at)/(R1.at-R0.at),'amber')}<p>${Math.floor(st.rep)} / ${R1.at} to ${esc(R1.n)}: better buyers (${esc(G.BUYERS[Math.min(4,rt+1)].n)}) and +${Math.round(R1.b*100)}% prices</p>`:'<p>Top tier reached. Island royalty!</p>'}</div>`:'';
+    const repLine=`<div class="row" style="display:block"><h4>Reputation: ${esc(R0.n)} ${R0.b?`<span class="chip">+${Math.round(R0.b*100)}% prices</span>`:''}</h4>${R1?`${bar((st.rep-R0.at)/(R1.at-R0.at),'amber')}<p>${Math.floor(st.rep)} / ${R1.at} to ${esc(R1.n)}: +${Math.round(R1.b*100)}% prices</p>`:'<p>Top tier reached. Island royalty!</p>'}</div>`;
     if(tab==='sell'){
       if(st.market.hot){ const s=G.strain(st.market.hot); if(s) body+=`<div class="testbanner" style="color:#ffe28a">Tourist rush! ${esc(s.name)} sells for 2x for ${sec(st.market.hotT)}</div>`; }
       const lots=[]; for(const stg of ['cured','dry','wet']) for(const [k,n] of Object.entries(st.inv[stg])) lots.push([stg,k,n]);
@@ -494,12 +493,8 @@ window.UI = (function(){
       Object.entries(st.goods).forEach(([k,n])=>{ const [t,id]=k.split('|'); const v=G.goodPrice(k); total+=v*n; body+=row(G.strain(id),`<p><b>${n}</b> × ${esc(G.CRAFT[t].name)}</p>`,`<button class="btn sm gold" data-a="sellgood" data-k="${k}">${fmt(v*n)}</button>`); });
       body+=repLine+`<div class="note">Prices drift (55% to 180%). Your multiplier: x${G.earnMult().toFixed(2)}${st.pass2x?' (2x pass)':''}.</div>`;
       foot=`<button class="btn gold wide" data-a="sellall" ${!total?'disabled':''}>${ico('coin')}Sell everything · ${fmt(total)}</button>`;
-    } else if(tab==='orders'){
-      body+=`<div class="note">Contracts from local buyers. Deliver dried or cured buds before the timer runs out for bonus cash, XP and reputation. Better reputation brings better buyers.</div>`;
-      body+=(Array.isArray(st.orders)&&st.orders.length)?st.orders.map(o=>{ const s=o&&G.strain(o.s), have=G.orderHave(o), ok=have>=o.n; return row(s,`<p><b>${esc(o.who)}</b> wants <b>${o.n}</b> ${esc(s?s.name:'a strain')} (dried or cured)</p>${bar(Math.min(1,have/o.n))}<div class="stats"><span>${have}/${o.n} in stock</span><span>⏱ ${sec(o.t-o.T)}</span><span>+${o.rep} rep</span></div>`,`<button class="btn sm ${ok?'gold':'sec'}" data-a="order" data-id="${o.id}" ${ok?'':'disabled'}>${fmt(G.orderValue(o))}</button>`); }).join(''):'<div class="empty">No orders right now. New ones arrive every minute or so.</div>';
-      body+=repLine;
     }
-    return {title:'Market',sub:'Sell dried and cured buds',tabs:tabs.length>1?tabs:null,body,foot};
+    return {title:'Market',sub:'Sell dried and cured buds',tabs:null,body,foot};
   };
   // Upgrades / build
   function upRow(k,isW){
@@ -986,7 +981,6 @@ window.UI = (function(){
     document.title=T(); $('#gTitle').textContent=T(); $('#gTag').textContent=window.GAME_CONFIG.tagline;
     $$('#menu button').forEach(b=>b.onclick=()=>{ if(b.dataset.panel==='pass') open('pass'); else open(b.dataset.panel); });
     $('#upgBtn').onclick=()=>{ Sound.play('tap'); open('upgrades'); };
-    $('#orderBoard').onclick=()=>{ Sound.play('tap'); if(G.st.level<G.GATE.orders){ toast('The order board opens at level '+G.GATE.orders+'. Keep growing!'); return; } open('market','orders'); };
     $('#sheetBody').addEventListener('click',e=>{ const r=e.target.closest('[data-pickseed]'); if(!r||e.target.closest('button,a,input')) return; const id=r.dataset.pickseed; if(!(G.st.seeds[id]>0)){ toast('Buy a seed first, then tap the card to pick it'); return; } if(G.st.selSeed!==id){ G.st.selSeed=id; Sound.play('tap'); seedBag(); render(); toast('Tap empty buckets or beds to plant '+G.strain(id).name); } });
     $('#seedBag').onclick=e=>{ e.stopPropagation(); Sound.play('tap'); seedPick(); };
     $('#seedPick').onclick=e=>{ e.stopPropagation(); const b=e.target.closest('[data-pick]'); if(!b) return; $('#seedPick').classList.add('hidden'); if(b.dataset.pick==='__shop'){ open('seeds'); return; } G.st.selSeed=b.dataset.pick; setTool('seed'); seedBag(); Sound.play('tap'); toast('Tap empty buckets or beds to plant '+G.strain(b.dataset.pick).name); };

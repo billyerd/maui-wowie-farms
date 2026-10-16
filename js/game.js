@@ -128,7 +128,7 @@ window.G = (function(){
     {id:'gcap',   who:'Unko Kuli', t:'Garage: add buckets to your grow table (Upgrades > Garage)', r:{cash:30}},
     {id:'feed',   who:'Unko Kuli', t:'Feed a plant once it is halfway grown', r:{cash:20}},
     {id:'hose',   who:'Unko Kuli',  t:'Buy a garden hose (Upgrades > Water + feed)', r:{cash:40}},
-    {id:'order',  who:'Unko Kuli',  t:'Fill an order on the Order Board (it opens at level 2)', r:{gems:10}},
+    {id:'order',  who:'Unko Kuli',  t:'Sell a harvest at the Market', r:{gems:10}},
     {id:'tent3',  who:'Unko Kuli',  t:'Add more garage buckets (Upgrades > Garage). Each upgrade is +3, up to 20.', r:{cash:80}},
     {id:'land',   who:'Uncle Ikaika', t:'Save up and buy the family land on the hill', r:{gems:25}},
     {id:'field',  who:'Uncle Ikaika', t:'Plant on the starter terrace', r:{cash:150}},
@@ -351,7 +351,7 @@ window.G = (function(){
       emit('level',{L:st.level,gems,cash,strains:fresh,miles:MILES[st.level]||[]}); checkQuest(); } }
   let lvlQuiet=false;
   const GATE={land:LAND_LEVEL, gh:GH_BUILD.level, breed:5, permit:INDOOR.permitLevel, indoor:INDOOR.level, orders:2, gecko:3, events:4, customers:5, leaderboard:5, sets:6, hash:6, rosin:10, edibles:14, season:8};
-  const MILES={2:['Halfway feed: one free feeding per plant (+15% speed, +20% yield). Skip it and that plant grows 20% slower','Order Board: neighbors post contracts for bonus cash and reputation'],
+  const MILES={2:['Halfway feed: one free feeding per plant (+15% speed, +20% yield). Skip it and that plant grows 20% slower','Sell dried and cured buds at the Market'],
     3:['Family land on the hill is for sale','Watch for the golden gecko: tap it for a short boost'],
     4:['Uncommon strains (10-30 min grows) reach the seed shop','Outdoor greenhouse can be built','Island festivals: limited-time events with exclusive strains'],
     5:['Pheno Room opens: hunt mystery phenos','Island leaderboard'],
@@ -580,8 +580,7 @@ window.G = (function(){
     let need=o.n; for(const stg of ['dry','cured']){ const ks=Object.keys(st.inv[stg]).filter(k=>unkey(k).id===o.s).sort((a,b)=>'CBA'.indexOf(unkey(a).q)-'CBA'.indexOf(unkey(b).q)); for(const k of ks){ const t=Math.min(need,st.inv[stg][k]); st.inv[stg][k]-=t; need-=t; if(st.inv[stg][k]<=0) delete st.inv[stg][k]; if(!need) break; } if(!need) break; }
     const v=orderValue(o); addCash(v,'order'); addRep(o.rep); addXP(3+strain(o.s).tier*4); st.stats.orders++; st.stats.sold+=o.n;
     st.orders=st.orders.filter(x=>x!==o); st.orderT=Math.min(st.orderT,20); done('order'); emit('order',{o,v}); return true; }
-  function tickOrders(dt){ if(!F.orders){ st.orders=[]; return; } if(st.level<GATE.orders) return; st.orders.forEach(o=>o.T+=dt); const exp=st.orders.filter(o=>o.T>=o.t); if(exp.length){ st.orders=st.orders.filter(o=>o.T<o.t); }
-    if(st.orders.length<orderSlots()){ st.orderT-=dt; if(st.orderT<=0){ const o=newOrder(); if(o){ st.orders.push(o); emit('neworder',o); } st.orderT=45+Math.random()*60; } } }
+  function tickOrders(){ /* Retired. Saved st.orders stays on the file and is not cleared, expired, or refilled. */ }
   // ---------- walk-in customers with preferences ----------
   const PREFS=[
     {k:'type',v:'Indica',t:'Something heavy and relaxing (Indica)'},{k:'type',v:'Sativa',t:'Something uplifting (Sativa)'},{k:'type',v:'Hybrid',t:'A balanced hybrid'},
@@ -616,8 +615,7 @@ window.G = (function(){
     if(lv('nutes')>=2){ auto.f+=dt; if(auto.f>=8){ auto.f=0; st.plots.forEach(p=>{ if(isHungry(p)) feed(p,true); }); } }
     if(st.vip){ auto.r+=dt; if(auto.r>=6){ auto.r=0; if(invCount('wet')) loadDryer(); } }
     if(st.vip){ auto.m+=dt; if(auto.m>=10){ auto.m=0;
-      const reserved=new Set((st.orders||[]).map(o=>o&&o.s));
-      sellAll((id,stg)=>stg!=='wet'&&!reserved.has(id)&&(st.market.f[id]>=1||st.market.hot===id||(stg==='dry'&&!lv('cure')&&st.market.f[id]>=.9)));
+      sellAll((id,stg)=>stg!=='wet'&&(st.market.f[id]>=1||st.market.hot===id||(stg==='dry'&&!lv('cure')&&st.market.f[id]>=.9)));
       for(const k of Object.keys(st.goods||{})) if(st.market.f[k.split('|')[1]]>=.95) sellGood(k); } }
   }
   // ---------- breeding: pheno hunting mystery ----------
@@ -778,6 +776,8 @@ window.G = (function(){
     return QUESTS.some((x,j)=>j>i&&MS.includes(x.id)&&c[x.id]); }
   function payQuest(q){ if(q.r.cash) addCash(q.r.cash,'quest'); if(q.r.gems) addGems(q.r.gems,'Goal complete'); if(q.r.hints) st.hints+=q.r.hints; }
   function checkQuest(){ let q=curQuest(); if(!q) return;
+    // The order board is gone. Pay this goal once and step past it so the card never points at a missing tab. The quest stays in QUESTS so later indexes do not shift, and st.orders is left alone.
+    if(q.id==='order'){ payQuest(q); st.quest++; st.questDone=false; q=curQuest(); if(!q) return; }
     if(!st.questDone&&questSat(q)) done(q.id);
     let n=0; const R={cash:0,gems:0,hints:0};
     while(st.questDone&&(q=curQuest())&&questSat(QUESTS[st.quest+1])){ payQuest(q); for(const k in R) R[k]+=q.r[k]||0; st.quest++; st.questDone=true; n++; }
@@ -806,21 +806,21 @@ window.G = (function(){
     {k:'harvests',t:n=>'Harvest '+n+' plants',n:L=>5+L},{k:'sold',t:n=>'Sell '+n+' buds',n:L=>20+5*L},
     {k:'earned',t:n=>'Earn '+fmt(n),n:L=>Math.max(100,Math.round(60*Math.pow(L,2.6)/50)*50)},{k:'dryLoads',t:n=>'Load the drying racks '+n+' times',n:()=>3},
     {k:'feed',t:n=>'Feed '+n+' plants',n:()=>4},{k:'bred',t:()=>'Try a crossbreed',n:()=>1,need:()=>gate('breed')},
-    {k:'orders',t:n=>'Fill '+n+' orders',n:()=>2,need:()=>F.orders},
     {k:'inHarv',t:n=>'Harvest '+n+' indoor plants',n:()=>4,need:()=>st.inBuilt},{k:'cured',t:n=>'Cure '+n+' buds',n:L=>15+2*L,need:()=>lv('cure')>0},
   ];
   const WQ_POOL=[
     {k:'harvests',t:n=>'Harvest '+n+' plants',n:L=>60+8*L},{k:'earned',t:n=>'Earn '+fmt(n),n:L=>Math.max(1000,Math.round(600*Math.pow(L,2.6)/500)*500)},
-    {k:'sold',t:n=>'Sell '+n+' buds',n:L=>300+40*L},{k:'orders',t:n=>'Fill '+n+' orders',n:()=>12,need:()=>F.orders},
+    {k:'sold',t:n=>'Sell '+n+' buds',n:L=>300+40*L},
     {k:'bred',t:n=>'Try '+n+' crossbreeds',n:()=>5,need:()=>gate('breed')},{k:'mutants',t:n=>'Harvest '+n+' mutant plants',n:()=>2},
   ];
   function rollQuests(pool,count,rew){ const ok=pool.filter(q=>!q.need||q.need()); const out=[]; while(out.length<count&&ok.length){ const q=ok.splice(Math.floor(Math.random()*ok.length),1)[0]; const n=q.n(st.level); out.push({k:q.k,t:q.t(n),goal:n,base:stat(q.k),r:rew(),c:false}); } return out; }
   function retireCustQuest(q){ if(!q||q.k!=='customers') return; q.k='sold'; q.t='Sell '+(q.goal||1)+' buds at the Market'; q.base=Math.min(q.base||0, stat('sold')); }
+  function retireOrderQuest(q){ if(!q||q.k!=='orders') return; q.k='sold'; q.t='Sell '+(q.goal||1)+' buds at the Market'; q.base=Math.min(q.base||0, stat('sold')); }
   function ensureQuests(){
     const L=st.level;
     if(!st.dq||st.dq.day!==dayKey()) st.dq={day:dayKey(),list:rollQuests(DQ_POOL,3,()=>({gems:5+Math.floor(L/5)*2,cash:Math.round(20*Math.pow(L,2))})),bonus:false};
     if(!st.wq||st.wq.week!==weekKey()) st.wq={week:weekKey(),list:rollQuests(WQ_POOL,3,()=>({gems:30+Math.floor(L/5)*5,cash:Math.round(200*Math.pow(L,2))})),bonus:false};
-    for(const Q of [st.dq,st.wq]) if(Q&&Q.list) Q.list.forEach(retireCustQuest);
+    for(const Q of [st.dq,st.wq]) if(Q&&Q.list) Q.list.forEach(q=>{ retireCustQuest(q); retireOrderQuest(q); });
   }
   function qProg(q){ return Math.min(q.goal,stat(q.k)-q.base); }
   function claimQ(which,i){ ensureQuests(); const Q=which==='w'?st.wq:st.dq, q=Q.list[i]; if(!q||q.c||qProg(q)<q.goal) return false; q.c=true; addGems(q.r.gems); addCash(q.r.cash,'quest'); emit('qclaim',q);
@@ -848,7 +848,7 @@ window.G = (function(){
    ['geckos','Gecko Spotter','Gecko Whisperer',null,null,[1,25]],
    ['crafted','Hash Maker','Master Crafter',null,null,[5,200]],
    ['level','Rising Grower','Seasoned Grower','Island Elder',null,[10,25,50]],
-  ].filter(([k])=>({orders:F.orders,customers:F.customers,rep:F.repTiers,setsDone:F.sets,mastered:F.mastery})[k]!==false).forEach(([k,a,b,c,d,goals])=>goals.forEach((g,i)=>ACH.push({id:k+i,k,name:[a,b,c,d][i],goal:g,gems:[10,20,35,50][i]})));
+  ].filter(([k])=>({orders:false,customers:F.customers,rep:F.repTiers,setsDone:F.sets,mastered:F.mastery})[k]!==false).forEach(([k,a,b,c,d,goals])=>goals.forEach((g,i)=>ACH.push({id:k+i,k,name:[a,b,c,d][i],goal:g,gems:[10,20,35,50][i]})));
   function achReady(){ return ACH.filter(a=>st.ach[a.id]===1).length; }
   function checkAch(){ ACH.forEach(a=>{ if(!st.ach[a.id]&&stat(a.k)>=a.goal){ st.ach[a.id]=1; emit('ach',a); } }); }
   function claimAch(id){ const a=ACH.find(x=>x.id===id); if(!a||st.ach[id]!==1) return false; st.ach[id]=2; addGems(a.gems); emit('achclaim',a); return true; }
