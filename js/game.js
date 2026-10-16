@@ -367,7 +367,7 @@ window.G = (function(){
   function gate(k){ return st.level>=GATE[k]; }
 
   // ---------- capacity / plots ----------
-  function capOf(zone){ if(zone==='garage') return GARAGE[st.garage].cap; if(zone==='field') return st.land?FIELD.slice(0,st.field+1).reduce((a,b)=>a+b.add,0):0; if(zone==='gh') return st.ghBuilt?GH.slice(0,st.gh+1).reduce((a,b)=>a+b.add,0):0; if(zone==='in') return st.inBuilt?BENCH.slice(0,st.bench+1).reduce((a,b)=>a+b.add,0):0; return 0; }
+  function capOf(zone){ if(zone==='garage') return GARAGE[st.garage].cap; if(zone==='field') return st.land?FIELD.slice(0,st.field+1).reduce((a,b)=>a+b.add,0):0; if(zone==='gh'){ if(!st.ghBuilt) return 0; if(typeof st.ghMatch==='number'){ const extra=st.gh>0?GH.slice(1,st.gh+1).reduce((a,b)=>a+b.add,0):0; return st.ghMatch+extra; } return GH.slice(0,st.gh+1).reduce((a,b)=>a+b.add,0); } if(zone==='in') return st.inBuilt?BENCH.slice(0,st.bench+1).reduce((a,b)=>a+b.add,0):0; return 0; }
   function syncPlots(){ st.plots.forEach(p=>{ p.owned=p.idx<capOf(p.zone); }); }
   function locOpen(l){ return l==='garage'||(l==='farm'&&st.land)||(l==='indoor'&&st.inBuilt); }
   function nextStep(kind){ // {name,cost,...} of next capacity purchase or null
@@ -390,7 +390,7 @@ window.G = (function(){
   function INDOOR_LAB_LEVEL(){ return 14; }
   function buyLab(){ if(st.breedLab||!st.inBuilt) return false; if(!spend(LAB.cost)) return false; st.breedLab=true; emit('breedlab'); return true; }
   function garageRole(){ return !st.phenoRoom?'grow':st.breedLab?'storage':'pheno'; }
-  function buildGH(){ if(st.ghBuilt||!st.land) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse needs level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; st.ghBuilt=true; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
+  function buildGH(){ if(st.ghBuilt||!st.land) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse needs level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; const n=st.plots.filter(p=>p.zone==='garage'&&p.owned).length; st.ghBuilt=true; st.gh=0; st.ghMatch=n; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
   function buyPermit(){ if(st.permit) return false; if(st.level<INDOOR.permitLevel){ emit('toast',{t:'Permit office opens at level '+INDOOR.permitLevel,k:'bad'}); return false; } if(!spend(INDOOR.permitCost)) return false; st.permit=true; done('permit'); emit('permit'); return true; }
   function indoorChecklist(){
     return [
