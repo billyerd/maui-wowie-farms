@@ -42,7 +42,7 @@ window.Tutorial=(function(){
     const step=STEPS[tut().step|0]; if(!step) return null;
     const world=step.id==='plant'||step.id==='water'||step.id==='feed'||step.id==='harvest'||step.id==='order'||step.id==='land';
     if(sheetOpen()&&world) return closeBtn();
-    if(step.id==='seeds'){ if(sheetOpen()&&panel()==='seeds') return buyBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="seeds"]'); }
+    if(step.id==='seeds'){ if(sheetOpen()&&panel()==='seeds') return buyBtn(); if(sheetOpen()) return closeBtn(); return document.getElementById('seedBag'); }
     if(step.id==='plant'){ if(!(G.st.seeds[G.st.selSeed]>0)) return document.getElementById('seedBag'); const p=plotFor('plant'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
     if(step.id==='water'){ if(popOpen()) return document.querySelector('#pop [data-pa="water"]'); const p=plotFor('water'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
     if(step.id==='feed'){ if(popOpen()) return document.querySelector('#pop [data-pa="feed"]'); const p=plotFor('feed'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
@@ -75,7 +75,7 @@ window.Tutorial=(function(){
   function say(step){
     const blocked=sheetOpen()&&targetEl()===closeBtn();
     if(blocked) return 'Close this panel. The next step is on the farm.';
-    if(step.id==='seeds') return "Open Seeds and buy one. You've already got four Northern Lights. This is how you restock the bag.";
+    if(step.id==='seeds'){ if(sheetOpen()&&panel()==='seeds') return "Buy one from this bag. You've already got four Northern Lights. This is how you restock."; return "Tap the seed bag and buy one. You've already got four Northern Lights. This is how you restock."; }
     if(step.id==='plant'){ if(!(G.st.seeds[G.st.selSeed]>0)) return 'Your bag is empty. Tap the seed bag and pick a seed you own.'; const p=plotFor('plant'); if(!p) return 'Every bucket you own is full. Harvest one, or tap Next.'; return locLine(p)+'Tap an empty bucket to plant. Northern Lights is already selected.'; }
     if(step.id==='water'){ const p=plotFor('water'); if(!p) return 'Nothing is growing yet. Plant a seed, or tap Next.'; return locLine(p)+'Tap the plant, then the water drop above it. A full tank keeps it growing.'; }
     if(step.id==='feed'){ const p=plotFor('feed'); if(!p) return 'The free feed happens once, at halfway. Plant something, or tap Next.'; return locLine(p)+'Each plant gets one free feed at the halfway mark. Tap the feed icon. It costs nothing.'; }

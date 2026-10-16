@@ -15,7 +15,7 @@ window.portraitImg=function(name,cls,kind){ const c=window.CHARACTERS[name]; con
 // What each story character says when a goal starts (speaker = QUESTS[].who in game.js). Plain English; the local characters
 // (Unko Kuli, Uncle Ikaika, Auntie Lani, Kai) use a light touch of pidgin in about 1 line in 4. UI text is always plain English.
 window.STORY_SAY={
-  plant:"Welcome! These five buckets on the grow table are where I started too. Pick Northern Lights from your seeds and tap a bucket. Thirty seconds and you'll see what I mean.",
+  plant:"Welcome! These five buckets on the grow table are where I started too. Tap the seed bag, pick Northern Lights, then tap a bucket. Thirty seconds and you'll see what I mean.",
   water:"Plants get thirsty fast. Tap a plant to water it, or pick up the watering tool.",
   harvest:"See the gold glow? That means it's ripe. Tap it to harvest. Don't wait too long.",
   dry:"Fresh buds sell cheap. Hang them on the drying racks first. Patience pays.",

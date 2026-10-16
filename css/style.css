@@ -528,8 +528,7 @@ input.savefile{display:block;margin:6px 0 8px;max-width:100%;font-size:13px;colo
 #seedPick em{font-style:normal;font-weight:900;font-size:12px}
 #seedPick .sp-shop{width:100%;margin-top:2px;padding:7px;border:0;border-radius:11px;background:#2f8f4e;color:#fff;font:inherit;font-weight:800;cursor:pointer}
 #seedPick .sp-e{font-size:12px;padding:4px 6px;opacity:.85}
-@media (orientation:landscape){ #seedBag,#seedPick{top:calc(var(--sat) + 100px)} }
-body.sheet-open #seedBag{display:none}
+@media (orientation:landscape){ #seedPick{top:calc(var(--sat) + 100px)} }
 @media (orientation:landscape){ #seedPick{max-height:calc(100vh - var(--sat) - 120px);max-height:calc(100dvh - var(--sat) - var(--sab) - 120px)} }
 /* order board shortcut (grey space above the room) */
 #orderBoard{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--sat) + 84px);z-index:12;width:min(220px,calc(100vw - 180px));padding:9px 12px 8px;border:5px solid #7a5230;border-radius:8px;background:radial-gradient(ellipse at 30% 20%,#3d4a40,#252e28 70%);box-shadow:inset 0 0 0 1px #4d3520,inset 0 0 14px rgba(0,0,0,.6),0 4px 10px rgba(0,0,0,.45);border-image:linear-gradient(135deg,#9a6a3c,#6a4426 40%,#8b5d34 70%,#5a3920) 5;color:#f2efe4;font:inherit;text-align:center;cursor:pointer;display:flex;flex-direction:column;gap:2px}
@@ -553,7 +552,7 @@ body.sheet-open #orderBoard{display:none}
 #upgBtn .sb-up .ico{width:24px;height:24px;color:#fff}
 #scoutBtn.on{background:linear-gradient(#ffd96a,#f2b632);color:#2a1d00}
 @media (orientation:landscape){ #scoutBtn.sidebtn{top:calc(var(--sat) + 172px)} #upgBtn.sidebtn{top:calc(var(--sat) + 240px)} }
-@media (orientation:landscape) and (max-height:430px){ #seedBag,#scoutBtn.sidebtn,#upgBtn.sidebtn{width:52px;padding:3px 2px} #seedBag .sb-bag,#scoutBtn .sb-mag,#upgBtn .sb-up{width:34px;height:28px} #seedBag,#seedPick{top:calc(var(--sat) + 92px)} #scoutBtn.sidebtn{top:calc(var(--sat) + 150px)} #upgBtn.sidebtn{top:calc(var(--sat) + 206px)} }
+@media (orientation:landscape) and (max-height:430px){ #scoutBtn.sidebtn,#upgBtn.sidebtn{width:52px;padding:3px 2px} #scoutBtn .sb-mag,#upgBtn .sb-up{width:34px;height:28px} #seedPick{top:calc(var(--sat) + 92px)} #scoutBtn.sidebtn{top:calc(var(--sat) + 150px)} #upgBtn.sidebtn{top:calc(var(--sat) + 206px)} }
 body.sheet-open #scoutBtn,body.sheet-open #upgBtn{display:none}
 .testrow{gap:6px;justify-content:space-between} .testrow .btn{flex:1}
 @media (orientation:portrait){ .goal.open ~ #orderBoard{opacity:0;pointer-events:none;transition:opacity .2s} #orderBoard{transition:opacity .2s} }
@@ -641,13 +640,12 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn{display:none}
 .qa-act.locked{opacity:.72}
 .qa-act small{font-size:13px}
 body.sheet-open #qaFab{display:none}
-#seedBag,#scoutBtn.sidebtn,#upgBtn.sidebtn{top:auto!important;bottom:calc(var(--sab) + 74px);width:52px;min-height:48px;z-index:12}
-#seedBag{left:8px}
+#scoutBtn.sidebtn,#upgBtn.sidebtn{top:auto!important;bottom:calc(var(--sab) + 74px);width:52px;min-height:48px;z-index:12}
 #scoutBtn.sidebtn{left:64px}
 #upgBtn.sidebtn{left:120px}
 #orderBoard{left:auto;right:68px;transform:none;top:auto;bottom:calc(var(--sab) + 78px);width:min(150px,calc(100vw - 250px));z-index:12;padding:6px 8px}
 @media (max-width:380px){ #orderBoard{display:none} }
-body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{display:none}
+body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{display:none}
 
 /* Upgrades tab: painted cards, room banners, owned / locked / affordable. */
 .ubanner{position:relative;height:96px;margin:0 0 12px;border-radius:18px;overflow:hidden;background:#143024 center/cover no-repeat;border:1px solid rgba(255,214,140,.38);box-shadow:0 8px 18px rgba(0,0,0,.28);display:flex;align-items:flex-end}
@@ -772,7 +770,7 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 #toolbar #locSlot{order:2}
 #toolbar #qaFab{order:3}
 #toolbar #upgBtn{order:4}
-#toolbar #menu button[data-panel="seeds"]{order:5}
+#toolbar #seedBag{order:5}
 #toolbar #menu button[data-panel="process"]{order:6}
 #toolbar #menu button[data-panel="market"]{order:7}
 #toolbar #menu button[data-panel="lab"]{order:8}
@@ -810,7 +808,8 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 #locPick button.locked small{color:#ffd96a}
 #toolbar #locBtn,
 #toolbar #menu button,
-#toolbar #upgBtn.sidebtn{
+#toolbar #upgBtn.sidebtn,
+#toolbar #seedBag{
   position:relative;flex:1 1 0;min-width:0;width:auto;max-width:none;
   height:auto;min-height:48px;margin:0;padding:3px 1px;
   border:0;border-radius:10px;background:transparent;box-shadow:none;
@@ -828,14 +827,16 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 #toolbar #upgBtn .sb-up .ico{width:16px;height:16px;color:#d5eadc}
 #toolbar #locBtn small,
 #toolbar #menu button small,
-#toolbar #upgBtn b{
+#toolbar #upgBtn b,
+#toolbar #seedBag b,
+#toolbar #seedBag small{
   font-size:8px;font-weight:800;line-height:1.05;letter-spacing:-.01em;
   color:#d5eadc;white-space:normal;text-align:center;max-width:100%;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   overflow-wrap:break-word;hyphens:manual;
 }
 @media (max-width:379px){
-  #toolbar #locBtn small,#toolbar #upgBtn b,#toolbar #menu button small{font-size:7px;letter-spacing:-.04em}
+  #toolbar #locBtn small,#toolbar #upgBtn b,#toolbar #menu button small,#toolbar #seedBag b,#toolbar #seedBag small{font-size:7px;letter-spacing:-.04em}
 }
 #toolbar #menu button .ico{width:16px;height:16px;flex:none}
 #toolbar #menu button .badge{top:1px;right:1px}
@@ -843,14 +844,21 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 #toolbar #upgBtn:active,
 #toolbar #menu button:active{background:rgba(255,255,255,.08);transform:none}
 @media (min-width:380px){
-  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b{font-size:9px}
-  #toolbar #menu button .ico,#toolbar #upgBtn .sb-up,#toolbar #upgBtn .sb-up .ico{width:18px;height:18px}
+  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:9px}
+  #toolbar #menu button .ico,#toolbar #upgBtn .sb-up,#toolbar #upgBtn .sb-up .ico,#toolbar #seedBag .sb-bag,#toolbar #seedBag .sb-bag img{width:18px;height:18px}
 }
 @media (min-width:480px){
   #toolbar{gap:4px;padding-left:8px;padding-right:8px}
-  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b{font-size:11px}
+  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:11px}
 }
-#seedBag{top:auto!important;bottom:calc(var(--sab) + 64px)!important;z-index:12}
+#toolbar #seedBag{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:auto!important;max-width:none;z-index:auto;background:transparent;box-shadow:none;overflow:hidden}
+#toolbar #seedBag .sb-bag{width:16px;height:16px;min-height:0;margin:0;border-radius:0;background:none;box-shadow:none}
+#toolbar #seedBag .sb-bag:before{display:none}
+#toolbar #seedBag .sb-bag img{width:16px;height:16px;margin:0}
+#toolbar #seedBag b,
+#toolbar #seedBag small{min-width:0;max-width:100%}
+#toolbar #seedBag b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;-webkit-line-clamp:unset}
+#toolbar #seedBag:active{background:rgba(255,255,255,.08)}
 #orderBoard{bottom:calc(var(--sab) + 68px)!important}
 #clock{display:none!important}
 body.sheet-open #toolbar #qaFab{display:flex}

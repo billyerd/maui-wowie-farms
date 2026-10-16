@@ -901,9 +901,10 @@ window.R=(function(){
     for(const id of ['hud','goal','eventChip']){ const r=shownEl(id); if(r&&r.bottom<H*0.55) top=Math.max(top, r.bottom+4); }
     let bot=H-4;
     const tb=shownEl('toolbar'); if(tb&&tb.top>H*0.4) bot=Math.min(bot, tb.top-2);
-    // The seed bag hangs above the bar on the left. Stop the whole grid above it
-    // so one pot is not lifted while the rest of its row stays down.
-    const bag=shownEl('seedBag'); if(bag&&bag.top>H*0.4) bot=Math.min(bot, bag.top-2);
+    // A seed bag that still floats above the bar lifts the whole grid with it.
+    // In the bottom row it is already inside the toolbar, so the plants can use that height.
+    const bagEl=document.getElementById('seedBag'), barEl=document.getElementById('toolbar');
+    const bag=shownEl('seedBag'); if(bag&&bag.top>H*0.4&&!(barEl&&bagEl&&barEl.contains(bagEl))) bot=Math.min(bot, bag.top-2);
     return {top, bot, left:4, right:Math.max(40,W-4), w:Math.max(48,W-8), h:Math.max(48,bot-top)};
   }
   function gridScore(band, cols, rows){
