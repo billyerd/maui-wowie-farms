@@ -14,15 +14,49 @@ window.UI = (function(){
   const bar=(p,cls)=>`<div class="bar ${cls||''}"><i style="width:${Math.max(0,Math.min(1,p))*100}%"></i></div>`;
   const lvlLock=k=>`${ico('lock')} Level ${G.GATE[k]}`;
   // ---------- notices / modal ----------
-  // Text notices are centered cards with OK. Same-group lines still merge ("4 achievements unlocked").
+  // Routine notices are non-blocking pills. Mold and pest stay as OK cards (William likes those).
+  // OK cards are reserved for a choice or something the player must read: save problems, the away
+  // rescue, big unlocks and prestige confirms, strain reveals the player opened, and pest/mold.
   const nq=[]; let noticeLive=null;
   const GROUP_TXT={ach:(n,first)=>n>1?n+' achievements unlocked! Claim in Quests':'Achievement: '+first+'! Claim in Quests', pest:(n,first)=>first};
   function toast(text,kind='',group){
-    const same=it=>group?it.group===group:it.text===text;
-    if(noticeLive&&same(noticeLive)){ noticeLive.n++; paintNotice(noticeLive); return; }
-    const q=nq.find(same); if(q){ q.n++; return; }
-    nq.push({text,kind,group,n:1,first:text}); if(nq.length>6){ const i=nq.findIndex(x=>x.kind!=='bad'); nq.splice(i<0?0:i,1); }
-    pumpNotices();
+    if(group==='pest'){
+      const same=it=>it.group==='pest';
+      if(noticeLive&&same(noticeLive)){ noticeLive.n++; paintNotice(noticeLive); return; }
+      const q=nq.find(same); if(q){ q.n++; return; }
+      nq.push({text,kind,group:'pest',n:1,first:text}); if(nq.length>4) nq.shift();
+      pumpNotices();
+      return;
+    }
+    showPill(text,kind,group);
+  }
+  function showPill(text,kind,group){
+    let box=document.getElementById('toasts');
+    if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
+    const k=noticeKind(kind), long=/(^|\s)long(\s|$)/.test(String(kind||''));
+    const kids=box.querySelectorAll? [...box.querySelectorAll('.toast')]:[];
+    const same=kids.find(el=>group?el.dataset.group===group:el.dataset.raw===String(text));
+    if(same){
+      const n=(+same.dataset.n||1)+1; same.dataset.n=String(n);
+      const first=same.dataset.first||same.dataset.raw||text;
+      same.textContent=group&&GROUP_TXT[group]?GROUP_TXT[group](n,first):(n>1?first+'  ×'+n:first);
+      armPill(same, long||same.classList.contains('long'));
+      return;
+    }
+    const el=document.createElement('div');
+    el.className='toast'+(k?' '+k:'')+(long?' long':'');
+    el.dataset.raw=String(text||''); el.dataset.first=String(text||''); el.dataset.n='1';
+    if(group) el.dataset.group=group;
+    el.textContent=group&&GROUP_TXT[group]?GROUP_TXT[group](1,text):String(text||'');
+    if(box.appendChild) box.appendChild(el);
+    const live=box.querySelectorAll? [...box.querySelectorAll('.toast')]:[];
+    while(live.length>4){ const old=live.shift(); if(old&&old.remove) old.remove(); }
+    armPill(el, long);
+  }
+  function armPill(el, long){
+    if(!el) return;
+    clearTimeout(el._t); if(el.classList&&el.classList.remove) el.classList.remove('out');
+    el._t=arm(()=>{ if(el.classList) el.classList.add('out'); arm(()=>{ if(el.remove) el.remove(); },240); }, long?4600:2600);
   }
   // A short note that stays off the location tabs. Used for the tutorial skip, which must not cover them.
   function brief(text){
@@ -94,8 +128,13 @@ window.UI = (function(){
   function streakHTML(today){ const st=G.st, n=today?st.streak.n:G.dailyReady()?G.streakDay():st.streak.n; const cyc=Math.floor((n-1)/7)*7;
     return `<div class="streak">${G.LOGIN.map((r,i)=>{ const d=cyc+i+1; const cls=d<n?'got':d===n?(today||!G.dailyReady()?'today':'got'):''; const lab=r.legPacks?'Leg.':r.rarePacks?'Rare':r.cash?'Cash':''; return `<div class="${d===n&&(today||G.dailyReady())?'today':cls}">Day<br>${d}<b>${r.gems}${ico('gem')}</b>${lab}</div>`; }).join('')}</div>`; }
   const celWait=[];
-  function loginCel(o){ if(G.st.quest<=4&&!window.__giftForce){ setTimeout(()=>loginCel(o),3000); return; } window.__giftForce=0;   // the guided first minute comes first
-    if(document.getElementById('splash')){ setTimeout(()=>loginCel(o),400); return; } if(mOpen||mq.length){ celWait.push(o); return; } celebrate(`<div style="font-size:12px;font-weight:900;letter-spacing:3px;color:#9fe8ff">DAILY GIFT</div><h3>Day ${o.n} streak!</h3>${streakHTML(true)}<div class="rw"><span>${ico('gem')} +${o.r.gems}</span>${o.r.cash?`<span>${ico('coin')} +${fmt(o.r.cash*100*G.st.level)}</span>`:''}${o.r.rarePacks?'<span>Rare Seed Pack</span>':''}${o.r.legPacks?'<span>Legendary Seed Pack</span>':''}</div><div style="font-size:12px;color:#cfe">${window.__streakSaved?'<b style="color:#9dffc0">Streak saved!</b> You missed a day, but your streak was kept. ':''}Come back tomorrow for Day ${o.n+1}. Missing a day or two pauses your streak, it never resets.</div>`,6000); }
+  function loginCel(o){ if(G.st.quest<=4&&!window.__giftForce){ setTimeout(()=>loginCel(o),3000); return; } window.__giftForce=0;
+    if(document.getElementById('splash')){ setTimeout(()=>loginCel(o),400); return; }
+    const bits=['+'+o.r.gems+' gems'];
+    if(o.r.cash) bits.push('+'+fmt(o.r.cash*100*G.st.level));
+    if(o.r.rarePacks) bits.push('Rare Seed Pack');
+    if(o.r.legPacks) bits.push('Legendary Seed Pack');
+    toast((window.__streakSaved?'Streak saved. ':'')+'Day '+o.n+' gift: '+bits.join(', '),'gemt long'); }
   // ---------- big milestone celebrations ----------
   function bigCel(kind){
     const C={land:['art/island-bg.webp','The family land is yours!','Uncle Ikaika hands you the keys to the land on the hill. Terraces are ready, and there is room for a greenhouse.'],
@@ -859,11 +898,12 @@ window.UI = (function(){
     G.save(); render();
   }
   function showPack(list){ Sound.play('discover');
-    modal(`<h3>Seed pack opened!</h3><div class="grid" style="margin-top:10px">${list.map(s=>`<div class="card"><img data-cu="${s.id}" data-sz="96" data-h="0" alt="" style="width:100%;border-radius:12px"><div class="nm">${esc(s.name)}</div><span class="tag t-${s.rarity}" style="font-size:12px">${s.rarity}</span></div>`).join('')}</div>`,[{label:'Thanks!',cls:'gold'}]); }
-  // story dialogue (Unko Kuli teaches the trade) - shown when a new goal starts
+    toast('Seed pack: '+(list||[]).map(s=>s&&s.name).filter(Boolean).join(', '),'good long'); }
+  // Story beats stay readable as a long pill. The goal chip still holds the task.
   const QUICK={plant:'Tap the seed bag, then a bucket',water:'Tap your plant to water it',harvest:'Ripe! Tap to harvest',dry:'Open Dry & Cure to dry your buds',sell:'Open Market to sell'};
-  function storyLine(q){ if(!q||!G.F.storyGoals) return; if(window.Tutorial&&Tutorial.active&&Tutorial.active()) return; if(QUICK[q.id]&&G.st.quest<=4){ toast('👆 '+QUICK[q.id],'good'); return; } const who=q.who||'Unko Kuli'; const c=window.CHARACTERS[who];
-    modal(`<div class="dlg">${portraitImg(who,'dport')}<div><b>${esc(who)}</b><p>${esc((window.STORY_SAY&&window.STORY_SAY[q.id])||q.t)}</p></div></div>`,[{label:'Got it!',cls:'gold'}]); }
+  function storyLine(q){ if(!q||!G.F.storyGoals) return; if(window.Tutorial&&Tutorial.active&&Tutorial.active()) return;
+    const line=QUICK[q.id]&&G.st.quest<=4?QUICK[q.id]:((window.STORY_SAY&&window.STORY_SAY[q.id])||q.t);
+    toast((q.who||'Unko Kuli')+': '+line,'good long'); }
   // ---------- wiring ----------
   function init(){
     document.title=T(); $('#gTitle').textContent=T(); $('#gTag').textContent=window.GAME_CONFIG.tagline;

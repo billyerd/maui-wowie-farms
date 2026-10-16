@@ -73,7 +73,7 @@
   G.on('nogems',fx(()=>{ Sound.play('error'); UI.toast('Not enough gems. Earn more by leveling up!','bad'); }));
   G.on('toast',fx(({t,k})=>UI.toast(t,k)));
   G.on('discover',fx(({s,quiet,how})=>{ if(quiet==='lvl') return; if(how==='bred'&&s.mystery) return; Sound.play('discover'); UI.toast((quiet?'Unlocked: ':'New strain: ')+s.name+'!','good'); }));
-  G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.modal(`<img data-cu="${s.id}" data-sz="160" data-h="0" alt="" style="width:150px;height:150px;border-radius:22px"><h3>${fresh?'New strain bred!':'Cross complete'}</h3><p><b>${s.name}</b> (${s.rarity})<br>${(s.parents||[]).join(' × ')}</p><p>+3 seeds added to your seed bag.</p>`,[{label:'Thanks!',cls:'gold'}]); }));
+  G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.toast((fresh?'New strain bred: ':'Cross complete: ')+s.name+' ('+s.rarity+'). +3 seeds','good long'); }));
   G.on('dud',fx(({hint,back})=>{ Sound.play('tap'); UI.toast('No stable pheno from that cross.'+(back?' You saved a '+back.name+' seed.':'')+(hint?' +1 hint token for your persistence!':''),hint?'gemt':''); }));
   G.on('hint',fx(({s})=>{ Sound.play('gem'); UI.toast('Hint used: a parent of a '+s.rarity+' mystery revealed','gemt'); }));
   G.on('hot',fx(s=>UI.toast('Tourist rush! '+s.name+' sells 2x','good')));
@@ -101,7 +101,7 @@
   G.on('geckotap',fx(({b,extra})=>{ Sound.play('discover'); buzz([10,30,10]); UI.confetti(40); UI.toast('Golden gecko: '+b.name+(extra?' '+extra:' · '+b.desc),'gemt'); }));
   G.on('crafted',fx(j=>{ Sound.play('gem'); UI.toast(G.CRAFT[j.t].name+' ×'+j.n+' ready to sell','good'); }));
   G.on('festclaim',fx(({f,s})=>{ UI.reveal(s); }));
-  G.on('skip',r=>{ UI.modal(`<h3>Time skipped</h3><p>Your farm worked ${G.dur(r.seconds)}.</p><div class="big-n">${r.cash>=0?'+':''}${G.fmt(r.cash)}</div><p>${r.harvests} harvests · ${r.sold} buds sold</p>`,[{label:'Thanks!',cls:'gold'}]); });
+  G.on('skip',r=>{ UI.toast('Time skipped: the farm worked '+G.dur(r.seconds)+' · '+(r.cash>=0?'+':'')+G.fmt(r.cash)+' · '+r.harvests+' harvests · '+r.sold+' sold','good long'); });
 
   // ---------- input ----------
   const ptrs=new Map(); let downAt=null, moved=0, pinchD=0;
@@ -161,7 +161,7 @@
   try{ const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App; if(A){ A.addListener('pause',pause); A.addListener('resume',resume); A.addListener('appStateChange',s=>{ s.isActive?resume():pause(); }); } }catch(e){}
   const CREW_FACE={mgrG:'Kai',farmhand:'Kai',mgrF:'Malia',mgrI:'Nick',mgrX:'Kai',runner:'Kai',merchant:'Malia'};
   function crewLine(jobs){ const n={}; jobs.forEach(w=>{ n[w]=(n[w]||0)+1; }); return Object.entries(n).map(([w,c])=>{ const d=G.WORKERS[w]; const name=d?d.name.split(',')[0]:'Crew'; return name+' finished '+c+' job'+(c===1?'':'s'); }).join('. '); }
-  function showCrew(jobs){ if(!jobs||!jobs.length) return; const face=CREW_FACE[jobs[0]]||'Kai'; UI.modal(`<div class="dlg">${portraitImg(face,'dport')}<div><b>${face}</b><p>${crewLine(jobs)}.</p></div></div>`,[{label:'OK',cls:'gold'}]); }
+  function showCrew(jobs){ if(!jobs||!jobs.length) return; UI.toast(crewLine(jobs),'good'); }
   function showAway(r,el,cap){
     const jobs=G.drainCrew();
     if((!r||(r.harvests===0&&r.sold===0&&Math.abs(r.cash)<1&&el<600))&&!jobs.length) return;
@@ -197,7 +197,7 @@
     else if(boot.fresh) UI.modal(`<div class="dlg">${portraitImg('Unko Kuli','dport')}<div><b>Unko Kuli</b><p>Hello, and welcome to <b>${window.GAME_CONFIG.title}</b>. This was your Grandpa's garage. Now it's yours. Follow my hand 👆</p></div></div>`,[{label:'Let\'s grow',cls:'gold'}]).then(()=>UI.storyLine(G.curQuest()));
     if(G.st.econMigrated){ delete G.st.econMigrated; UI.modal(`<h3>Real-world prices</h3><p>Prices now follow real Hawaii costs: one bud is an eighth (3.5 g), gear and land cost what they do on Kauai, and time runs on the real clock (1 real hour = 1 game day). You kept everything you built; your cash was converted to the new prices.</p>`,[{label:'Got it!',cls:'gold'}]); }
     if(boot.corrupt) UI.modal(`<h3>Save needs a backup</h3><p>The farm stored on this device could not be read, so it was left in place. Open Settings to export it, or import a backup you already have.</p>`,[{label:'Got it!',cls:'gold'}]);
-    if(boot.kept) UI.modal(`<h3>Farm kept</h3><p>This update kept the save already on this device, including your plants, cash, and crew.</p>`,[{label:'Got it!',cls:'gold'}]);
+    if(boot.kept) UI.toast('Farm kept. Your plants, cash, and unlocks are still on this device.','good long');
     else if(boot.off) showAway(boot.off,boot.off.away,boot.off.cap);
     if(G.dailyReady()&&!boot.fresh&&!window.TEST_MODE){   // test mode: gift only via Settings > Test so QC can capture clean screens
  window.__streakSaved=G.streakSaved(); G.claimDaily(); }
