@@ -1,6 +1,12 @@
 :root{
+  /* constant() then env(). A custom property that only uses env() is dropped on older iOS, and padding that depends on it collapses under the notch. */
+  --sat:0px;--sab:0px;--sal:0px;--sar:0px;
+  --sat:constant(safe-area-inset-top);--sab:constant(safe-area-inset-bottom);
+  --sal:constant(safe-area-inset-left);--sar:constant(safe-area-inset-right);
   --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
   --sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px);
+  --hud-ctrl:36px;--hud-pad-t:6px;--hud-pad-b:4px;
+  --hud-h:calc(var(--hud-pad-t) + var(--hud-ctrl) + var(--hud-pad-b));
   --bg:#0d1f16;--card:rgba(16,30,24,.94);--card2:rgba(255,255,255,.06);--line:rgba(255,255,255,.10);
   --txt:#eef7ef;--mut:#9fb8a7;--acc:#5fe08a;--acc2:#2fb866;--gold:#ffcf4a;--gem:#6fd7ff;--pink:#ff6fb1;--warn:#ff8a5c;
   --r:16px;--font:-apple-system,BlinkMacSystemFont,"SF Pro Rounded","Segoe UI Variable Display","Segoe UI",Roboto,system-ui,sans-serif;
@@ -866,3 +872,100 @@ body.sheet-open #toolbar #qaFab{display:flex}
 #holdRing.hidden{visibility:hidden;opacity:0}
 /* Pink event, sale, and promo chips never appear on their own. */
 #eventChip,#boostHud,.bpill.b-pheno,.bpill.b-price{display:none!important;animation:none!important}
+
+/* Phone top bar: one row, one control size, inside the notch and the side insets.
+   Padding uses env() itself so a broken --sat cannot drop the icons under the status bar. */
+#hud{
+  flex-wrap:nowrap!important;align-items:center!important;column-gap:4px;row-gap:0;overflow:visible;
+  padding-top:calc(var(--sat) + var(--hud-pad-t))!important;
+  padding-top:calc(constant(safe-area-inset-top) + var(--hud-pad-t))!important;
+  padding-top:calc(env(safe-area-inset-top, 0px) + var(--hud-pad-t))!important;
+  padding-bottom:var(--hud-pad-b)!important;
+  padding-left:calc(var(--sal) + 6px)!important;
+  padding-left:calc(constant(safe-area-inset-left) + 6px)!important;
+  padding-left:calc(env(safe-area-inset-left, 0px) + 6px)!important;
+  padding-right:calc(var(--sar) + 6px)!important;
+  padding-right:calc(constant(safe-area-inset-right) + 6px)!important;
+  padding-right:calc(env(safe-area-inset-right, 0px) + 6px)!important;
+}
+#hud .hud-left,#hud .hud-right{gap:4px;align-items:center;min-width:0}
+#hud .hud-left{flex:1 1 auto}
+#hud .hud-right{flex:none}
+#hud .goal,#hud .lvl,#hud .lvl-ring,#hud .iconbtn{
+  width:var(--hud-ctrl)!important;height:var(--hud-ctrl)!important;
+  min-width:var(--hud-ctrl)!important;min-height:var(--hud-ctrl)!important;
+  max-width:var(--hud-ctrl)!important;max-height:var(--hud-ctrl)!important;
+  flex:none!important;box-sizing:border-box;overflow:visible;
+}
+#hud .goal{padding:0!important;border-radius:50%!important}
+#hud .goal .gport{
+  width:var(--hud-ctrl)!important;height:var(--hud-ctrl)!important;
+  min-width:var(--hud-ctrl)!important;min-height:var(--hud-ctrl)!important;
+  max-width:var(--hud-ctrl)!important;max-height:var(--hud-ctrl)!important;
+  border:2px solid #ffd96a;border-radius:50%;box-sizing:border-box;object-fit:cover;display:block;
+}
+#hud .goal .gtx{top:calc(100% + 6px)}
+#hud .goal .gdot{left:22px;top:0}
+#hud .lvl #lvl{font-size:14px!important;line-height:1}
+#hud .shopbtn{
+  height:var(--hud-ctrl)!important;min-height:var(--hud-ctrl)!important;max-height:var(--hud-ctrl)!important;
+  width:var(--hud-ctrl)!important;min-width:var(--hud-ctrl)!important;max-width:var(--hud-ctrl)!important;
+  flex:none!important;padding:0!important;gap:0;border-radius:50%!important;
+  justify-content:center;overflow:visible!important;box-sizing:border-box;
+}
+#hud .shopbtn::after{content:none!important;display:none!important;animation:none!important}
+#hud .shopbtn .shop-label{display:none!important}
+#hud .shopbtn .ico,#hud .iconbtn .ico,#hud .pill .ico{width:18px!important;height:18px!important;flex:none}
+#hud .pill{
+  height:var(--hud-ctrl)!important;min-height:var(--hud-ctrl);max-height:var(--hud-ctrl);
+  flex:0 1 auto;min-width:0;max-width:100%;overflow:visible;
+  padding:0 7px 0 5px!important;gap:3px!important;font-size:12px!important;
+}
+#hud .pill b{
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:12px;line-height:1;font-variant-numeric:tabular-nums;
+}
+@media (max-width:340px){
+  #hud{column-gap:3px}
+  #hud .hud-left,#hud .hud-right{gap:3px}
+  #hud .pill{padding:0 6px 0 4px!important;gap:2px!important}
+}
+@media (min-width:400px){
+  #hud .shopbtn{
+    width:auto!important;max-width:none!important;min-width:var(--hud-ctrl)!important;
+    padding:0 10px 0 8px!important;gap:4px;border-radius:18px!important;
+  }
+  #hud .shopbtn .shop-label{display:inline!important}
+  #hud .pill,#hud .pill b{font-size:13px!important}
+}
+@media (max-width:520px){
+  #hud .hud-mid{display:none!important}
+}
+@media (display-mode:standalone),(display-mode:fullscreen){
+  #hud{
+    padding-top:calc(env(safe-area-inset-top, 0px) + var(--hud-pad-t))!important;
+    padding-left:calc(env(safe-area-inset-left, 0px) + 6px)!important;
+    padding-right:calc(env(safe-area-inset-right, 0px) + 6px)!important;
+  }
+}
+#testTag{
+  top:calc(var(--sat) + var(--hud-h) + 6px)!important;
+  top:calc(constant(safe-area-inset-top) + var(--hud-h) + 6px)!important;
+  top:calc(env(safe-area-inset-top, 0px) + var(--hud-h) + 6px)!important;
+  right:calc(var(--sar) + 8px)!important;
+  right:calc(constant(safe-area-inset-right) + 8px)!important;
+  right:calc(env(safe-area-inset-right, 0px) + 8px)!important;
+}
+#locTabs{
+  top:calc(var(--sat) + var(--hud-h) + 8px)!important;
+  top:calc(constant(safe-area-inset-top) + var(--hud-h) + 8px)!important;
+  top:calc(env(safe-area-inset-top, 0px) + var(--hud-h) + 8px)!important;
+}
+#clock{
+  top:calc(var(--sat) + var(--hud-h) + 8px)!important;
+  top:calc(constant(safe-area-inset-top) + var(--hud-h) + 8px)!important;
+  top:calc(env(safe-area-inset-top, 0px) + var(--hud-h) + 8px)!important;
+  right:calc(var(--sar) + 8px)!important;
+  right:calc(constant(safe-area-inset-right) + 8px)!important;
+  right:calc(env(safe-area-inset-right, 0px) + 8px)!important;
+}
