@@ -901,24 +901,33 @@ window.R=(function(){
     for(const id of ['hud','goal','eventChip']){ const r=shownEl(id); if(r&&r.bottom<H*0.55) top=Math.max(top, r.bottom+4); }
     let bot=H-4;
     const tb=shownEl('toolbar'); if(tb&&tb.top>H*0.4) bot=Math.min(bot, tb.top-2);
+    // The seed bag hangs above the bar on the left. Stop the whole grid above it
+    // so one pot is not lifted while the rest of its row stays down.
+    const bag=shownEl('seedBag'); if(bag&&bag.top>H*0.4) bot=Math.min(bot, bag.top-2);
     return {top, bot, left:4, right:Math.max(40,W-4), w:Math.max(48,W-8), h:Math.max(48,bot-top)};
   }
   function gridScore(band, cols, rows){
     const gap=2, cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(rows-1))/rows, plantH=cellH-16;
     return {ok:cellW>=36&&cellH>=36, cols, rows, cellW, cellH, gap, plantH};
   }
-  // Fewer owned pots use fewer, larger cells, still centered. A full garage is 20 pots.
+  // Garage is always 5 pots across. Spacing is the full 4-row grid (20 pots), so a new row does not resize the others.
+  // Fewer rows sit in the middle. A partial last row is centered. More than 20 (old saves) add rows instead of overlapping.
   function garageLayout(band, n){
-    n=Math.max(1,n|0); let best=null;
-    for(let cols=2; cols<=5; cols++){
-      const rows=Math.ceil(n/cols); if(rows>6) continue;
-      const g=gridScore(band, cols, rows);
-      if(g.cellW<52||g.cellH<64) continue;
-      const empty=cols*rows-n, score=Math.min(g.cellW,g.cellH)*10-empty*18-Math.abs(cols-rows)*4;
-      if(!best||score>best.score) best=Object.assign({}, g, {n:cols*rows, zone:'garage', score});
+    n=Math.max(1,n|0);
+    const cols=5, gap=2, need=Math.ceil(n/cols), fullRows=Math.max(4, need);
+    const cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(fullRows-1))/fullRows;
+    const usedH=need*cellH+(need-1)*gap, fullH=fullRows*cellH+(fullRows-1)*gap;
+    return {ok:cellW>=36&&cellH>=36, cols, rows:need, cellW, cellH, gap, plantH:Math.max(18,cellH-16), n, zone:'garage', rowShift:Math.max(0,(fullH-usedH)/2)};
+  }
+  function rowMajor(cols, count){
+    const slots=[]; count=Math.max(0,count|0); cols=Math.max(1,cols|0);
+    const rows=Math.ceil(count/cols)||1;
+    let i=0;
+    for(let r=0;r<rows;r++){
+      const n=Math.min(cols, count-r*cols), pad=(cols-n)/2;
+      for(let c=0;c<n;c++) slots[i++]={c:pad+c, r};
     }
-    if(!best){ const cols=n>16?5:n>9?4:3, rows=Math.ceil(n/Math.max(1,cols)); best=Object.assign(gridScore(band, cols, rows), {n:cols*rows, zone:'garage'}); }
-    return best;
+    return slots;
   }
   function gridFor(room, band){
     if(room==='garage') return garageLayout(band, 5);
@@ -941,7 +950,7 @@ window.R=(function(){
     ctx.drawImage(im,(W-dw)/2,(H-dh)/2,dw,dh);
   }
   function drawPotPx(cx, rim, cw){
-    const w=Math.max(28, Math.min(cw*0.62, 96)), h=Math.max(12, Math.min(24, w*0.28));
+    const w=Math.min(cw*0.7, 46), h=12;
     ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(cx+1,rim+h+2,w*0.55,4,0,0,TAU); ctx.fill();
     ctx.fillStyle='#1c1e22'; ctx.beginPath(); ctx.roundRect(cx-w*0.72,rim+h*0.35,w*1.44,h*0.7,3); ctx.fill();
     const g=ctx.createLinearGradient(cx-w/2,0,cx+w/2,0); g.addColorStop(0,'#16171a'); g.addColorStop(.4,'#3c3e44'); g.addColorStop(1,'#111214');
@@ -979,8 +988,6 @@ window.R=(function(){
     let band=bedBand(room);
     const gutter=lit?18:0;
     if(lit) band=Object.assign({},band,{top:band.top+gutter,h:Math.max(48,band.h-gutter)});
-    const obs=[];
-    for(const id of ['seedBag','upgBtn','orderBoard']){ const r=shownEl(id); if(r) obs.push(r); }
     const zoneName=room==='garage'?'garage':room==='gh'?'gh':room==='benches'?'in':'field';
     const ownedN=st.plots.filter(p=>p.zone===zoneName&&p.owned).length;
     const buyMax=window.G&&G.GARAGE?G.GARAGE[G.GARAGE.length-1].cap:20;
@@ -1007,7 +1014,8 @@ window.R=(function(){
       const kind=g.zone==='garage'?'garage':g.zone==='field'?'field':g.zone==='gh'?'gh':'bench';
       const owned=plots.filter(p=>p.owned);
       const nxt=plots.find(p=>!p.owned);
-      const order=centerOrder(g.cols, g.rows);
+      const want=room==='garage'?(owned.length+(nxt&&G.nextStep(kind)?1:0)):0;
+      const order=room==='garage'?rowMajor(g.cols, Math.max(1,want)):centerOrder(g.cols, g.rows);
       const place=owned.map((p,i)=>({p,slot:order[i],owned:true,expand:null})).filter(x=>x.slot);
       if(nxt&&G.nextStep(kind)&&order[owned.length]) place.push({p:nxt,slot:order[owned.length],owned:false,expand:kind});
       const shown=new Set(place.map(x=>x.p.id));
@@ -1015,12 +1023,11 @@ window.R=(function(){
       const pot=room==='garage'||room==='benches';
       for(const item of place){
         const col=item.slot.c, row=item.slot.r;
-        const x=band.left+col*(g.cellW+g.gap), y=band.top+row*(g.cellH+g.gap);
+        const x=band.left+col*(g.cellW+g.gap), y=band.top+(g.rowShift||0)+row*(g.cellH+g.gap);
         const p=item.p;
-        let floor=y+g.cellH;
-        for(const o of obs){ if(x<o.right-1&&x+g.cellW>o.left+1&&floor>o.top&&y<o.bottom) floor=Math.min(floor,o.top-3); }
-        const potH=pot?Math.max(14, Math.min(26, g.cellW*0.18)):6, labelH=14;
-        const rim=Math.max(y+18, Math.min(y+g.cellH-labelH, floor)-potH);
+        const floor=y+g.cellH;
+        const potH=pot?10:6, labelH=12;
+        const rim=Math.max(y+18, floor-labelH-potH);
         const stn=p.strain&&G.strain(p.strain);
         const mh=Math.max(.4,plantSize(stn?stn.type:'Hybrid',1,probe).h);
         const plantH=Math.max(18,rim-y-1); const ppm=plantH/mh; const sp=Math.max(.25,(g.cellW-4)/(ppm*1.05));
