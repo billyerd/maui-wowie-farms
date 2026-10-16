@@ -59,7 +59,10 @@
     </div>
     <button type="button" class="qa-main" id="qaMain" aria-label="Harvest, water, and feed" aria-expanded="false"><span class="qa-arrow"></span></button>
   </div>
-  <button type="button" id="locBtn" class="dockbtn" aria-label="Garage"><span class="li" aria-hidden="true">🏠</span><small>Garage</small></button>
+  <div id="locSlot">
+    <div id="locPick" class="hidden" role="menu" aria-label="Choose a location"></div>
+    <button type="button" id="locBtn" class="dockbtn" aria-label="Location: Garage" aria-haspopup="true" aria-expanded="false"><span class="li" aria-hidden="true">🏠</span><small>Garage</small></button>
+  </div>
   <nav class="menu" id="menu">
     <button type="button" data-panel="pass"><span class="ico ico-gem"></span><small>Game Pass</small></button>
     <button type="button" data-panel="seeds"><span class="ico ico-seed"></span><small>Seeds</small></button>

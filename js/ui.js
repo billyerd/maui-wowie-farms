@@ -160,29 +160,52 @@ window.UI = (function(){
     const own=G.S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>a.game.growSec-b.game.growSec);
     el.innerHTML=`<div class="sp-h">Seed bag</div>`+(own.length?own.map(s=>`<button class="sp-row${st.selSeed===s.id?' on':''}" data-pick="${s.id}"><img src="art/seed_48.webp" alt=""><span class="sp-n"><b>${esc(s.name)}</b><small>⏱ ${sec(s.game.growSec)}</small></span><em>${st.seeds[s.id]}×</em></button>`).join(''):`<p class="sp-e">Bag's empty. Grab seeds at the shop.</p>`)+`<button class="sp-shop" data-pick="__shop">Seed shop</button>`;
     el.classList.remove('hidden'); Sound.play('open'); }
+  function locChoices(){
+    const st=G.st, cur=G.currentRoom();
+    const rows=[
+      {r:'garage', name:'Garage', sub:cur==='garage'?'Here now':'Open'},
+      {r:'gh', name:'Greenhouse', sub:st.ghBuilt?(cur==='gh'?'Here now':'Open'):('Level '+G.GH_BUILD.level+' · '+fmt(G.GH_BUILD.cost))},
+      {r:'facility', name:'Indoor Facility', sub:st.land?(cur==='facility'?'Here now':'Open'):('Level '+G.LAND_LEVEL+' · '+fmt(G.LAND_COST))}
+    ];
+    if(st.inBuilt) rows.push({r:'benches', name:'Benches', sub:cur==='benches'?'Here now':'Open'});
+    return rows;
+  }
+  function paintLocPick(pick){
+    const cur=G.currentRoom(), st=G.st;
+    const html=locChoices().map(row=>{
+      const on=row.r===cur?' on':'';
+      const locked=(row.r==='gh'&&!st.ghBuilt)||(row.r==='facility'&&!st.land)?' locked':'';
+      return `<button type="button" data-room="${row.r}" class="${(on+locked).trim()}"><b>${esc(row.name)}</b><small>${esc(row.sub)}</small></button>`;
+    }).join('');
+    if(pick._h!==html){ pick._h=html; pick.innerHTML=html; }
+  }
+  function closeLocPick(){ const pick=$('#locPick'), lb=$('#locBtn'); if(pick) pick.classList.add('hidden'); if(lb) lb.setAttribute('aria-expanded','false'); }
+  function toggleLocPick(){
+    const pick=$('#locPick'), lb=$('#locBtn'); if(!pick) return;
+    const willOpen=pick.classList.contains('hidden');
+    hidePop();
+    if(!willOpen) return;
+    paintLocPick(pick); pick.classList.remove('hidden');
+    if(lb) lb.setAttribute('aria-expanded','true');
+    Sound.play('open');
+  }
   function locTabs(){
-    const st=G.st, el=$('#locTabs');
-    const rooms=['garage','gh','facility']; if(st.inBuilt) rooms.push('benches');
     const cur=G.currentRoom();
-    const short={garage:'Garage',gh:'Greenhouse',facility:'Facility',benches:'Benches'};
-    const full={garage:'Garage',gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
+    const names={garage:'Garage',gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
     const ico={garage:'🏠',gh:'🌿',facility:'🏭',benches:'💡'};
     const lb=$('#locBtn');
     if(lb){
       const ripe=G.roomRipe?G.roomRipe(cur):0;
-      const name=short[cur]||'Garage';
+      const name=names[cur]||'Garage';
       const sm=lb.querySelector('small'), ic=lb.querySelector('.li');
       if(sm&&sm.textContent!==name) sm.textContent=name;
       if(ic) ic.textContent=ico[cur]||'🏠';
-      const al=(full[cur]||'Location')+(ripe?' · '+ripe+' ready':'');
+      const al='Location: '+name+(ripe?' · '+ripe+' ready':'')+'. Garage, Greenhouse, and Indoor Facility.';
       if(lb.getAttribute('aria-label')!==al) lb.setAttribute('aria-label',al);
       lb.classList.toggle('ripe',!!ripe);
     }
-    if(el){
-      if(el.dataset.rooms!==rooms.join(',')){ el.dataset.rooms=rooms.join(',');
-        el.innerHTML=rooms.map(r=>`<button class="loctab" data-room="${r}"><span class="li"></span><span class="lt"><b></b><small></small></span></button>`).join(''); }
-      rooms.forEach((r,i)=>{ const btn=el.children[i]; if(!btn) return; const bn=btn.querySelector('b'); if(bn&&bn.textContent!==(full[r]||r)) bn.textContent=full[r]||r; });
-    }
+    const el=$('#locTabs'); if(el&&el.childElementCount){ el.innerHTML=''; el.dataset.rooms=''; }
+    const pick=$('#locPick'); if(pick&&!pick.classList.contains('hidden')) paintLocPick(pick);
     const tb=$('#toolbar'); if(tb){ const b=(tb.offsetHeight+10)+'px'; if(document.documentElement.style.getPropertyValue('--toastb')!==b) document.documentElement.style.setProperty('--toastb',b); }
   }
   function hud(dt){
@@ -239,18 +262,8 @@ window.UI = (function(){
     if(r==='facility'){ if(!G.st.land) landModal(); else G.setRoom('facility'); return; }
     if(r==='gh'){ if(!G.st.ghBuilt) ghModal(); else G.setRoom('gh'); return; }
     if(r==='benches'){ if(!G.st.inBuilt) indoorModal(); else G.setRoom('benches'); } }
-  // One location control, beside the green circle. Tap cycles owned rooms, or opens the next place when it is still locked.
-  function cycleRoom(){ Sound.play('tap'); hidePop();
-    const st=G.st, open=['garage'];
-    if(st.land){ open.push('gh'); open.push('facility'); }
-    if(st.inBuilt) open.push('benches');
-    const cur=G.currentRoom(), i=open.indexOf(cur);
-    if(open.length>1&&i>=0&&i<open.length-1){ G.setRoom(open[i+1]); return; }
-    if(open.length>1&&i===open.length-1){ G.setRoom(open[0]); return; }
-    if(!st.land){ landModal(); return; }
-    if(!st.ghBuilt){ G.setRoom('gh'); return; }
-    if(!st.inBuilt){ indoorModal(); return; }
-    G.setRoom('garage'); }
+  // The location tab opens the picker. Rooms are not separate buttons.
+  function cycleRoom(){ toggleLocPick(); }
   function tapLoc(l){ if(l==='indoor') tapRoom('benches'); else if(l==='farm') tapRoom('facility'); else tapRoom('garage'); }
   function reqList(L){ return `<div class="reqs">${L.map(c=>`<div class="req ${c.ok?'ok':''}"><span>${c.ok?'✅':'⬜'}</span><div class="grow"><b>${esc(c.t)}</b>${c.p!=null&&!c.ok?bar(c.p,'thin'):''}${c.v&&!c.ok?`<small>${esc(c.v)}</small>`:''}</div></div>`).join('')}</div>`; }
   function inspectGlass(p){
@@ -329,7 +342,7 @@ window.UI = (function(){
       ${bits.join('')||'<p>This plant is fine. No water, feed, or pest care right now.</p>'}
       ${acts.length?'<div class="acts">'+acts.join('')+'</div>':''}`;
   }
-  function hidePop(keepSel){ popPlot=null; if(!keepSel) lastSel=null; $('#pop').classList.add('hidden'); }
+  function hidePop(keepSel){ popPlot=null; if(!keepSel) lastSel=null; $('#pop').classList.add('hidden'); closeLocPick(); }
   // ---------- panels ----------
   const PANELS={};
   function open(name,t){ panel=name; tab=t||null; hidePop();
@@ -976,8 +989,9 @@ window.UI = (function(){
     $('#seedBag').onclick=e=>{ e.stopPropagation(); Sound.play('tap'); seedPick(); };
     $('#seedPick').onclick=e=>{ e.stopPropagation(); const b=e.target.closest('[data-pick]'); if(!b) return; $('#seedPick').classList.add('hidden'); if(b.dataset.pick==='__shop'){ open('seeds'); return; } G.st.selSeed=b.dataset.pick; setTool('seed'); seedBag(); Sound.play('tap'); toast('Tap empty buckets or beds to plant '+G.strain(b.dataset.pick).name); };
     document.addEventListener('pointerdown',e=>{ if(!e.target.closest('#seedPick,#seedBag')) $('#seedPick').classList.add('hidden'); });
-    const locEl=$('#locTabs'); if(locEl) locEl.addEventListener('click',e=>{ const b=e.target.closest('[data-room]'); if(b) tapRoom(b.dataset.room); });
-    const locBtn=$('#locBtn'); if(locBtn) locBtn.onclick=e=>{ e.stopPropagation(); cycleRoom(); };
+    const locBtn=$('#locBtn'); if(locBtn) locBtn.onclick=e=>{ e.stopPropagation(); toggleLocPick(); };
+    const locPick=$('#locPick'); if(locPick) locPick.addEventListener('click',e=>{ const b=e.target.closest('[data-room]'); if(!b) return; e.stopPropagation(); tapRoom(b.dataset.room); });
+    document.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('#locSlot')) return; closeLocPick(); });
     const qa=$('#qaMain'), qm=$('#qaMenu');
     if(qa&&qm){ qa.onclick=e=>{ e.stopPropagation(); const closed=qm.classList.toggle('hidden'); qa.classList.toggle('open', !closed); qa.setAttribute('aria-expanded', closed?'false':'true'); Sound.play('tap'); };
       document.addEventListener('pointerdown',e=>{ if(e.target.closest('#qaFab')) return; qm.classList.add('hidden'); qa.classList.remove('open'); qa.setAttribute('aria-expanded','false'); }); }
