@@ -1,5 +1,6 @@
 /* Regression: old saves keep workers and upkeepPaid, but neither bills nor automates.
-   Empty pots with no seeds do not toast or open the seed shop. The broke-farm rescue still grants seeds.
+   An empty pot or Plant all with no seeds shows a tiny "No seeds" note and does not open the shop or bag.
+   The broke-farm rescue still grants seeds.
    Run: node tests/upkeep-workers-check.js */
 const fs = require('fs');
 const path = require('path');
@@ -14,7 +15,7 @@ const sandbox = {
     warn: console.warn.bind(console),
     error: (...a) => { errors.push(a.map(x => x && x.stack || String(x)).join('\n')); }
   },
-  setTimeout, clearTimeout, setInterval, clearInterval,
+  setInterval, clearInterval,
   URLSearchParams, Map, Set, WeakMap, Object, Array, JSON, Math, Date, Number, String, Boolean, Error, RegExp, Promise, Uint8Array, parseInt, parseFloat, isFinite, isNaN,
   performance: { now: () => Date.now() },
   devicePixelRatio: 1,
@@ -51,11 +52,15 @@ const ctx = new Proxy({}, {
   set(){ return true; }
 });
 function make(id){
+  const listeners = {};
   const node = {
-    id, className: '', textContent: '', _html: '', scrollTop: 0, value: '', style: {}, dataset: {},
+    className: '', textContent: '', _html: '', scrollTop: 0, value: '', style: {}, dataset: {},
     clientWidth: 390, clientHeight: 600, width: 0, height: 0, children: [],
     classList: classList(),
-    addEventListener(){}, removeEventListener(){}, setPointerCapture(){},
+    addEventListener(type, fn){ (listeners[type] || (listeners[type] = [])).push(fn); },
+    removeEventListener(){},
+    dispatch(type, ev){ (listeners[type] || []).slice().forEach(fn => fn(ev)); },
+    setPointerCapture(){},
     getContext(){ return ctx; },
     querySelector(){ return null; },
     querySelectorAll(){ return []; },
@@ -64,6 +69,16 @@ function make(id){
     closest(){ return null; }, appendChild(){}, remove(){}, focus(){}, select(){}, click(){},
     setAttribute(){}, getAttribute(){ return null; }
   };
+  let _id = '';
+  Object.defineProperty(node, 'id', {
+    get(){ return _id; },
+    set(v){
+      if (_id && els[_id] === node) delete els[_id];
+      _id = v == null ? '' : String(v);
+      if (_id) els[_id] = node;
+    }
+  });
+  if (id) node.id = id;
   Object.defineProperty(node, 'innerHTML', {
     get(){ return node._html; },
     set(v){ node._html = String(v == null ? '' : v); }
@@ -78,8 +93,29 @@ sandbox.document = {
   querySelector: sel => { const m = String(sel).match(/^#([\w-]+)$/); return m ? ensure(m[1]) : null; },
   querySelectorAll: () => [],
   addEventListener(){},
-  createElement: () => make('el')
+  createElement: () => make('')
 };
+const pending = [];
+let clock = 0, seq = 1;
+sandbox.setTimeout = (fn, ms) => {
+  const rec = { id: seq++, fn, at: clock + Math.max(0, ms || 0), dead: false };
+  pending.push(rec);
+  return rec.id;
+};
+sandbox.clearTimeout = id => {
+  const rec = pending.find(t => t.id === id);
+  if (rec) rec.dead = true;
+};
+function flush(ms){
+  clock += ms;
+  for (let guard = 0; guard < 1000; guard++){
+    const due = pending.filter(t => !t.dead && t.at <= clock).sort((a, b) => a.at - b.at || a.id - b.id);
+    if (!due.length) return;
+    due[0].dead = true;
+    due[0].fn();
+  }
+  throw new Error('timer flush did not settle');
+}
 sandbox.Sound = { play(){}, setScene(){}, setPaused(){}, resume(){} };
 sandbox.R = { closeup(){ return ''; }, plantCard(){}, cosPreview(){}, shake(){}, frame(){}, fit(){}, resize(){}, lens:{on:false}, setLens(){} };
 
@@ -185,11 +221,27 @@ G.on('noseed', () => { noseed++; });
 G.on('toast', t => { toasts.push(t && t.t); });
 assert(G.plant(byId('g1')) === false && noseed === 0, 'planting with no seeds still emits noseed');
 
+function pipEl(){ return els.seedPip; }
+function pipText(){ const el = pipEl(); return el ? el.textContent : ''; }
 UI.close();
 UI.tapPlot(byId('g1'), 100, 100);
+assert(pipText() === 'No seeds' && !pipEl().classList.contains('hidden') && !pipEl().classList.contains('out'), 'empty pot did not show the No seeds note: ' + pipText());
 assert(els.sheet.classList.contains('hidden'), 'tapping an empty pot opened a sheet');
+assert(!els.seedPick || els.seedPick.classList.contains('hidden'), 'tapping an empty pot opened the seed bag');
+assert(!byId('g1').strain, 'tapping an empty pot with no seeds planted it');
 const modalHtml = (els.modal && els.modalCard && (els.modal._html || '') + (els.modalCard._html || '')) || '';
+assert(!els.modal || els.modal.classList.contains('hidden'), 'tapping an empty pot opened a modal');
 assert(!/Open your seed bag|Out of those seeds|No seeds left|not enough cash for upkeep/i.test(modalHtml), 'an out-of-seeds or upkeep pop-up appeared: ' + modalHtml);
+flush(1400);
+assert(!pipEl().classList.contains('hidden') && !pipEl().classList.contains('out'), 'the No seeds note dismissed before 1.5s');
+UI.tapPlot(byId('g1'), 100, 100);
+flush(1400);
+assert(pipText() === 'No seeds' && !pipEl().classList.contains('out'), 'a second tap did not keep the note up');
+flush(100);
+assert(pipEl().classList.contains('out') && !pipEl().classList.contains('hidden'), 'the note did not start fading at 1.5s');
+flush(180);
+assert(pipEl().classList.contains('hidden'), 'the note did not hide after the fade');
+assert(noseed === 0, 'the empty-pot note emitted noseed');
 
 UI.open('upgrades', 'hands');
 const upBody = els.sheetBody._html;
@@ -199,7 +251,22 @@ assert(upTabs.includes('Garage') && upTabs.includes('Water + feed') && !upTabs.i
 UI.open('upgrades', 'gh');
 assert(!/upkeep/i.test(els.sheetBody._html), 'greenhouse card still mentions upkeep');
 UI.open('seeds');
-assert(/data-a="plantall"[^>]*disabled/.test(els.sheetFoot._html), 'Plant all stays clickable with no seeds: ' + els.sheetFoot._html);
+const foot = els.sheetFoot._html;
+assert(/data-a="plantall"/.test(foot) && !/data-a="plantall"[^>]*disabled/.test(foot), 'Plant all is disabled while empty pots can still be tapped: ' + foot);
+sandbox.Payments = { setConfirmUI(){}, formatUSD(){ return '$0'; }, mode: 'test', purchase: async () => ({ ok: false }), restore: async () => ({ restored: [] }) };
+sandbox.Ads = { consent(){ return 'contextual'; }, setConsent(){}, show: async () => ({ completed: false }) };
+UI.init();
+const beforePlant = G.st.plots.filter(p => p.strain).length;
+els.sheetFoot.dispatch('click', { target: { disabled: false, dataset: { a: 'plantall' }, closest(sel){ return sel === '[data-a]' ? this : null; } } });
+assert(pipText() === 'No seeds' && !pipEl().classList.contains('hidden'), 'Plant all with no seeds did not show the note');
+assert(UI.panel === 'seeds' && !els.sheet.classList.contains('hidden'), 'Plant all left the seed shop');
+assert(!els.seedPick || !/Seed bag|Bag's empty/.test(els.seedPick._html || ''), 'Plant all opened the seed bag: ' + (els.seedPick && els.seedPick._html));
+assert(!els.modal || els.modal.classList.contains('hidden'), 'Plant all opened a modal');
+assert(G.st.plots.filter(p => p.strain).length === beforePlant, 'Plant all with no seeds planted a pot');
+flush(1500);
+assert(pipEl().classList.contains('out'), 'Plant all note did not fade at 1.5s');
+flush(180);
+assert(pipEl().classList.contains('hidden'), 'Plant all note stayed on screen');
 UI.close();
 assert(fs.readFileSync(path.join(root, 'js/ui.js'), 'utf8').includes("Bag's empty. Grab seeds at the shop."), 'the empty seed-bag hint was removed');
 

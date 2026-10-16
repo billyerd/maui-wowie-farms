@@ -37,6 +37,17 @@ window.UI = (function(){
     const el=document.createElement('div'); el.className='toast'; el.textContent=String(text||''); box.appendChild(el);
     setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); },240); },3200);
   }
+  // A tiny note. No OK button, and it does not open a sheet.
+  let pipFade=0, pipHide=0;
+  function arm(fn,ms){ const t=setTimeout(fn,ms); if(t&&t.unref) t.unref(); return t; }
+  function pip(text){
+    let el=document.getElementById('seedPip');
+    if(!el){ el=document.createElement('div'); el.id='seedPip'; el.setAttribute('role','status'); document.body.appendChild(el); }
+    el.textContent=String(text||'');
+    el.classList.remove('hidden','out');
+    clearTimeout(pipFade); clearTimeout(pipHide);
+    pipFade=arm(()=>{ el.classList.add('out'); pipHide=arm(()=>el.classList.add('hidden'),180); },1500);
+  }
   function label(it){ if(it.group&&GROUP_TXT[it.group]) return GROUP_TXT[it.group](it.n,it.first); return it.n>1?it.text+'  ×'+it.n:it.text; }
   function noticeKind(kind){ return (String(kind||'').split(/\s+/).find(k=>k==='good'||k==='bad'||k==='gemt'))||''; }
   function paintNotice(it){ const p=document.querySelector('#modalCard p.notice'); if(p) p.textContent=label(it); }
@@ -200,7 +211,7 @@ window.UI = (function(){
   // ---------- plot interaction ----------
   function tapPlot(p,sx,sy){
     const st=G.st, again=popPlot===p||lastSel===p; hidePop();
-    if(!p.strain){ lastSel=null; if(st.seeds[st.selSeed]>0) G.plant(p); return; }
+    if(!p.strain){ lastSel=null; if(st.seeds[st.selSeed]>0) G.plant(p); else pip('No seeds'); return; }
     if(p.prog>=1){ G.harvest(p); lastSel=null; return; }
     // one tap = highlighted with quick-action bubbles; tap the same plant again for the full plant card
     if(again){ lastSel=null; showPop(p,sx,sy); return; }
@@ -329,9 +340,9 @@ window.UI = (function(){
       return row(s,`<div class="stats"><span>⏱ ${sec(s.game.growSec)}</span><span>${s.game.buds} buds</span><span>~${fmt(s.game.payout)}/plant</span><span>${fmt(ph)}/h</span><span>${thc(s)}</span></div><p>Seed ${fmt(pr)} · own <b>${st.seeds[s.id]||0}</b>${m.lvl?` · Mastery x${m.m}`:''}${m.next&&st.level>=3?` · ${m.n}/${m.next} harvests to x${m.nextM}`:''}</p>`,
       `<div style="display:flex;flex-direction:column;gap:4px"><button class="btn sm" data-a="buy" data-id="${s.id}" data-n="1" ${st.cash<pr?'disabled':''}>Buy 1</button><button class="btn sm sec" data-a="buy" data-id="${s.id}" data-n="5" ${st.cash<pr*5?'disabled':''}>×5</button>${st.selSeed===s.id?'<span class="chip selchip">✓ Selected</span>':''}</div>`,st.selSeed===s.id).replace('<div class="row','<div data-pickseed="'+s.id+'" class="row '+((st.seeds[s.id]||0)>0?'pickable':'')); }).join('')
       +`<div class="note">Grow times run from 30 seconds (Common) to 3 days (Legendary). Plants keep growing while you're away. Long grows pay a little more per hour. More strains unlock by level, breeding and island festivals.</div>`;
-    const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length, have=(st.seeds[st.selSeed]||0)>0;
+    const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length;
     return {title:'Seed Shop',sub:'Pick a strain, then tap an empty bucket, pot or bed.',tabs:[['all','All'],['fast','Under 30m'],['island','Island'],['top','Epic+']],body,
-      foot:`<div style="flex:1;font-size:12px;color:var(--mut)">Selected: <b style="color:#fff">${esc(sel?.name||'-')}</b> (${st.seeds[st.selSeed]||0})</div><button class="btn" data-a="plantall" ${!empty||!have?'disabled':''}>Plant ${empty} here</button>`};
+      foot:`<div style="flex:1;font-size:12px;color:var(--mut)">Selected: <b style="color:#fff">${esc(sel?.name||'-')}</b> (${st.seeds[st.selSeed]||0})</div><button class="btn" data-a="plantall" ${!empty?'disabled':''}>Plant ${empty} here</button>`};
   };
   // Dry, cure and craft
   PANELS.process=()=>{
@@ -776,7 +787,7 @@ window.UI = (function(){
     switch(a){
       case 'buy': if(G.buySeeds(d.id,+d.n)){ Sound.play('buy'); toast('+'+d.n+' '+G.strain(d.id).name+' seeds','good'); } break;
       case 'sel': st.selSeed=d.id; setTool('seed'); toast('Tap empty buckets or beds to plant '+G.strain(d.id).name); break;
-      case 'plantall': { if(!(st.seeds[st.selSeed]>0)) break; st.plots.forEach(p=>{ if(p.loc===st.loc&&p.owned&&!p.strain) G.plant(p); }); break; }
+      case 'plantall': { if(!(st.seeds[st.selSeed]>0)){ pip('No seeds'); break; } st.plots.forEach(p=>{ if(p.loc===st.loc&&p.owned&&!p.strain) G.plant(p); }); break; }
       case 'load': G.loadDryer(); break;
       case 'sell': G.sell(d.stg,d.k); break;
       case 'sellgood': G.sellGood(d.k); break;

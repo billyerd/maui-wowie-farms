@@ -744,3 +744,8 @@ body.sheet-open #seedBag,body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.
 /* Tutorial-skip note sits clear of the location tabs. */
 #toasts.dock{top:var(--dock-top, auto)!important;bottom:var(--dock-bot, auto)!important;left:12px!important;right:12px!important;transform:none!important;z-index:16;width:auto;max-width:none;align-items:stretch;pointer-events:none}
 #toasts.dock .toast{max-width:100%}
+#seedPip{position:fixed;left:50%;bottom:calc(var(--sab, 0px) + 168px);transform:translateX(-50%);z-index:45;pointer-events:none;
+  padding:5px 10px;border-radius:999px;background:rgba(8,18,14,.92);border:1px solid rgba(255,255,255,.18);
+  color:#fff;font:800 12px/1.2 system-ui,sans-serif;letter-spacing:.02em;box-shadow:0 6px 16px rgba(0,0,0,.35);opacity:1;transition:opacity .18s}
+#seedPip.hidden{display:none}
+#seedPip.out{opacity:0}
