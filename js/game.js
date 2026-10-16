@@ -60,6 +60,8 @@ window.G = (function(){
   // balance (QC econ report 2026-10-12): foundation is a level 10-12 cash sink paid before the build
   const INDOOR={level:11, permitCost:100000, permitLevel:9, build:300000, foundCost:250000, foundLevel:9, ghBeds:12, ghPlants:36};
   const BENCH=[{name:'Back bench (8 pots)',add:8,cost:0},{name:'Middle bench',add:8,cost:40000},{name:'Front bench',add:8,cost:80000},{name:'Vertical rack tier (2nd level)',add:8,cost:250000}];
+  // Sheet order matches the greenhouse gear row: leveled buy, then the single upgrades.
+  const INDOOR_GEAR=['led','air','hvac','fert','co2'];
   // ---------- upgrades ----------
   // loc: which tab lists it. Watering + feeding lines are farm-wide.
   const UPG = {
@@ -85,18 +87,21 @@ window.G = (function(){
     catch:   {loc:'farm', name:'Catchment tank', desc:'Terraces and greenhouse beds hold water about 40% longer.', base:2500, mul:1, max:1, need:'land'},
     supp:    {loc:'farm', name:'Supplemental lights', desc:'Greenhouse keeps growing at night', base:4500, mul:1, max:1, need:'gh'},
     shutters:{loc:'farm', name:'Storm shutters + hoop covers', desc:'Trade-wind storms no longer hurt ripe farm plants', base:3500, mul:1, max:1, need:'land'},
-    // --- indoor facility gear ---
-    led:     {loc:'indoor', name:'LED light bars', desc:'+15% indoor growth per level', base:12000, mul:2.5, max:4, need:'in'},
-    hvac:    {loc:'indoor', name:'HVAC (ducted mini-splits)', desc:'-22% indoor mold per level, +6% quality', base:9000, mul:2.5, max:3, need:'in'},
-    co2:     {loc:'indoor', name:'CO2 enrichment', desc:'+20% indoor growth (sealed room)', base:6000, mul:1, max:1, need:'in'},
-    fert:    {loc:'indoor', name:'Fertigation system', desc:'Auto-feeds each indoor plant once, at the halfway mark, and +10% indoor yield', base:15000, mul:1, max:1, need:'in'},
-    veg:     {loc:'indoor', name:'Veg room', desc:'Plants move in pre-vegged: indoor plants start 15% grown', base:35000, mul:1, max:1, need:'in'},
-    clone:   {loc:'indoor', name:'Clone + mother room', desc:'Cut clones instead of buying seeds: -40% seed prices, +10% head start indoors', base:20000, mul:1, max:1, need:'in'},
+    // Indoor Facility gear. Same shape as the greenhouse list: one 3-step upgrade, then four single buys
+    // from a few hundred dollars to a few thousand. Effects cover the facility plots and the sealed benches.
+    // veg/clone/dryroom/solar stay on the save for farms that already bought them; they are not on this list.
+    led:     {loc:'indoor', name:'Grow light bars', desc:'+15% growth per level on the Indoor Facility and the sealed benches', base:1500, mul:2.6, max:3, need:'land'},
+    air:     {loc:'indoor', name:'Airflow fans', desc:'Moves air through the canopy: -25% mold and +3% quality', base:350, mul:1, max:1, need:'land'},
+    hvac:    {loc:'indoor', name:'Climate control', desc:'-22% mold and +6% quality per level', base:1800, mul:1, max:1, need:'land'},
+    fert:    {loc:'indoor', name:'Nutrient doser', desc:'Feeds each indoor plant once at the halfway mark, and +10% yield', base:2500, mul:1, max:1, need:'land'},
+    co2:     {loc:'indoor', name:'CO2 enrichment', desc:'+20% growth on the Indoor Facility and the sealed benches', base:3500, mul:1, max:1, need:'land'},
+    veg:     {loc:'indoor', name:'Veg room', desc:'Plants move in pre-vegged: sealed-bench plants start 15% grown', base:35000, mul:1, max:1, need:'in'},
+    clone:   {loc:'indoor', name:'Clone + mother room', desc:'Cut clones instead of buying seeds: -40% seed prices, +10% head start on the sealed benches', base:20000, mul:1, max:1, need:'in'},
     labPollen:{loc:'garage', name:'Pollen chamber', desc:'Clean pollen storage: crosses finish 15% faster per level', base:80000, mul:3, max:3, need:'lab'},
     labTissue:{loc:'garage', name:'Tissue culture bench', desc:'Pheno grow-outs (line stabilizing) finish 20% faster per level', base:120000, mul:3, max:3, need:'lab'},
     labSeq:  {loc:'garage', name:'Genetic sequencer', desc:'Every finished pheno hunt also gives a hint token', base:500000, mul:1, max:1, need:'lab'},
     dryroom: {loc:'indoor', name:'Drying + cure room', desc:'+3 drying slots and 25% faster drying and curing', base:25000, mul:1, max:1, need:'in'},
-    solar:   {loc:'indoor', name:'Solar roof', desc:'+6% indoor growth per level (Kauai sun!)', base:45000, mul:2.6, max:3, need:'in'},
+    solar:   {loc:'indoor', name:'Solar roof', desc:'+6% indoor growth per level. Kept for farms that already bought it.', base:45000, mul:2.6, max:3, need:'in'},
     // --- processing / sales ---
     dryer:   {loc:'all', name:'Drying racks', desc:'+1 drying slot and 12% faster drying per level', base:60, mul:2.3, max:8},
     cure:    {loc:'all', name:'Curing jars', desc:'Dried buds cure automatically (+45% value). Faster each level', base:150, mul:2.6, max:4},
@@ -193,6 +198,8 @@ window.G = (function(){
   const cost=(def,lvl)=>def.once?(lvl>0?0:Math.round(def.base)):def.costs?def.costs[lvl+1]:Math.round(def.base*Math.pow(def.mul,lvl));
   const maxLv=d=>d.costs?d.costs.length-1:d.max;
   const lv=k=>st.upg[k]||0;
+  // Indoor Facility plots are zone field. Sealed benches are zone in. Gear on the indoor sheet covers both.
+  const indoorPlots=z=>z==='field'||z==='in';
   const wk=k=>st.workers[k]||0;
   const mana=k=>F.prestigeTree?(st.manaSpent[k]||0):0;
   function fmt(n){ if(n<0) return '-'+fmt(-n); if(n<100&&n%1>.004) return '$'+n.toFixed(2); n=Math.floor(n); if(n<1e4) return '$'+n.toLocaleString('en-US'); const u=['','K','M','B','T','Qa']; let i=0; let v=n; while(v>=1000&&i<u.length-1){v/=1000;i++;} return '$'+(v<100?v.toFixed(v<10?2:1):Math.floor(v))+u[i]; }
@@ -417,8 +424,8 @@ window.G = (function(){
   // of that grow (it does not drain) and restores the fed bonuses. Before halfway there is no penalty.
   function feedCost(){ return 0; }
   function feed(p,auto){ if(!p||!p.strain||p.prog>=1||p.prog<.5||p.food>0) return false; p.food=1; bump('feed'); if(!auto) done('feed'); emit('feed',p); return true; }
-  function quality(p){ let q=p.q; { const K=keeperRec(p.strain); if(K&&typeof K.q==='number') q+=K.q; q*=lineGen(p.strain)>=LINE.stable?1:lineMult(p.strain); } if(p.zone==='in') q+=.1+.06*lv('hvac'); if(p.zone==='garage') q+=.03*lv('fan')+.02*lv('oscfan')+.05*lv('phkit'); if(p.zone==='gh') q+=.04*lv('shade')+.03*lv('cooler'); if(lv('water')>=4) q+=.03; if(lv('nutes')>=3) q+=.05; return Math.max(.5,q); }
-  function yieldMult(p){ const z=ZONE[p.zone]; let y=z.yield; { const K=keeperRec(p.strain); if(K&&typeof K.y==='number') y*=K.y; y*=lineMult(p.strain); } if(p.zone==='garage') y*=1+.05*lv('light'); if(p.zone==='in'&&lv('fert')) y*=1.1; if(p.zone==='gh'||p.zone==='field') y*=1+.2*lv('beds');  if(lv('nutes')>=3) y*=1.15; if(setDone('dessert')) y*=1.1; return y; }
+  function quality(p){ let q=p.q; { const K=keeperRec(p.strain); if(K&&typeof K.q==='number') q+=K.q; q*=lineGen(p.strain)>=LINE.stable?1:lineMult(p.strain); } if(p.zone==='in') q+=.1; if(indoorPlots(p.zone)) q+=.06*lv('hvac')+.03*lv('air'); if(p.zone==='garage') q+=.03*lv('fan')+.02*lv('oscfan')+.05*lv('phkit'); if(p.zone==='gh') q+=.04*lv('shade')+.03*lv('cooler'); if(lv('water')>=4) q+=.03; if(lv('nutes')>=3) q+=.05; return Math.max(.5,q); }
+  function yieldMult(p){ const z=ZONE[p.zone]; let y=z.yield; { const K=keeperRec(p.strain); if(K&&typeof K.y==='number') y*=K.y; y*=lineMult(p.strain); } if(p.zone==='garage') y*=1+.05*lv('light'); if(indoorPlots(p.zone)&&lv('fert')) y*=1.1; if(p.zone==='gh'||p.zone==='field') y*=1+.2*lv('beds');  if(lv('nutes')>=3) y*=1.15; if(setDone('dessert')) y*=1.1; return y; }
   function mgrCovers(){ return false; }
   function offColCap(){ return (8+4*lv('water'))*3600; }   // upgradable via Watering
   function harvest(p){
@@ -462,7 +469,7 @@ window.G = (function(){
     if(!st.stats.harvests) r*=3;   // fast first harvest (~10 s) for the guided first minute
     if(p.zone==='garage') r*=(1+.125*lv('light'))*(1+.05*lv('timer'));
     if(p.zone==='gh') r*=1+.15*lv('lightdep');
-    if(p.zone==='in') r*=(1+.15*lv('led'))*(1+.2*lv('co2'))*(1+.06*lv('solar'));
+    if(indoorPlots(p.zone)) r*=(1+.15*lv('led'))*(1+.2*lv('co2'))*(1+.06*lv('solar'));
     if(z.outdoor) r*=1;
     r*=1+.08*mana('thumb'); if(setDone('purple')) r*=1.1; if(boostOn('grow')) r*=2; if(boostLeft('grow')>0) r*=2; if(festOn('monarch')) r*=1.2;
     if(p.water<=0) r*=.15;
@@ -478,7 +485,7 @@ window.G = (function(){
   // Pest / mold chance per grow cycle (scaled by progress so a 3-day plant is not doomed).
   function pestRisk(p){
     if(!p.strain||p.prog<.1) return {pests:0,mold:0};
-    if(p.zone==='in') return {pests:.0004, mold:.0028*Math.max(.15,1-.22*lv('hvac'))};
+    if(indoorPlots(p.zone)){ const moldBase=p.zone==='in'?.0028:.0002, pests=p.zone==='in'?.0004:.0012; return {pests, mold:moldBase*Math.max(.15,1-.22*lv('hvac'))*(1-.25*lv('air'))}; }
     if(p.zone==='garage'){ const f=1-.25*lv('fan'); return {pests:.0008*f, mold:.0014*f*(1-.15*lv('oscfan'))*(1-.35*lv('dehu'))}; }
     if(p.zone==='gh') return {pests:.0009, mold:.0003*(1-.4*lv('cooler'))};
     return {pests:.0012, mold:.0002};
@@ -611,7 +618,7 @@ window.G = (function(){
   const auto={r:0,m:0,w:0,f:0};
   function tickAuto(dt,offline){
     if(lv('water')>=3){ auto.w+=dt; if(auto.w>=20){ auto.w=0; st.plots.forEach(p=>{ if(p.strain&&p.prog<1&&p.water<.4){ p.water=1; if(!offline&&p.loc===st.loc) emit('sprinkle',p);} }); } }
-    if(lv('fert')) st.plots.forEach(p=>{ if(p.zone==='in'&&isHungry(p)) feed(p,true); });
+    if(lv('fert')) st.plots.forEach(p=>{ if(indoorPlots(p.zone)&&isHungry(p)) feed(p,true); });
     if(lv('nutes')>=2){ auto.f+=dt; if(auto.f>=8){ auto.f=0; st.plots.forEach(p=>{ if(isHungry(p)) feed(p,true); }); } }
     if(st.vip){ auto.r+=dt; if(auto.r>=6){ auto.r=0; if(invCount('wet')) loadDryer(); } }
     if(st.vip){ auto.m+=dt; if(auto.m>=10){ auto.m=0;
@@ -751,11 +758,12 @@ window.G = (function(){
     if(d.need==='gh'&&!st.ghBuilt) return 'Unlock the Greenhouse first';
     if((d.loc==='indoor'||d.need==='in')&&!st.land&&!st.inBuilt) return 'Unlock the Indoor Facility first';
     if(d.need==='in'&&!st.inBuilt) return 'Unlock the sealed benches first';
-    if(d.need==='land'&&!st.land) return 'Unlock the Indoor Facility first';
+    // Indoor sheet gear uses need:'land'. An old save that already built the benches can still buy it.
+    if(d.need==='land'&&!st.land&&!(d.loc==='indoor'&&st.inBuilt)) return 'Unlock the Indoor Facility first';
     if(d.need==='lab'&&!st.breedLab) return 'Unlock the Breeding Room first';
     return '';
   }
-  function upgNeedOk(d){ if(!d) return false; if(d.need==='gh'&&!st.ghBuilt) return false; if((d.loc==='indoor'||d.need==='in')&&!st.land&&!st.inBuilt) return false; if(d.need==='in'&&!st.inBuilt) return false; if(d.need==='land'&&!st.land) return false; if(d.need==='lab'&&!st.breedLab) return false; return true; }
+  function upgNeedOk(d){ if(!d) return false; if(d.need==='gh'&&!st.ghBuilt) return false; if((d.loc==='indoor'||d.need==='in')&&!st.land&&!st.inBuilt) return false; if(d.need==='in'&&!st.inBuilt) return false; if(d.need==='land'&&!st.land&&!(d.loc==='indoor'&&st.inBuilt)) return false; if(d.need==='lab'&&!st.breedLab) return false; return true; }
   function buyUpg(k){ if(k==='stand'||!UPG[k]) return false; const d=UPG[k], l=lv(k); if(l>=maxLv(d)) return false; const block=upgBlock(k); if(block){ emit('toast',{t:block,k:'bad'}); return false; } if(d.lvl&&st.level<d.lvl){ emit('toast',{t:d.name+' unlocks at level '+d.lvl,k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.upg[k]=l+1; if(k==='water'&&l+1>=1) done('hose'); emit('upgrade',k); return true; }
   function workerOk(){ return false; }
   function hire(){ return false; }
@@ -1158,7 +1166,7 @@ window.G = (function(){
       // v2 saves from before real-time: keep the same in-game day/hour, then let the wall clock drive it
       if(raw&&(!raw.tv||raw.t0==null)){ const old=raw.time||0, days=old/480; st.t0=(raw.lastSave||Date.now())-days*DAY_LEN*1000; st.tv=2; }
       if(st.land&&!st.phenoRoom) st.phenoRoom=true;
-      migrateGarage(st, raw); migrateRoom(st, raw);
+      migrateGarage(st, raw); migrateRoom(st, raw); migrateIndoorGear(st);
       if(st.inBuilt) st.found=true;
       // Older saves may store upg.stand. Leave the number on the save. It does not buy anything and does not change prices.
       // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)
@@ -1338,6 +1346,19 @@ window.G = (function(){
   const ROOM_ZONE={garage:'garage',facility:'field',gh:'gh',benches:'in'};
   const ROOM_NAME={garage:'Garage',facility:'Indoor Facility',gh:'Greenhouse',benches:'Benches'};
   function roomZone(r){ return ROOM_ZONE[r]||'garage'; }
+  // Indoor sheet gear was retuned (fewer steps, lower prices, need the facility). Owned levels stay.
+  // A light level past the new 3-step cap, or climate past the new single buy, still applies in full.
+  // Veg, clone, dry room and solar stay on the save and keep their effects.
+  function migrateIndoorGear(s){
+    if(!s) return;
+    if(!s.upg||typeof s.upg!=='object'||Array.isArray(s.upg)) s.upg={};
+    ['led','hvac','co2','fert','air','veg','clone','dryroom','solar'].forEach(k=>{
+      if(s.upg[k]==null) return;
+      const n=s.upg[k]|0;
+      s.upg[k]=n>0?n:0;
+    });
+    s.inGear=1;
+  }
   function migrateRoom(s, raw){
     if(!s) return;
     // newState fills room:'garage' before the save is merged, so an old file with no room
@@ -1390,7 +1411,7 @@ window.G = (function(){
   function drainCrew(){ const a=crewLog.slice(); crewLog.length=0; return a; }
 
   return {
-    get st(){return st}, F, S, BY, strain, UPG, WORKERS, WEATHER, QUESTS, ZONE, UPK_NAME, LOCS, LOC_NAME, TIERN, STAGE_MULT, DAY_LEN, GARAGE, FIELD, GH, GH_BUILD, BENCH, INDOOR, LAND_COST, LAND_LEVEL,
+    get st(){return st}, F, S, BY, strain, UPG, WORKERS, WEATHER, QUESTS, ZONE, UPK_NAME, LOCS, LOC_NAME, TIERN, STAGE_MULT, DAY_LEN, GARAGE, FIELD, GH, GH_BUILD, BENCH, INDOOR, INDOOR_GEAR, LAND_COST, LAND_LEVEL,
     REP, repTier, addRep, MASTERY, mastery, SETS, MANA_UPG, manaCost, manaGain, buyMana, mana,
     passState, passTier, passClaim, passClaimAll, seasonEv, evFx, sqInfo, sqClaim, sqReady, sqWeek, startSeasonEvent:()=>{ const se=seasonEv(); st.event.id='season'; st.event.t=se.dur; emit('event',se); },
     LINE, HEIR, VAULT, heirCount, heirCost, canCertify, startCertify, claimVault, checkVault, lineGen, lineName, lineMult, stableLines, breedProgress, breedPlanEstimate, CROSS_T, HUNT_T,

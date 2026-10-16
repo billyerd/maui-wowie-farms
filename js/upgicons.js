@@ -68,7 +68,7 @@ window.UpgIcons=(function(){
     x.save(); x.shadowColor='rgba(0,0,0,.35)'; x.shadowBlur=6; x.shadowOffsetY=3; (D[key]||D._)(); x.restore();
     x.strokeStyle='rgba(255,255,255,.18)'; x.lineWidth=2; rr(1,1,S-2,S-2,25); x.stroke(); return c.toDataURL('image/png'); }
   const PNG={
-    oscfan:'assets/new-art/sprites/clip-fan.png', timer:'assets/new-art/sprites/temp-meter.png', trays:'assets/new-art/sprites/boxes.png',
+    oscfan:'assets/new-art/sprites/clip-fan.png', air:'assets/new-art/sprites/clip-fan.png', timer:'assets/new-art/sprites/temp-meter.png', trays:'assets/new-art/sprites/boxes.png',
     light:'assets/new-art/sprites/led-bar-light.png', led:'assets/new-art/sprites/led-bar-light.png', phkit:'assets/new-art/sprites/ph-meter.png',
     fan:'assets/new-art/sprites/inline-fan.png', dehu:'assets/new-art/sprites/dehumidifier.png', hvac:'assets/new-art/sprites/dehumidifier.png',
     press:'assets/new-art/sprites/rosin-press.png', shade:'assets/new-art/sprites/shade-cloth.png', cooler:'assets/new-art/sprites/swamp-cooler.png',

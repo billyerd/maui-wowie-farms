@@ -538,19 +538,26 @@ window.UI = (function(){
     }
     else if(tab==='facility'){
       body+=upBanner('facility');
-      const gear=['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join('');
-      const sealed=['led','hvac','co2','fert','veg','clone','dryroom','solar'].map(k=>upRow(k)).join('');
-      if(!st.land){ const L=landReq(); body+=`<div class="note">The Indoor Facility is the old family land: 40 plots. It opens at level ${G.LAND_LEVEL} for ${fmt(G.LAND_COST)}. Plants already growing there stay put. The sealed benches are later: level ${G.INDOOR.level}, permit ${fmt(G.INDOOR.permitCost)} at level ${G.INDOOR.permitLevel}, foundation ${fmt(G.INDOOR.foundCost)} at level ${G.INDOOR.foundLevel}, build ${fmt(G.INDOOR.build)}.</div>${reqList(L)}<button class="btn wide gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>Buy the land · ${fmt(G.LAND_COST)}</button>`;
-        body+=`<div class="section-t">Facility gear</div>`+gear+`<div class="section-t">Sealed benches</div>`+sealed; }
-      else { body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div>`+stepCard('field','Plots');
-        body+=`<div class="section-t">Facility gear</div>`+gear;
+      const gear=G.INDOOR_GEAR.map(k=>upRow(k)).join('');
+      const kept=['veg','clone','dryroom','solar'].filter(k=>G.lv(k)>0);
+      const roomImg=`<img class="upico" alt="" src="assets/new-art/sprites/dehumidifier.png">`;
+      if(!st.land){
+        const need=G.LAND_LEVEL, cost=G.LAND_COST, L=landReq();
+        body+=`<div class="note">The Indoor Facility is its own room: 40 plots under one ceiling light. It opens at level ${need} for ${fmt(cost)}. The sealed benches are later, at level ${G.INDOOR.level}.</div>${reqList(L)}`;
+        body+=ucard({key:'land',theme:'indoor',state:L.every(c=>c.ok)?'canbuy':'locked',img:roomImg,title:'Buy the Indoor Facility',desc:'Opens 40 plots. Gear mounts on the side walls after you buy the room.',action:`<button class="btn gold" data-a="land" ${L.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:fmt(cost)}</button>`});
+      } else {
+        body+=`<div class="section-t">Indoor Facility · ${G.capOf('field')}/40 plots</div><div class="note">Climate, lights, airflow and nutrients. The ceiling light is already there. Each upgrade mounts in its own spot on the side wall.</div>`+stepCard('field','Plots');
+      }
+      body+=`<div class="section-t">Indoor gear</div>`+gear;
+      if(st.land){
         body+=`<div class="section-t">Sealed benches</div>`;
         if(!st.inBuilt){ body+=`<div class="note">A later sealed room with its own pots. Finish the checklist when you are ready. Plants already in that room stay on their benches.</div>`+reqList(G.indoorChecklist());
           if(!st.permit) body+=`<button class="btn wide" data-a="permit" ${st.level<G.INDOOR.permitLevel||st.cash<G.INDOOR.permitCost?'disabled':''}>${st.level<G.INDOOR.permitLevel?ico('lock')+'Permit at Lv '+G.INDOOR.permitLevel:'Buy County Agricultural Permit · '+fmt(G.INDOOR.permitCost)}</button>`;
           if(st.permit&&!st.found) body+=`<button class="btn wide" data-a="found" style="margin-top:8px" ${st.level<G.INDOOR.foundLevel||st.cash<G.INDOOR.foundCost?'disabled':''}>${st.level<G.INDOOR.foundLevel?ico('lock')+'Foundation at Lv '+G.INDOOR.foundLevel:'Pour the foundation · '+fmt(G.INDOOR.foundCost)}</button>`;
           body+=`<button class="btn wide gold" data-a="buildin" style="margin-top:8px" ${G.indoorChecklist().every(c=>c.ok)?'':'disabled'}>Build sealed benches · ${fmt(G.INDOOR.build)}</button>`; }
         else body+=`<div class="note">${G.capOf('in')}/32 pots. Open them with the Benches chip on the room tabs.</div>`+stepCard('bench','Benches');
-        body+=sealed; }
+      }
+      if(kept.length) body+=`<div class="section-t">Already on this farm</div>`+kept.map(k=>upRow(k)).join('');
     }
     else { body+=upBanner('lines')+`<div class="note">The hose unlocks <b>Water all</b> on the quick-action button. <b>Feed all</b> and <b>Harvest all</b> are free.</div>`+upRow('water')+upRow('nutes'); }
     return {title:'Upgrades',sub:'Gear lives on these cards. Rooms stay clear.',tabs,body};
