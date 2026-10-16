@@ -737,29 +737,38 @@ window.R=(function(){
       let pad=0; for(let row=h-1;row>=0&&pad<6;row--){ const d=x.getImageData(0,row,w,1).data; let mx=0; for(let i=3;i<d.length;i+=4) if(d[i]>mx) mx=d[i]; if(mx>=48) break; pad++; }
       const f=pad/h; footC.set(src,f); return f; }catch(e){ footC.set(src,0); return 0; } }
   // ---------------- plant drawing ----------------
-  // Painted growth sprites, cached at device pixel ratio so a zoomed-in bud stays sharp.
+  // Painted growth sprites. Cached at least as many pixels as the on-screen draw, so the blit is a downscale.
   const detailC=new Map();
-  function detailSprite(st,prog){
+  function detailSprite(st,prog,destPx){
     const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
-    const sc=Math.max(1,Math.min(3,Math.round((dpr||1)*2)/2));
+    let light='led';
+    try{ const room=G.currentRoom&&G.currentRoom(); light=room==='gh'?'day':'led'; }catch(e){}
+    const logical=220;
+    const sc=Math.max(2,Math.min(3,Math.ceil(Math.max(dpr||1,(destPx||0)/logical))));
     const base=(look(st).base)||'green';
-    const key=(st.id||st.type||'p')+'|'+stage+'|'+base+'|'+sc+'|'+(st.type||'');
+    const key=(st.id||st.type||'p')+'|'+stage+'|'+base+'|'+sc+'|'+light+'|'+(st.type||'')+'|'+((st.look&&st.look.leafShape)||'');
     const hit=detailC.get(key); if(hit) return hit;
-    const W=Math.round(180*sc), H=Math.round(240*sc);
+    const LW=300, LH=380, stemY=LH-32;
+    const W=Math.round(LW*sc), H=Math.round(LH*sc);
     const c=document.createElement('canvas'); c.width=W; c.height=H;
     const x=c.getContext('2d');
     x.save(); x.scale(sc,sc);
-    Art.drawPlant(x,st,stage,90,232,1.22,0);
+    Art.drawPlant(x,st,stage,LW/2,stemY,1,0);
     x.restore();
+    // Overhead room light: warm under the garage/facility LED, cooler daylight in the greenhouse. Shadow falls to the lower right.
     x.save(); x.globalCompositeOperation='source-atop';
-    const g=x.createLinearGradient(0,0,W*.85,H); g.addColorStop(0,'rgba(255,246,214,.32)'); g.addColorStop(.45,'rgba(255,246,214,0)'); g.addColorStop(1,'rgba(36,20,8,.22)');
+    const g=x.createLinearGradient(W*.28,0,W*.7,H);
+    if(light==='day'){ g.addColorStop(0,'rgba(214,236,255,.24)'); g.addColorStop(.42,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(16,26,14,.2)'); }
+    else { g.addColorStop(0,'rgba(255,236,196,.3)'); g.addColorStop(.4,'rgba(255,244,220,0)'); g.addColorStop(1,'rgba(26,16,8,.22)'); }
     x.fillStyle=g; x.fillRect(0,0,W,H); x.restore();
     const d=x.getImageData(0,0,W,H).data; let x0=W,y0=H,x1=0,y1=0,any=false;
     for(let yy=0;yy<H;yy+=2) for(let xx=0;xx<W;xx+=2){ if(d[(yy*W+xx)*4+3]>24){ any=true; if(xx<x0)x0=xx; if(yy<y0)y0=yy; if(xx>x1)x1=xx; if(yy>y1)y1=yy; } }
-    let out={c,w:W,h:H};
+    const stemDev=stemY*sc;
+    let out={c,w:W,h:H,base:Math.min(1,stemDev/H)};
     if(any&&x1>x0&&y1>y0){ x0=Math.max(0,x0-2); y0=Math.max(0,y0-2); x1=Math.min(W-1,x1+2); y1=Math.min(H-1,y1+2);
-      const w=x1-x0+1, h=y1-y0+1, o=document.createElement('canvas'); o.width=w; o.height=h; o.getContext('2d').drawImage(c,x0,y0,w,h,0,0,w,h); out={c:o,w,h}; }
-    if(detailC.size>280) detailC.clear(); detailC.set(key,out); return out;
+      const w=x1-x0+1, h=y1-y0+1, o=document.createElement('canvas'); o.width=w; o.height=h; o.getContext('2d').drawImage(c,x0,y0,w,h,0,0,w,h);
+      out={c:o,w,h,base:Math.max(0,Math.min(1,(stemDev-y0)/h))}; }
+    if(detailC.size>64) detailC.clear(); detailC.set(key,out); return out;
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -773,7 +782,8 @@ window.R=(function(){
     const thirst=p.prog<1?Math.max(0,1-p.water/.3):0, tgt=1-.13*thirst; p._dv=p._dv==null?tgt:p._dv+(tgt-p._dv)*Math.min(1,1/60*4); const droop=p._dv;
     const hk=(p.prog<1&&G.isHungry(p)?'h':'')+(p.water<=0&&p.prog<1?'d':'')+(p.pest==='pests'?'p':p.pest==='mold'?'m':'');
     ctx.save(); ctx.translate(sl.x,sl.y);
-    ctx.fillStyle='rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(2,1,hpx*.35+4,hpx*.08+2,0,0,TAU); ctx.fill();
+    // Soft contact shadow, offset to the lower right of the overhead light.
+    ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(4,2,hpx*.32+4,hpx*.065+2,0,0,TAU); ctx.fill();
     if(p.trellis){ const sx=Math.max(6,wpx*.42), th=hpx*.78; ctx.strokeStyle='#c9a86a'; ctx.lineWidth=Math.max(1.2,sl.ppm*.03); ctx.beginPath(); ctx.moveTo(-sx,0); ctx.lineTo(-sx,-th); ctx.moveTo(sx,0); ctx.lineTo(sx,-th); ctx.stroke();
       ctx.strokeStyle='rgba(240,240,230,.55)'; ctx.lineWidth=.8; ctx.beginPath(); for(let i=1;i<=3;i++){ ctx.moveTo(-sx,-th*i/3.2); ctx.lineTo(sx,-th*i/3.2); } ctx.stroke(); }
     if(p._pop>0){ const q=Math.sin(p._pop*22)*p._pop*.5; ctx.scale(1+q*.35,1-q*.45); if(G.st.settings.motion!==false) ctx.rotate(Math.sin(p._pop*48)*p._pop*.22); }
@@ -783,14 +793,18 @@ window.R=(function(){
     ctx.rotate(sway); ctx.scale(flip,droop);
     let foot=0;
     if(sl.bed&&window.Art){
-      const sp=detailSprite(st,prog);
+      const tr=ctx.getTransform?ctx.getTransform():null;
+      const dest=Math.ceil(hpx*Math.abs(tr&&tr.a||dpr||1));
+      const sp=detailSprite(st,prog,dest);
       const img={c:sp.c,w:sp.w,h:sp.h};
       const painted=hk?sick(img,hk,seed):sp.c;
       const cap=Math.max(14,(sl.cellW||wpx)-4);
       const aspect=sp.w/Math.max(1,sp.h);
       let hDraw=hpx, wDraw=hDraw*aspect;
       if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; }
-      ctx.drawImage(painted,-wDraw/2,-hDraw,wDraw,hDraw);
+      ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+      const base=sp.base==null?1:sp.base;
+      ctx.drawImage(painted,-wDraw/2,-hDraw*base,wDraw,hDraw);
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
