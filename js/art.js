@@ -25,8 +25,10 @@ window.Art = (function(){
       if(len<size*.15) continue;
       ctx.save(); ctx.rotate(a);
       const g=ctx.createLinearGradient(0,-len*wr,0,len*wr); g.addColorStop(0,dark); g.addColorStop(.5,col); g.addColorStop(1,dark);
-      ctx.fillStyle=g; leaflet(ctx,len,len*wr,9); ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.lineWidth=Math.max(.6,len*.025); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(len*.95,0); ctx.stroke();
+      ctx.fillStyle=g; leaflet(ctx,len,len*wr,12); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=Math.max(.6,len*.025); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(len*.95,0); ctx.stroke();
+      ctx.strokeStyle='rgba(18,42,12,.35)'; ctx.lineWidth=Math.max(.35,len*.012);
+      for(let s=1;s<=4;s++){ const t=s/5, px=len*t, wy=Math.sin(Math.PI*Math.pow(t,.8))*len*wr*.55; ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px+len*.08,wy); ctx.moveTo(px,0); ctx.lineTo(px+len*.08,-wy); ctx.stroke(); }
       ctx.restore();
     }
     ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(0,0,size*.05,0,TAU); ctx.fill();

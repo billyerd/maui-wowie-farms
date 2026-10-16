@@ -742,13 +742,37 @@ window.R=(function(){
       let pad=0; for(let row=h-1;row>=0&&pad<6;row--){ const d=x.getImageData(0,row,w,1).data; let mx=0; for(let i=3;i<d.length;i+=4) if(d[i]>mx) mx=d[i]; if(mx>=48) break; pad++; }
       const f=pad/h; footC.set(src,f); return f; }catch(e){ footC.set(src,0); return 0; } }
   // ---------------- plant drawing ----------------
+  // Painted growth sprites, cached at device pixel ratio so a zoomed-in bud stays sharp.
+  const detailC=new Map();
+  function detailSprite(st,prog){
+    const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
+    const sc=Math.max(1,Math.min(3,Math.round((dpr||1)*2)/2));
+    const base=(look(st).base)||'green';
+    const key=(st.id||st.type||'p')+'|'+stage+'|'+base+'|'+sc+'|'+(st.type||'');
+    const hit=detailC.get(key); if(hit) return hit;
+    const W=Math.round(180*sc), H=Math.round(240*sc);
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const x=c.getContext('2d');
+    x.save(); x.scale(sc,sc);
+    Art.drawPlant(x,st,stage,90,232,1.22,0);
+    x.restore();
+    x.save(); x.globalCompositeOperation='source-atop';
+    const g=x.createLinearGradient(0,0,W*.85,H); g.addColorStop(0,'rgba(255,246,214,.32)'); g.addColorStop(.45,'rgba(255,246,214,0)'); g.addColorStop(1,'rgba(36,20,8,.22)');
+    x.fillStyle=g; x.fillRect(0,0,W,H); x.restore();
+    const d=x.getImageData(0,0,W,H).data; let x0=W,y0=H,x1=0,y1=0,any=false;
+    for(let yy=0;yy<H;yy+=2) for(let xx=0;xx<W;xx+=2){ if(d[(yy*W+xx)*4+3]>24){ any=true; if(xx<x0)x0=xx; if(yy<y0)y0=yy; if(xx>x1)x1=xx; if(yy>y1)y1=yy; } }
+    let out={c,w:W,h:H};
+    if(any&&x1>x0&&y1>y0){ x0=Math.max(0,x0-2); y0=Math.max(0,y0-2); x1=Math.min(W-1,x1+2); y1=Math.min(H-1,y1+2);
+      const w=x1-x0+1, h=y1-y0+1, o=document.createElement('canvas'); o.width=w; o.height=h; o.getContext('2d').drawImage(c,x0,y0,w,h,0,0,w,h); out={c:o,w,h}; }
+    if(detailC.size>280) detailC.clear(); detailC.set(key,out); return out;
+  }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
     const hf=.1+.9*Math.min(1,Math.pow(Math.min(1,prog/.95),.85));
     const PS=plantSize(st.type,prog,sl); if(p.pruned||p.train) PS.w*=1+(p.pruned?.06:0)+(p.train==='top'?.1:p.train==='lst'?.07:0); const hpx=PS.h*(L.shape==='spear'||L.shape==='foxtail'?1.04:1)*sl.ppm, wpx=PS.w*sl.ppm;
     const fitW=img=>{ const nat=hpx*img.w/img.h; return Math.max(nat*.72,Math.min(nat*1.3,wpx)); };
     if(hpx*cam.z*dpr<9&&ctx===mainCtx){ ctx.fillStyle=L.leaf||'#4a8a32'; ctx.beginPath(); ctx.ellipse(sl.x,sl.y-hpx*.45,Math.max(1.5,wpx*.45),Math.max(2,hpx*.5),0,0,TAU); ctx.fill(); return hpx; }
-    const pi=plantImage(st,prog), seed=hash(p.id);
+    const pi=sl.bed?null:plantImage(st,prog), seed=hash(p.id);
     const flip=seed&1?-1:1, sway=G.st.settings.hq&&G.st.settings.motion!==false?Math.sin(now*1.3+seed%7)*.025*(p.water<=0?.3:1):0;
     // health on the plant: eased droop when thirsty, yellowing when hungry/dry, pest spots, grey mold fuzz
     const thirst=p.prog<1?Math.max(0,1-p.water/.3):0, tgt=1-.13*thirst; p._dv=p._dv==null?tgt:p._dv+(tgt-p._dv)*Math.min(1,1/60*4); const droop=p._dv;
@@ -763,7 +787,16 @@ window.R=(function(){
     if(p._shake>0&&G.st.settings.motion!==false) ctx.rotate(Math.sin(p._shake*40)*p._shake*.14);
     ctx.rotate(sway); ctx.scale(flip,droop);
     let foot=0;
-    if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
+    if(sl.bed&&window.Art){
+      const sp=detailSprite(st,prog);
+      const img={c:sp.c,w:sp.w,h:sp.h};
+      const painted=hk?sick(img,hk,seed):sp.c;
+      const cap=Math.max(14,(sl.cellW||wpx)-4);
+      const aspect=sp.w/Math.max(1,sp.h);
+      let hDraw=hpx, wDraw=hDraw*aspect;
+      if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; }
+      ctx.drawImage(painted,-wDraw/2,-hDraw,wDraw,hDraw);
+    } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
     else if(window.Art){ const stg=G.stage(p); const sp=Art.plantSprite(st,Math.min(stg,4),1); const k=hpx/(sp.h*.9); ctx.drawImage(sp.c,-sp.ox*k,-sp.oy*k,sp.c.width*k,sp.c.height*k); }
@@ -856,16 +889,15 @@ window.R=(function(){
   function roomNow(){ try{ return G.currentRoom(); }catch(e){ return 'garage'; } }
   function shownEl(id){ const e=document.getElementById(id); if(!e||e.classList.contains('hidden')) return null; const r=e.getBoundingClientRect(); if(r.width<8||r.height<8) return null; const s=getComputedStyle(e); if(s.display==='none'||s.visibility==='hidden') return null; return r; }
   function bedBand(room){
-    let top=88;
-    for(const id of ['hud','clock','goal','eventChip','locTabs']){ const r=shownEl(id); if(r&&r.bottom<H*0.5) top=Math.max(top, r.bottom+6); }
-    if(room==='gh') top=Math.max(top, H*0.16);
-    let bot=H-8;
-    for(const id of ['toolbar','qaFab','seedBag','scoutBtn','upgBtn','orderBoard']){ const r=shownEl(id); if(r&&r.top>H*0.45) bot=Math.min(bot, r.top-8); }
-    return {top, bot, left:8, right:Math.max(56,W-8), w:Math.max(48,W-16), h:Math.max(48,bot-top)};
+    let top=64;
+    for(const id of ['hud','goal','eventChip']){ const r=shownEl(id); if(r&&r.bottom<H*0.55) top=Math.max(top, r.bottom+4); }
+    let bot=H-4;
+    const tb=shownEl('toolbar'); if(tb&&tb.top>H*0.4) bot=Math.min(bot, tb.top-2);
+    return {top, bot, left:4, right:Math.max(40,W-4), w:Math.max(48,W-8), h:Math.max(48,bot-top)};
   }
   function gridScore(band, cols, rows){
-    const gap=4, cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(rows-1))/rows, plantH=cellH-30;
-    return {ok:cellW>=40&&cellH>=40, cols, rows, cellW, cellH, gap, plantH};
+    const gap=2, cellW=(band.w-gap*(cols-1))/cols, cellH=(band.h-gap*(rows-1))/rows, plantH=cellH-16;
+    return {ok:cellW>=36&&cellH>=36, cols, rows, cellW, cellH, gap, plantH};
   }
   function gridFor(room, band){
     if(room==='garage') return Object.assign(gridScore(band,5,5),{n:25,zone:'garage'});
@@ -924,8 +956,10 @@ window.R=(function(){
     tags=[]; qbub=[]; geckoS=null; mentorS=null;
     const lit=room==='garage'||room==='facility'||room==='benches';
     let band=bedBand(room);
-    const gutter=48;
+    const gutter=lit?18:0;
     if(lit) band=Object.assign({},band,{top:band.top+gutter,h:Math.max(48,band.h-gutter)});
+    const obs=[];
+    for(const id of ['seedBag','upgBtn','orderBoard']){ const r=shownEl(id); if(r) obs.push(r); }
     const g=gridFor(room,band);
     const cells=[]; let build=null;
     if(room==='gh'&&!st.ghBuilt){
@@ -958,10 +992,15 @@ window.R=(function(){
         const col=item.slot.c, row=item.slot.r;
         const x=band.left+col*(g.cellW+g.gap), y=band.top+row*(g.cellH+g.gap);
         const p=item.p;
-        const potH=pot?14:8; const rim=y+g.cellH-18-potH;
-        const plantH=Math.max(20,rim-y-4); const ppm=plantH/mature; const sp=Math.max(.25,(g.cellW-10)/(ppm*1.2));
-        const sl={x:x+g.cellW/2,y:pot?rim-2:rim,cls,sp,ppm,kind:pot?'pot':'soil'};
-        cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim});
+        let floor=y+g.cellH;
+        for(const o of obs){ if(x<o.right-1&&x+g.cellW>o.left+1&&floor>o.top&&y<o.bottom) floor=Math.min(floor,o.top-3); }
+        const potH=pot?10:6, labelH=12;
+        const rim=Math.max(y+18, Math.min(y+g.cellH-labelH, floor)-potH);
+        const stn=p.strain&&G.strain(p.strain);
+        const mh=Math.max(.4,plantSize(stn?stn.type:'Hybrid',1,probe).h);
+        const plantH=Math.max(18,rim-y-1); const ppm=plantH/mh; const sp=Math.max(.25,(g.cellW-4)/(ppm*1.05));
+        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW};
+        cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim,floor});
         slotOf.set(p.id,sl);
       }
       if(lit){
@@ -969,7 +1008,7 @@ window.R=(function(){
         const glow=ctx.createRadialGradient(W/2,ly+18,6,W/2,ly+36,Math.min(220,band.w*0.55));
         glow.addColorStop(0,'rgba(255,236,190,.34)'); glow.addColorStop(1,'rgba(255,236,190,0)');
         ctx.fillStyle=glow; ctx.fillRect(band.left,ly,band.w,78);
-        if(ledIm&&ledIm.complete&&ledIm.naturalWidth) ctx.drawImage(ledIm,lx,ly,lw,26);
+        if(ledIm&&ledIm.complete&&ledIm.naturalWidth) ctx.drawImage(ledIm,lx,ly,lw,16);
       }
       const care=[];
       for(const c of cells){ if(!c.owned||!c.p||!c.p.strain||c.p.prog>=1) continue; if(c.p.pest||G.isThirsty(c.p)||G.isHungry(c.p)) care.push(c); }
@@ -989,7 +1028,7 @@ window.R=(function(){
           ctx.strokeStyle='rgba(255,214,90,.8)'; ctx.lineWidth=1.5; ctx.stroke();
           ctx.fillStyle='rgba(255,214,90,.95)'; ctx.font='700 18px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('+',cx,c.y+c.h/2+1);
         }
-        if(sel&&c.p&&sel.id===c.p.id){ ctx.strokeStyle='rgba(255,217,106,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(cx,c.rim+2,Math.min(18,c.w*0.28),7,0,0,TAU); ctx.stroke(); }
+        if(sel&&c.p&&sel.id===c.p.id){ ctx.strokeStyle='rgba(255,217,106,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(cx,c.rim+2,Math.min(c.w*0.42, Math.max(14,c.w*0.28)),8,0,0,TAU); ctx.stroke(); }
       }
       for(const c of cells){
         if(!c.owned||!c.p||!c.p.strain) continue;
@@ -997,7 +1036,7 @@ window.R=(function(){
         ctx.font='700 11px system-ui,sans-serif';
         if(ctx.measureText(label).width+10>c.w-2) label=label.replace(/ /g,'');
         if(ctx.measureText(label).width+10>c.w-2) label=label.split(' ')[0];
-        pill(c.sl.x,c.y+c.h-9,label,'rgba(10,20,14,.92)','#e9ffd6',11);
+        pill(c.sl.x,Math.min(c.y+c.h-8,(c.floor||c.y+c.h)-8),label,'rgba(10,20,14,.92)','#e9ffd6',11);
       }
       if(group){
         let pe=0,wa=0,fo=0; for(const c of care){ if(c.p.pest) pe++; else if(G.isThirsty(c.p)) wa++; else if(G.isHungry(c.p)) fo++; }
