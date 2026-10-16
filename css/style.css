@@ -3,10 +3,10 @@
   --sat:0px;--sab:0px;--sal:0px;--sar:0px;
   --sat:constant(safe-area-inset-top);--sab:constant(safe-area-inset-bottom);
   --sal:constant(safe-area-inset-left);--sar:constant(safe-area-inset-right);
-  --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
-  --sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px);
-  --hud-ctrl:36px;--hud-pad-t:6px;--hud-pad-b:4px;
-  --hud-h:calc(var(--hud-pad-t) + var(--hud-ctrl) + var(--hud-pad-b));
+  --sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom);
+  --sal:env(safe-area-inset-left);--sar:env(safe-area-inset-right);
+  --hud-ctrl:36px;--hud-pad-t:6px;--hud-pad-b:2px;--hud-min-top:12px;
+  --hud-h:calc(var(--hud-min-top) + var(--hud-ctrl) + var(--hud-pad-b));
   --bg:#0d1f16;--card:rgba(16,30,24,.94);--card2:rgba(255,255,255,.06);--line:rgba(255,255,255,.10);
   --txt:#eef7ef;--mut:#9fb8a7;--acc:#5fe08a;--acc2:#2fb866;--gold:#ffcf4a;--gem:#6fd7ff;--pink:#ff6fb1;--warn:#ff8a5c;
   --r:16px;--font:-apple-system,BlinkMacSystemFont,"SF Pro Rounded","Segoe UI Variable Display","Segoe UI",Roboto,system-ui,sans-serif;
@@ -836,10 +836,10 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{di
 #toolbar #upgBtn b,
 #toolbar #seedBag b,
 #toolbar #seedBag small{
-  font-size:8px;font-weight:800;line-height:1.05;letter-spacing:-.01em;
+  font-size:8px;font-weight:800;line-height:1.05;letter-spacing:-.03em;
   color:#d5eadc;white-space:normal;text-align:center;max-width:100%;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-  overflow-wrap:break-word;hyphens:manual;
+  overflow-wrap:normal;word-break:keep-all;hyphens:none;
 }
 @media (max-width:379px){
   #toolbar #locBtn small,#toolbar #upgBtn b,#toolbar #menu button small,#toolbar #seedBag b,#toolbar #seedBag small{font-size:7px;letter-spacing:-.04em}
@@ -877,9 +877,10 @@ body.sheet-open #toolbar #qaFab{display:flex}
    Padding uses env() itself so a broken --sat cannot drop the icons under the status bar. */
 #hud{
   flex-wrap:nowrap!important;align-items:center!important;column-gap:4px;row-gap:0;overflow:visible;
-  padding-top:calc(var(--sat) + var(--hud-pad-t))!important;
-  padding-top:calc(constant(safe-area-inset-top) + var(--hud-pad-t))!important;
-  padding-top:calc(env(safe-area-inset-top, 0px) + var(--hud-pad-t))!important;
+  /* 12px when Safari reports no inset. The real notch replaces that floor; it is not added on top. */
+  padding-top:max(var(--hud-min-top), calc(var(--sat) + var(--hud-pad-t)))!important;
+  padding-top:max(var(--hud-min-top), calc(constant(safe-area-inset-top) + var(--hud-pad-t)))!important;
+  padding-top:max(var(--hud-min-top), calc(env(safe-area-inset-top) + var(--hud-pad-t)))!important;
   padding-bottom:var(--hud-pad-b)!important;
   padding-left:calc(var(--sal) + 6px)!important;
   padding-left:calc(constant(safe-area-inset-left) + 6px)!important;
@@ -943,7 +944,7 @@ body.sheet-open #toolbar #qaFab{display:flex}
 }
 @media (display-mode:standalone),(display-mode:fullscreen){
   #hud{
-    padding-top:calc(env(safe-area-inset-top, 0px) + var(--hud-pad-t))!important;
+    padding-top:max(var(--hud-min-top), calc(env(safe-area-inset-top) + var(--hud-pad-t)))!important;
     padding-left:calc(env(safe-area-inset-left, 0px) + 6px)!important;
     padding-right:calc(env(safe-area-inset-right, 0px) + 6px)!important;
   }
@@ -968,4 +969,27 @@ body.sheet-open #toolbar #qaFab{display:flex}
   right:calc(var(--sar) + 8px)!important;
   right:calc(constant(safe-area-inset-right) + 8px)!important;
   right:calc(env(safe-area-inset-right, 0px) + 8px)!important;
+}
+/* The bar background runs to the screen edge. Icons and words sit inside the inset. */
+#toolbar{
+  padding-top:4px!important;
+  padding-bottom:max(6px, calc(constant(safe-area-inset-bottom) + 4px))!important;
+  padding-bottom:max(6px, calc(env(safe-area-inset-bottom) + 4px))!important;
+  padding-left:max(2px, calc(constant(safe-area-inset-left) + 2px))!important;
+  padding-left:max(2px, calc(env(safe-area-inset-left) + 2px))!important;
+  padding-right:max(2px, calc(constant(safe-area-inset-right) + 2px))!important;
+  padding-right:max(2px, calc(env(safe-area-inset-right) + 2px))!important;
+}
+#toolbar #upgBtn b{
+  white-space:nowrap;display:block;-webkit-line-clamp:unset;
+  font-size:7px;letter-spacing:-.05em;overflow:hidden;text-overflow:clip;
+}
+@media (max-width:389px){
+  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:7px;letter-spacing:-.05em}
+}
+@media (max-width:340px){
+  #toolbar #upgBtn b{font-size:6px;letter-spacing:-.04em}
+}
+@media (min-width:420px){
+  #toolbar #upgBtn b{font-size:8px;letter-spacing:-.04em}
 }

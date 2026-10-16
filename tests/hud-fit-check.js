@@ -248,9 +248,25 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const gport = document.querySelector('#goal .gport');
         const lvl = document.getElementById('lvl');
         const label = document.querySelector('#shopBtn .shop-label');
+        const labels = [];
+        document.querySelectorAll('#toolbar #menu button small, #toolbar #locBtn small, #toolbar #upgBtn b, #toolbar #seedBag b').forEach(el => {
+          const r = el.getBoundingClientRect();
+          const host = el.closest('button') || el;
+          const hb = host.getBoundingClientRect();
+          labels.push({
+            t: (el.textContent || '').replace(/\\s+/g, ' ').trim(),
+            lines: el.getClientRects().length,
+            sw: el.scrollWidth, cw: el.clientWidth,
+            y: +r.top.toFixed(1), b: +r.bottom.toFixed(1),
+            hx: +hb.left.toFixed(1), hr: +hb.right.toFixed(1), hy: +hb.top.toFixed(1), hb: +hb.bottom.toFixed(1)
+          });
+        });
+        const rootStyle = getComputedStyle(document.documentElement);
         resolve({
           w: innerWidth, h: innerHeight,
           sat: envPad('top'), sal: envPad('left'), sar: envPad('right'), sab: envPad('bottom'),
+          satVar: parseFloat(rootStyle.getPropertyValue('--sat')) || 0,
+          vp: (document.querySelector('meta[name=viewport]') || {}).content || '',
           pad: hs.paddingTop + ' ' + hs.paddingRight + ' ' + hs.paddingBottom + ' ' + hs.paddingLeft,
           padT: parseFloat(hs.paddingTop)||0, padR: parseFloat(hs.paddingRight)||0, padB: parseFloat(hs.paddingBottom)||0, padL: parseFloat(hs.paddingLeft)||0,
           hudOv: hs.overflow, wrap: hs.flexWrap,
@@ -260,6 +276,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
           gport: pack(gport), lvl: pack(lvl),
           cashTxt: cashTxt, gemTxt: gemTxt,
           label: label ? getComputedStyle(label).display : 'missing',
+          canvas: pack(document.getElementById('game')),
+          bar: pack(document.getElementById('toolbar')),
+          labels: labels,
           standalone: matchMedia('(display-mode: standalone)').matches,
           fullscreen: matchMedia('(display-mode: fullscreen)').matches,
           errs: (window.__errs||[]).slice(0, 6)
@@ -277,11 +296,16 @@ localStorage.removeItem('mwfarms_test_v1');` });
     function check(tag, m, opt){
       opt = opt || {};
       console.log(tag, JSON.stringify({
-        pad: m.pad, sat: m.sat, sal: m.sal, sar: m.sar, cash: m.cashTxt, gems: m.gemTxt, label: m.label,
+        pad: m.pad, sat: m.sat, satVar: m.satVar, sal: m.sal, sar: m.sar, sab: m.sab, cash: m.cashTxt, gems: m.gemTxt, label: m.label,
         mode: { standalone: m.standalone, fullscreen: m.fullscreen },
-        nodes: m.nodes, hud: m.hud && { x: m.hud.x, y: m.hud.y, r: m.hud.r, b: m.hud.b, ov: m.hudOv, wrap: m.wrap }
+        nodes: m.nodes, hud: m.hud && { x: m.hud.x, y: m.hud.y, r: m.hud.r, b: m.hud.b, ov: m.hudOv, wrap: m.wrap },
+        canvas: m.canvas && { x: m.canvas.x, y: m.canvas.y, r: m.canvas.r, b: m.canvas.b },
+        bar: m.bar && { y: m.bar.y, b: m.bar.b, h: m.bar.h },
+        labels: (m.labels || []).map(l => l.t + '/' + l.lines + (l.sw > l.cw + 1 ? ' OVER' : '')).join(' ')
       }));
       assert(!(m.errs && m.errs.length), tag + ' console errors ' + JSON.stringify(m.errs));
+      assert(m.vp && m.vp.indexOf('viewport-fit=cover') >= 0, tag + ' viewport-fit=cover missing ' + m.vp);
+      assert(Math.abs((m.satVar || 0) - m.sat) <= 1, tag + ' --sat ' + m.satVar + ' is not env(safe-area-inset-top) ' + m.sat);
       assert(m.cashTxt === '$100M', tag + ' cash label ' + m.cashTxt);
       assert(m.gemTxt && m.gemTxt.length >= 4, tag + ' gem label ' + m.gemTxt);
       assert(m.wrap === 'nowrap', tag + ' bar wrapped');
@@ -289,7 +313,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(m.sat >= (opt.sat || 0) - 1, tag + ' env(safe-area-inset-top) is ' + m.sat + ' wanted ' + (opt.sat || 0));
       assert(m.sal >= (opt.sal || 0) - 1, tag + ' env left is ' + m.sal);
       assert(m.sar >= (opt.sar || 0) - 1, tag + ' env right is ' + m.sar);
-      assert(m.padT >= m.sat + 4, tag + ' padding-top ' + m.padT + ' does not clear inset ' + m.sat);
+      assert(m.sab >= (opt.sab || 0) - 1, tag + ' env bottom is ' + m.sab);
+      assert(m.padT >= 12, tag + ' top padding ' + m.padT + ' is under the 12px floor');
+      assert(m.padT + 0.6 >= Math.max(12, m.sat + 6), tag + ' padding-top ' + m.padT + ' is not max(12px, inset+6) at inset ' + m.sat);
       assert(m.padL >= m.sal + 4, tag + ' padding-left ' + m.padL + ' ignores inset ' + m.sal);
       assert(m.padR >= m.sar + 4, tag + ' padding-right ' + m.padR + ' ignores inset ' + m.sar);
       assert(m.hud && m.hud.x >= -0.5 && m.hud.y >= -0.5 && m.hud.r <= m.w + 0.5 && m.hud.b <= m.h + 0.5, tag + ' hud outside the screen');
@@ -301,7 +327,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         assert(n && n.w > 8 && n.h > 8, tag + ' ' + id + ' missing ' + JSON.stringify(n));
         assert(n.x >= m.sal - 0.6, tag + ' ' + id + ' is under the left inset ' + JSON.stringify(n) + ' sal ' + m.sal);
         assert(n.r <= m.w - m.sar + 0.6, tag + ' ' + id + ' is under the right inset ' + JSON.stringify(n) + ' sar ' + m.sar + ' w ' + m.w);
-        assert(n.y >= m.sat - 0.6, tag + ' ' + id + ' is under the notch ' + JSON.stringify(n) + ' sat ' + m.sat);
+        assert(n.y + 0.6 >= Math.max(m.sat, 12), tag + ' ' + id + ' is under the notch or status bar ' + JSON.stringify(n) + ' sat ' + m.sat);
         assert(n.b <= m.h + 0.6, tag + ' ' + id + ' runs off the bottom');
         assert(n.b <= m.hud.b + 0.6, tag + ' ' + id + ' sticks out of the bar');
         if (prev) assert(n.x >= prev.r - 0.6, tag + ' ' + id + ' overlaps ' + JSON.stringify({ prev, n }));
@@ -339,13 +365,30 @@ localStorage.removeItem('mwfarms_test_v1');` });
       }
       if (opt.standalone) assert(m.standalone, tag + ' display-mode is not standalone');
       if (opt.fullscreen) assert(m.fullscreen, tag + ' display-mode is not fullscreen');
+      const canvas = m.canvas, bar = m.bar;
+      assert(canvas && canvas.y <= 0.5 && canvas.x <= 0.5 && canvas.r >= m.w - 0.5 && canvas.b >= m.h - 0.5,
+        tag + ' room does not fill the screen ' + JSON.stringify(canvas));
+      assert(bar && bar.b >= m.h - 1 && bar.y < m.h && bar.y > m.h * 0.45, tag + ' bottom row is off the screen ' + JSON.stringify(bar));
+      (m.labels || []).forEach(l => {
+        assert(l.hb <= m.h - m.sab + 0.8, tag + ' ' + l.t + ' is under the home indicator ' + JSON.stringify(l) + ' sab ' + m.sab);
+        assert(l.b <= l.hb + 1 && l.y >= l.hy - 1, tag + ' ' + l.t + ' is clipped by its button ' + JSON.stringify(l));
+        const dockWord = ['Garage','Upgrades','Market','Breed','Strains','Story','Seeds'].indexOf(l.t) >= 0;
+        if (dockWord){
+          assert(l.lines <= 1 && l.sw <= l.cw + 1, tag + ' ' + l.t + ' wraps or overflows ' + JSON.stringify(l));
+        }
+      });
+      const words = (m.labels || []).map(l => l.t);
+      ['Game Pass','Garage','Upgrades','Dry & Cure','Market','Breed','Strains','Story'].forEach(name => {
+        assert(words.indexOf(name) >= 0, tag + ' missing bottom label ' + name + ' ' + words.join('|'));
+      });
     }
 
-    async function shot(name, m){
-      const topH = Math.min(m.h, Math.max(150, Math.ceil((m.hud && m.hud.b) || 80) + 70));
+    async function shot(name, m, opt){
+      const full = opt && opt.full;
+      const topH = full ? m.h : Math.min(m.h, Math.max(150, Math.ceil((m.hud && m.hud.b) || 80) + 70));
       const raw = await cdp('Page.captureScreenshot', {
         format: 'png',
-        clip: { x: 0, y: 0, width: m.w, height: topH, scale: 2 },
+        clip: { x: 0, y: 0, width: m.w, height: topH, scale: full ? 1 : 2 },
         captureBeyondViewport: false
       });
       fs.writeFileSync(path.join(SHOTS, name + '.png'), Buffer.from(raw.data, 'base64'));
@@ -361,7 +404,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
       await evalJs(`(() => { if(window.G){ G.st.cash=100000000; G.st.gems=${opt.gems == null ? 888888888 : opt.gems}; } const g=document.getElementById('goal'); if(g) g.classList.remove('open'); return true; })()`);
       await sleep(280);
       const m = await evalJs(measureSrc);
-      await shot(name, m);
+      await shot(name, m, opt);
       check(name, m, opt);
       return m;
     }
@@ -376,6 +419,12 @@ localStorage.removeItem('mwfarms_test_v1');` });
     await scene('hud_390_side16', 390, 844, { sat: 59, sal: 16, sar: 16 });
     await scene('hud_320_long_gems', 320, 568, { sat: 47, gems: 99950 });
     await scene('hud_430_side16', 430, 932, { sat: 59, sal: 16, sar: 16 });
+    await scene('hud_360x740', 360, 740, { sat: 0, full: true });
+    await scene('hud_360x740_notch47', 360, 740, { sat: 47, full: true });
+    await scene('hud_360x740_notch59', 360, 740, { sat: 59, sab: 34, full: true });
+    await scene('hud_390_notch47_full', 390, 844, { sat: 47, full: true });
+    await scene('hud_390_notch59_full', 390, 844, { sat: 59, sab: 34, full: true });
+    await scene('hud_430_notch59_full', 430, 932, { sat: 59, sab: 34, full: true });
 
     if (!process.exitCode) console.log('browser hud fit checks passed');
     await runAppMode(measureSrc, check);
