@@ -331,6 +331,7 @@ window.UI = (function(){
     if(G.isThirsty(p)) acts.push(`<button class="btn sm" data-pa="water">${ico('drop')}Water</button>`);
     if(G.isHungry(p)&&!(p.food>0)) acts.push(`<button class="btn sm gold" data-pa="feed">${ico('feed')}Feed</button>`);
     if(p.prog>=1) acts.push(`<button class="btn sm gold" data-pa="harvest">Harvest</button>`);
+    acts.push(`<button class="btn sm" data-pa="glass">Scouting glass</button>`);
     $('#pop').innerHTML=`<h5>${esc(s.name)} <small style="color:var(--mut)">${esc((G.ZONE[p.zone]&&G.ZONE[p.zone].name)||'')}</small></h5>
       <div class="l"><span>Ready in</span><b>${p.prog>=1?'Ripe now!':sec(left)}</b></div>${bar(p.prog)}
       ${bits.join('')||'<p>This plant is fine. No water, feed, or pest care right now.</p>'}
@@ -995,7 +996,7 @@ window.UI = (function(){
     $('#sheetBody').addEventListener('click',del); $('#sheetFoot').addEventListener('click',del);
     $('#sheetBody').addEventListener('change',e=>{ const s=e.target.closest('select[data-sel]'); if(s){ (s.dataset.sel==='A'?labA:s.dataset.sel==='H'?huntSel:labB).v=s.value; render(); return; } const f=e.target.closest('input[data-savefile]'); if(!f||!f.files||!f.files[0]) return; f.files[0].text().then(t=>{ importDraft=t; saveUi='import'; render(); toast('Backup file loaded. Review it, then tap Restore.','good'); }).catch(()=>toast('Could not read that file','bad')); });
     $('#sheet').addEventListener('pointerdown',()=>lastPointer=performance.now(),true);
-    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
+    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='glass'){ const p=popPlot; hidePop(true); inspectGlass(p); return; } if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
     $('#goal').onclick=()=>{ const g=$('#goal'); if(!g.classList.contains('open')){ goalPeek(5000); return; } if(G.st.questDone){ if(G.claimQuest()) Sound.play('level'); } else open('quests','story'); };
     document.addEventListener('click',e=>{ const b=e.target.closest('[data-buylab]'); if(!b) return; if(!G.buyLab()) toast(G.st.inBuilt?'Not enough cash':'Build the indoor facility first','bad'); else render(true); });
     const foldQa=()=>{ const m=$('#qaMenu'), b=$('#qaMain'); if(m) m.classList.add('hidden'); if(b){ b.classList.remove('open'); b.setAttribute('aria-expanded','false'); } };

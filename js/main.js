@@ -104,11 +104,21 @@
   G.on('skip',r=>{ UI.toast('Time skipped: the farm worked '+G.dur(r.seconds)+' · '+(r.cash>=0?'+':'')+G.fmt(r.cash)+' · '+r.harvests+' harvests · '+r.sold+' sold','good long'); });
 
   // ---------- input ----------
-  // 3s press opens the scouting glass. Jitter under ~18px must not cancel it, and neither
-  // may a long-press callout, pointercancel, pinch, scroll, or preventDefault.
-  const ptrs=new Map(); let downAt=null, moved=0, pinchD=0, held=false;
-  const HOLD_MS=3000, HOLD_JITTER=18;
-  let hold=null, ringRAF=0;
+  // A real finger is not the canvas. iOS long-presses the top canvas (the confetti
+  // layer), parents with touch-action:auto start a pan, and setPointerCapture cancels
+  // the pointer. Those arrive as pointerup / touchend, which used to throw the timer away.
+  // The hold listens on the document, ignores that system "lift", and keeps counting.
+  const ptrs=new Map(); let downAt=null, moved=0, pinchD=0, held=false, holdPtr=null;
+  const HOLD_MS=3000, HOLD_JITTER=24;
+  let hold=null, ringRAF=0, stealAt=0, liftGen=0, gesture=0, endedGesture=-1;
+  const WORLD='button,a,input,select,textarea,label,#sheet,#modal,#celebrate,#pop,#seedPick,#locPick,#toolbar,#hud,#seedBag,#qaFab';
+  function isWorld(el){
+    if(!el) return false;
+    if(el===document.body||el===document.documentElement||el===document) return true;
+    if(el.id==='game'||el.id==='stage'||el.id==='confetti'||el.id==='holdRing') return true;
+    if(el.closest&&el.closest(WORLD)) return false;
+    return true;
+  }
   function clearHold(){
     if(hold&&hold.timer){ clearTimeout(hold.timer); hold.timer=null; }
     hold=null;
@@ -121,6 +131,7 @@
     el.innerHTML='<svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><circle cx="24" cy="24" r="18" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="3"/><circle class="arc" cx="24" cy="24" r="18" fill="none" stroke="#b6ffcf" stroke-width="3" stroke-linecap="round" stroke-dasharray="113.097" stroke-dashoffset="113.097" transform="rotate(-90 24 24)"/></svg>';
     document.body.appendChild(el); return el;
   }
+  ensureRing();
   function paintRing(){
     ringRAF=0; if(!hold) return;
     const el=ensureRing(), p=Math.max(0,Math.min(1,(performance.now()-hold.t0)/HOLD_MS));
@@ -149,23 +160,24 @@
     const p=id?G.st.plots.find(pp=>pp.id===id)||null:null;
     return p&&p.strain?p:null;
   }
-  cv.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('button,a,.btn')) return; try{ cv.setPointerCapture(e.pointerId); }catch(err){} ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(ptrs.size===1){ downAt={x:e.clientX,y:e.clientY}; moved=0; held=false; armHold(e.clientX,e.clientY);
-    } else { const [a,b]=[...ptrs.values()]; pinchD=Math.hypot(a.x-b.x,a.y-b.y); } try{ Sound.resume(); }catch(err){} });
-  cv.addEventListener('pointermove',e=>{ if(R.lens.on&&(e.pointerType==='mouse'||ptrs.size===1)) R.setLens(true,e.clientX,e.clientY-(e.pointerType==='mouse'?0:60)); const p=ptrs.get(e.pointerId); if(!p) return; const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
-    if(downAt&&ptrs.size===1) moved=Math.hypot(e.clientX-downAt.x, e.clientY-downAt.y);
-    if(ptrs.size>=2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); if(pinchD>0) R.zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/pinchD); pinchD=d; return; }
-    if(hold){ if(Math.hypot(e.clientX-hold.x, e.clientY-hold.y)>HOLD_JITTER) clearHold(); else return; }
-    if(moved>8){ if(!R.lens.on) R.pan(dx,dy); UI.hidePop(); } });
-  const up=e=>{ const had=ptrs.has(e.pointerId); ptrs.delete(e.pointerId); if(!had) return; clearHold();
+  function noteSteal(){ stealAt=performance.now(); }
+  // A phone can report the finger up at ~0.5s (callout, scroll, or magnifier) and only then
+  // send contextmenu or pointercancel. Wait for that, and keep counting if it arrives.
+  function deferLift(x,y){
+    const token=++liftGen, t0=hold?hold.t0:0;
+    setTimeout(()=>{ if(token!==liftGen||!hold) return; if(stealAt>=t0-40) return; finishLift(x,y); }, 280);
+  }
+  function finishLift(x,y){
+    clearHold();
     if(held){ held=false; if(ptrs.size<2) pinchD=0; downAt=null; return; }
-    if(R.lens.on&&ptrs.size===0&&(moved<=8||e.pointerType!=='mouse')){ const lx=R.lens.x, ly=R.lens.y; let h=R.pick(lx,ly); let p=h&&h.type==='plot'&&h.p.eggs>0?h.p:null;
+    if(R.lens.on&&ptrs.size===0&&moved<=8){ const lx=R.lens.x, ly=R.lens.y; let h=R.pick(lx,ly); let p=h&&h.type==='plot'&&h.p.eggs>0?h.p:null;
       if(!p){ const c=[]; for(const d of [[0,0],[-18,0],[18,0],[0,-18],[0,18],[-28,-14],[28,-14],[-28,14],[28,14]]){ const k=R.pick(lx+d[0],ly+d[1]); if(k&&k.type==='plot'&&k.p.eggs>0) c.push(k.p); } p=c[0]; }
       if(p) G.scout(p); else if(moved<=8) UI.toast('Nothing hiding here. Keep looking.');
       if(ptrs.size<2) pinchD=0; downAt=null; return; }
-    if(downAt&&moved<=8&&ptrs.size===0){ const h=R.pick(e.clientX,e.clientY);
+    if(downAt&&moved<=8&&ptrs.size===0){ const h=R.pick(x,y);
       if(!h) UI.hidePop();
       else if(h.type==='qa') UI.quick(h.a,h.p);
-      else if(h.type==='plot') UI.tapPlot(h.p,e.clientX,e.clientY);
+      else if(h.type==='plot') UI.tapPlot(h.p,x,y);
       else if(h.type==='gecko') G.geckoTap();
       else if(h.type==='serve'){ Sound.play('tap'); G.serveCust(h.id); }
       else if(h.type==='mentor'){ Sound.play('tap'); if(G.st.questDone) G.claimQuest(); else UI.storyLine(G.curQuest()); }
@@ -174,28 +186,73 @@
       else if(h.type==='land') UI.landModal();
       else if(h.type==='bld'){ Sound.play('tap'); UI.open(h.panel); }
     }
-    if(ptrs.size<2) pinchD=0; downAt=ptrs.size===0?null:downAt; };
-  cv.addEventListener('pointerup',up);
-  // A long-press on iOS/Chrome fires pointercancel. That must not kill the 3s glass.
-  cv.addEventListener('pointercancel',e=>{ ptrs.delete(e.pointerId); });
-  cv.addEventListener('contextmenu',e=>{ e.preventDefault(); });
-  cv.addEventListener('selectstart',e=>{ e.preventDefault(); });
-  cv.addEventListener('touchstart',e=>{
-    if(e.touches.length>=2) return;
+    if(ptrs.size<2) pinchD=0; downAt=ptrs.size===0?null:downAt;
+  }
+  document.addEventListener('pointerdown',e=>{
+    try{ Sound.resume(); }catch(err){}
+    if(!isWorld(e.target)) return;
+    if(e.button!=null&&e.button!==0) return;
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,type:e.pointerType||'mouse'});
+    if(ptrs.size===1){
+      downAt={x:e.clientX,y:e.clientY}; moved=0; held=false; gesture++; liftGen++; holdPtr=e.pointerId;
+      armHold(e.clientX,e.clientY);
+      // Capturing a touch pointer makes iOS cancel it immediately. Mouse can keep the drag.
+      if(e.pointerType==='touch'){ if(e.cancelable) e.preventDefault(); }
+      else { const stage=document.getElementById('stage'); try{ (stage||cv).setPointerCapture(e.pointerId); }catch(err){} }
+    } else { clearHold(); const [a,b]=[...ptrs.values()]; pinchD=Math.hypot(a.x-b.x,a.y-b.y); }
+  }, true);
+  document.addEventListener('pointermove',e=>{
+    if(R.lens.on&&(e.pointerType==='mouse'||ptrs.size===1)) R.setLens(true,e.clientX,e.clientY-(e.pointerType==='mouse'?0:60));
+    const p=ptrs.get(e.pointerId); if(!p) return;
+    const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
+    if(downAt&&ptrs.size===1) moved=Math.hypot(e.clientX-downAt.x, e.clientY-downAt.y);
+    if(ptrs.size>=2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); if(pinchD>0) R.zoomAt((a.x+b.x)/2,(a.y+b.y)/2,d/pinchD); pinchD=d; return; }
+    if(hold){ if(Math.hypot(e.clientX-hold.x, e.clientY-hold.y)>HOLD_JITTER) clearHold(); else return; }
+    if(moved>8){ if(!R.lens.on) R.pan(dx,dy); UI.hidePop(); }
+  }, true);
+  document.addEventListener('pointerup',e=>{
+    const had=ptrs.has(e.pointerId)||(holdPtr!=null&&e.pointerId===holdPtr); ptrs.delete(e.pointerId);
+    if(!had) return;
+    if(endedGesture===gesture) return; endedGesture=gesture; holdPtr=null;
+    if(held){ held=false; clearHold(); if(ptrs.size<2) pinchD=0; downAt=null; return; }
+    const age=hold?performance.now()-hold.t0:0;
+    const x=e.clientX, y=e.clientY;
+    // iOS ends a long-press with pointerup when the callout starts, then contextmenu / pointercancel.
+    if((e.pointerType==='touch')&&age>=450){ deferLift(x,y); return; }
+    finishLift(x,y);
+  }, true);
+  document.addEventListener('pointercancel',e=>{ noteSteal(); ptrs.delete(e.pointerId); }, true);
+  document.addEventListener('contextmenu',e=>{ noteSteal(); if(isWorld(e.target)) e.preventDefault(); }, true);
+  document.addEventListener('selectstart',e=>{ if(isWorld(e.target)) e.preventDefault(); }, true);
+  document.addEventListener('touchstart',e=>{
+    if(!isWorld(e.target)) return;
     if(e.cancelable) e.preventDefault();
+    if(e.touches.length>=2){ clearHold(); return; }
     const t=e.touches[0]; if(!t) return;
-    if(ptrs.size<=1) armHold(t.clientX, t.clientY);
-  },{passive:false});
-  cv.addEventListener('touchmove',e=>{
+    if(!hold) armHold(t.clientX, t.clientY);
+  }, {capture:true, passive:false});
+  document.addEventListener('touchmove',e=>{
+    if(!isWorld(e.target)) return;
     if(e.cancelable) e.preventDefault();
     if(!hold||e.touches.length!==1) return;
     const t=e.touches[0];
     if(Math.hypot(t.clientX-hold.x, t.clientY-hold.y)>HOLD_JITTER) clearHold();
-  },{passive:false});
-  cv.addEventListener('touchend',e=>{ if(e.touches.length===0) clearHold(); },{passive:false});
-  cv.addEventListener('touchcancel',()=>{ /* long-press callout used to abort the glass here */ });
-  cv.addEventListener('wheel',e=>{ e.preventDefault(); R.zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*.0015)); },{passive:false});
-  document.addEventListener('gesturestart',e=>e.preventDefault());
+  }, {capture:true, passive:false});
+  document.addEventListener('touchend',e=>{
+    if(e.touches.length>0) return;
+    if(!isWorld(e.target)&&!hold) return;
+    if(endedGesture===gesture) return;
+    endedGesture=gesture;
+    if(held){ held=false; clearHold(); return; }
+    const age=hold?performance.now()-hold.t0:0;
+    const t=e.changedTouches&&e.changedTouches[0];
+    const x=t?t.clientX:0, y=t?t.clientY:0;
+    if(age>=450){ deferLift(x,y); return; }
+    if(ptrs.size===0) finishLift(x,y);
+  }, {capture:true, passive:false});
+  document.addEventListener('touchcancel',e=>{ noteSteal(); if(e.cancelable) e.preventDefault(); }, {capture:true, passive:false});
+  document.addEventListener('wheel',e=>{ if(!isWorld(e.target)) return; e.preventDefault(); R.zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*.0015)); }, {passive:false});
+  document.addEventListener('gesturestart',e=>{ if(isWorld(e.target)) e.preventDefault(); });
   window.addEventListener('keydown',e=>{ if(e.target.matches('input,select,textarea')) return; const k=e.key.toLowerCase();
     if(k==='1') UI.setTool('hand'); if(k==='2') UI.setTool('seed'); if(k==='3') UI.setTool('water'); if(k==='4') UI.setTool('feed');
     if(k==='g') G.setLoc('garage'); if(k==='f'&&G.locOpen('farm')) G.setLoc('farm'); if(k==='i'&&G.locOpen('indoor')) G.setLoc('indoor');
