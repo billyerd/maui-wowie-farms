@@ -986,15 +986,18 @@ window.R=(function(){
     drawCover(bgIm[room]||bgIm.facility); ctx.fillStyle='rgba(4,8,6,.22)'; ctx.fillRect(0,0,W,H);
     tags=[]; qbub=[]; geckoS=null; mentorS=null;
     const lit=room==='garage'||room==='facility'||room==='benches';
+    // Greenhouse is daylight: a roof rail over the pots, not the garage grow-light bar.
+    const daylit=room==='gh'&&st.ghBuilt;
     let band=bedBand(room);
-    const gutter=lit?18:0;
-    if(lit) band=Object.assign({},band,{top:band.top+gutter,h:Math.max(48,band.h-gutter)});
+    const gutter=daylit?Math.min(40,Math.max(30,Math.round(band.h*.055))):(lit?18:0);
+    const roofTop=band.top;
+    if(gutter) band=Object.assign({},band,{top:band.top+gutter,h:Math.max(48,band.h-gutter),roofTop});
     const zoneName=room==='garage'?'garage':room==='gh'?'gh':room==='benches'?'in':'field';
     const ownedN=st.plots.filter(p=>p.zone===zoneName&&p.owned).length;
     const buyMax=window.G&&G.GARAGE?G.GARAGE[G.GARAGE.length-1].cap:20;
     const showN=room==='garage'?Math.max(1, ownedN+(ownedN<buyMax&&st.plots.some(p=>p.zone==='garage'&&!p.owned)?1:0)):0;
     const g=room==='garage'?garageLayout(band, showN):gridFor(room,band);
-    const cells=[]; let build=null;
+    const cells=[]; let build=null, ghLight=null;
     if(room==='gh'&&!st.ghBuilt){
       const bw=Math.min(300,W-32), bh=132, bx=(W-bw)/2, by=Math.max(band.top, H*0.28);
       bedCard(bx,by,bw,bh,'Greenhouse','Level '+G.GH_BUILD.level+' · '+G.fmt(G.GH_BUILD.cost)+' · same pots as the garage');
@@ -1037,7 +1040,20 @@ window.R=(function(){
         cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim,floor});
         slotOf.set(p.id,sl);
       }
-      if(lit){
+      if(daylit&&window.Art&&Art.daylightRail){
+        const owned=cells.filter(c=>c.owned);
+        if(owned.length){
+          let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+          for(const c of owned){ x0=Math.min(x0,c.x); x1=Math.max(x1,c.x+c.w); y0=Math.min(y0,c.y); y1=Math.max(y1,c.y+c.h); }
+          // Sit on the roof beams, just under the HUD, so the photo's short center lamp is covered.
+          const lx=x0, lw=Math.max(12,x1-x0), ly=Math.max(2,roofTop-14), lh=Math.max(18,Math.min(36,band.top-ly-2));
+          ghLight={x:lx,y:ly,w:lw,h:lh,x1,y0,y1};
+          const wash=ctx.createLinearGradient(0,ly+lh,0,y1);
+          wash.addColorStop(0,'rgba(255,226,168,.42)'); wash.addColorStop(.42,'rgba(255,236,196,.14)'); wash.addColorStop(1,'rgba(255,236,196,0)');
+          ctx.fillStyle=wash; ctx.beginPath();
+          ctx.moveTo(lx+3,ly+lh); ctx.lineTo(lx+lw-3,ly+lh); ctx.lineTo(x1+6,y1); ctx.lineTo(x0-6,y1); ctx.closePath(); ctx.fill();
+        }
+      } else if(lit){
         const ly=band.top-gutter+6, lw=Math.min(168,band.w*0.46), lx=(W-lw)/2;
         const glow=ctx.createRadialGradient(W/2,ly+18,6,W/2,ly+36,Math.min(220,band.w*0.55));
         glow.addColorStop(0,'rgba(255,236,190,.34)'); glow.addColorStop(1,'rgba(255,236,190,0)');
@@ -1086,8 +1102,17 @@ window.R=(function(){
       }
       const id=window.Tutorial&&Tutorial.active&&Tutorial.active()&&Tutorial.plot&&Tutorial.plot();
       if(id){ const c=cells.find(q=>q.p&&q.p.id===id&&q.owned); if(c){ const b=Math.abs(Math.sin(now*4))*8; ctx.font='32px sans-serif'; ctx.textAlign='center'; ctx.fillText('👆',c.sl.x,c.y+c.h*0.42+b); } }
+      if(ghLight){
+        const L=ghLight;
+        ctx.save(); ctx.beginPath(); ctx.rect(L.x,L.y0,L.w,L.y1-L.y0); ctx.clip();
+        ctx.globalCompositeOperation='screen'; ctx.globalAlpha=.26;
+        const sun=ctx.createLinearGradient(0,L.y0,0,L.y1);
+        sun.addColorStop(0,'rgba(255,236,196,.9)'); sun.addColorStop(1,'rgba(255,236,196,0)');
+        ctx.fillStyle=sun; ctx.fillRect(L.x,L.y0,L.w,L.y1-L.y0); ctx.restore();
+        Art.daylightRail(ctx,L.x,L.y,L.w,L.h);
+      }
     }
-    bedLay={room,cells,build,band};
+    bedLay={room,cells,build,band,light:ghLight};
     drawGecko(now);
     stepScreenBits(dt);
     st.plots.forEach(p=>{ if(p._pop>0) p._pop=Math.max(0,p._pop-dt); if(p._shake>0) p._shake=Math.max(0,p._shake-dt); });
@@ -1537,5 +1562,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();

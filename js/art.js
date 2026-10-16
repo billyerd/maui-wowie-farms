@@ -262,5 +262,85 @@ window.Art = (function(){
       ctx.fillStyle=night?'#1b3a22':(i%2?'#4fa23f':'#3b8a35'); ctx.beginPath(); ctx.ellipse(s*.38,0,s*.42,s*.11,0,0,TAU); ctx.fill();
       ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(s*.78,0); ctx.stroke(); ctx.restore(); }
   }
-  return {plantColors,cola,rng,hash,mix,shade,plantSprite,thumb,thumbCanvas,palm,monstera,hibiscus,banana,fanLeaf,drawPlant};
+  // Greenhouse daylight rail. One aluminum purlin bolted to the roof, with a
+  // sun-glass trough fused to it. Drawn in room pixels so a zoom stays sharp.
+  function roundBox(ctx,x,y,w,h,r){
+    const rad=Math.max(0,Math.min(r,w/2,h/2));
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x,y,w,h,rad);
+    else ctx.rect(x,y,w,h);
+  }
+  function bolt(ctx,cx,cy){
+    ctx.fillStyle='#2a2826'; ctx.beginPath(); ctx.arc(cx,cy,1.05,0,TAU); ctx.fill();
+    ctx.fillStyle='#f7f4ee'; ctx.beginPath(); ctx.arc(cx-.32,cy-.32,.32,0,TAU); ctx.fill();
+  }
+  function daylightRail(ctx,x,y,w,h){
+    if(!(w>12)||!(h>10)) return;
+    const beamH=Math.max(7,Math.min(10,h*.28));
+    const bodyTop=y+beamH-1.2;
+    const bodyH=Math.max(8,(y+h)-bodyTop-1);
+    ctx.save();
+    // Same down-right shadow the plants cast. Nothing opaque behind the fixture.
+    ctx.fillStyle='rgba(48,38,26,.20)';
+    ctx.beginPath(); ctx.ellipse(x+w*.53,y+h+2.4,w*.47,Math.max(2.2,h*.13),0,0,TAU); ctx.fill();
+    ctx.fillStyle='rgba(255,214,150,.16)';
+    ctx.beginPath(); ctx.ellipse(x+w*.5,y+h+1.2,w*.40,Math.max(2.6,h*.18),0,0,TAU); ctx.fill();
+    // Glazing bar, the cool gray of the greenhouse frame, sun on the top edge.
+    const metal=ctx.createLinearGradient(x,y,x,y+beamH);
+    metal.addColorStop(0,'#f7f4ee'); metal.addColorStop(.32,'#c9ccd0'); metal.addColorStop(.7,'#8e9399'); metal.addColorStop(1,'#5a6066');
+    ctx.fillStyle=metal; roundBox(ctx,x,y,w,beamH,1.5); ctx.fill();
+    ctx.save(); roundBox(ctx,x,y,w,beamH,1.5); ctx.clip();
+    ctx.lineWidth=.55;
+    for(let i=0;i<8;i++){
+      const gy=y+.8+i*(beamH-1.6)/7;
+      ctx.strokeStyle=i%2?'rgba(255,252,246,.28)':'rgba(36,40,44,.14)';
+      ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x+w,gy+(i%3-1)*.25); ctx.stroke();
+    }
+    ctx.fillStyle='rgba(255,248,230,.7)'; ctx.fillRect(x,y,w,1.35);
+    ctx.restore();
+    // Trough shares the purlin's wall so the housing cannot float under it.
+    const house=ctx.createLinearGradient(x,bodyTop,x,bodyTop+bodyH);
+    house.addColorStop(0,'#f3f0e8'); house.addColorStop(.18,'#c4c0b6'); house.addColorStop(.55,'#9a958c'); house.addColorStop(1,'#5e5a54');
+    ctx.fillStyle=house; roundBox(ctx,x+.6,bodyTop,w-1.2,bodyH,2); ctx.fill();
+    ctx.save(); roundBox(ctx,x+.6,bodyTop,w-1.2,bodyH,2); ctx.clip();
+    ctx.fillStyle='rgba(255,252,246,.42)'; ctx.fillRect(x,bodyTop,w,1.2);
+    ctx.fillStyle='rgba(40,36,30,.18)'; ctx.fillRect(x,bodyTop+bodyH-2.2,w,2.2);
+    ctx.restore();
+    const pad=3.4, panes=Math.max(2,Math.min(18,Math.round(w/30)));
+    const gapP=1.25, inner=w-pad*2, pw=(inner-(panes-1)*gapP)/panes, ph=Math.max(6,bodyH-5.2);
+    const py=bodyTop+(bodyH-ph)*.58;
+    const ambers=['#f6c56a','#f3d48a','#e8b15a','#f8d7a0','#efc278'];
+    for(let i=0;i<panes;i++){
+      const px=x+pad+i*(pw+gapP), deep=ambers[i%ambers.length];
+      const glow=ctx.createLinearGradient(px,py,px+pw*.2,py+ph);
+      glow.addColorStop(0,'#fffdf8'); glow.addColorStop(.28,'#fff1cf'); glow.addColorStop(1,deep);
+      ctx.fillStyle=glow; roundBox(ctx,px,py,pw,ph,1.5); ctx.fill();
+      ctx.fillStyle='rgba(110,68,22,.16)'; ctx.fillRect(px+.5,py+ph*.7,Math.max(1,pw-1),ph*.3);
+      const hot=ctx.createRadialGradient(px+pw*.36,py+ph*.26,.4,px+pw*.48,py+ph*.42,Math.max(pw,ph)*.85);
+      hot.addColorStop(0,'rgba(255,255,252,.95)'); hot.addColorStop(.45,'rgba(255,230,180,.22)'); hot.addColorStop(1,'rgba(255,210,140,0)');
+      ctx.fillStyle=hot; ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.fill();
+      ctx.strokeStyle='rgba(72,64,52,.32)'; ctx.lineWidth=.55; roundBox(ctx,px,py,pw,ph,1.5); ctx.stroke();
+      ctx.strokeStyle='rgba(255,252,244,.55)'; ctx.lineWidth=.45;
+      ctx.beginPath(); ctx.moveTo(px+1.1,py+1.3); ctx.lineTo(px+pw*.62,py+1.3); ctx.stroke();
+    }
+    // Saddle clamps stitch the trough to the purlin. Ends bolt into the frame.
+    const clamps=Math.max(2,Math.min(11,Math.round(w/72)));
+    for(let i=0;i<clamps;i++){
+      const sx=x+9+(w-18)*(clamps===1?.5:i/(clamps-1));
+      const sg=ctx.createLinearGradient(sx-3.2,0,sx+3.2,0);
+      sg.addColorStop(0,'#5c5954'); sg.addColorStop(.48,'#f4f1ea'); sg.addColorStop(1,'#4e4b46');
+      ctx.fillStyle=sg; roundBox(ctx,sx-2.3,y+beamH*.35,4.6,beamH*.7+3.2,1); ctx.fill();
+      bolt(ctx,sx,y+beamH*.62);
+    }
+    const shoe=ctx.createLinearGradient(0,y,0,y+beamH+bodyH*.45);
+    shoe.addColorStop(0,'#f3f0ea'); shoe.addColorStop(.4,'#b9b6ae'); shoe.addColorStop(1,'#6a6660');
+    ctx.fillStyle=shoe;
+    roundBox(ctx,x,y,8,beamH+5.5,1.4); ctx.fill();
+    roundBox(ctx,x+w-8,y,8,beamH+5.5,1.4); ctx.fill();
+    ctx.strokeStyle='rgba(255,252,246,.45)'; ctx.lineWidth=.6;
+    ctx.beginPath(); ctx.moveTo(x+.4,y+.5); ctx.lineTo(x+6.6,y+.5); ctx.moveTo(x+w-6.6,y+.5); ctx.lineTo(x+w-.6,y+.5); ctx.stroke();
+    bolt(ctx,x+3.4,y+beamH*.48); bolt(ctx,x+w-3.4,y+beamH*.48);
+    ctx.restore();
+  }
+  return {plantColors,cola,rng,hash,mix,shade,plantSprite,thumb,thumbCanvas,palm,monstera,hibiscus,banana,fanLeaf,drawPlant,daylightRail};
 })();

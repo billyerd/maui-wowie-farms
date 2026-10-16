@@ -533,7 +533,7 @@ window.UI = (function(){
         body+=`<div class="note">The greenhouse is a daylight room of its own: steel poles, a plastic topper, and dirt beds. It starts with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. The Indoor Facility is later, at level ${G.LAND_LEVEL}.</div>${reqList(reqs)}`;
         body+=ucard({key:'ghbuild',theme:'farm',state:reqs.every(c=>c.ok)?'canbuy':'locked',img:ghImg,title:'Build the greenhouse',desc:'Opens with your current garage pot count. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${reqs.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:fmt(cost)}</button>`});
       } else {
-        body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')} pots</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+stepCard('gh','Greenhouse');
+        body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')} pots</div><div class="note">Outdoor daylight. A roof light runs the length of the pots. Plants root in the dirt. There is no grow-light upgrade.</div>`+stepCard('gh','Greenhouse');
         body+=`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); }
     }
     else if(tab==='facility'){
