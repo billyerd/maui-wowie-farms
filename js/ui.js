@@ -137,7 +137,7 @@ window.UI = (function(){
     toast((window.__streakSaved?'Streak saved. ':'')+'Day '+o.n+' gift: '+bits.join(', '),'gemt long'); }
   // ---------- big milestone celebrations ----------
   function bigCel(kind){
-    const C={land:['art/island-bg.webp','The family land is yours!','Uncle Ikaika hands you the keys to the land on the hill. Terraces are ready, and there is room for a greenhouse.'],
+    const C={land:['art/island-bg.webp','The Indoor Facility is yours!','Uncle Ikaika hands you the keys. The terraces are ready, and Grandpa\'s garage is now your Pheno Room.'],
       ghbuilt:['art/greenhouse.webp','Greenhouse built!','Glass, raised beds and fans. Weather still matters, but beds yield 35% more than the garage.'],
       permit:['art/indoor.webp','County Agricultural Permit approved','Auntie Lani stamps your paperwork. The indoor facility is one step closer.'],
       indoor:['art/indoor.webp','Indoor facility open!','Sealed rooms, rolling benches and LED bars. Double yield and AAA grade, with real running costs.']}[kind];
@@ -290,11 +290,10 @@ window.UI = (function(){
     const st=G.st, need=G.GH_BUILD.level, cost=G.GH_BUILD.cost;
     const reqs=[
       {t:'Reach level '+need, ok:st.level>=need, p:Math.min(1,(st.level-1+st.xp/G.xpNeed(st.level))/Math.max(1,need-1))},
-      {t:'Own the family land (level '+G.LAND_LEVEL+', '+fmt(G.LAND_COST)+')', ok:!!st.land},
       {t:'Save '+fmt(cost), ok:st.cash>=cost, p:Math.min(1,st.cash/Math.max(1,cost))}
     ];
     const ready=reqs.every(c=>c.ok);
-    modal(`<h3>Greenhouse</h3><p>A daylight room: steel poles and a plastic topper over dirt beds. It opens with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. The Indoor Facility is a different purchase.</p>${reqList(reqs)}`,
+    modal(`<h3>Greenhouse</h3><p>A daylight room: steel poles and a plastic topper over dirt beds. It opens with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. The Indoor Facility comes later, at level ${G.LAND_LEVEL}.</p>${reqList(reqs)}`,
       [{label:'Later',cls:'sec',v:0},{label:ready?'Build for '+fmt(cost):'Not yet',cls:ready?'gold':'sec',v:ready?1:0}]).then(v=>{ if(v&&G.buildGH()) G.setRoom('gh'); });
   }
   function landModal(){ const L=landReq(); const ready=L.every(c=>c.ok);
@@ -531,11 +530,10 @@ window.UI = (function(){
         const need=G.GH_BUILD.level, cost=G.GH_BUILD.cost;
         const reqs=[
           {t:'Reach level '+need, ok:st.level>=need, p:Math.min(1,(st.level-1+st.xp/G.xpNeed(st.level))/Math.max(1,need-1))},
-          {t:'Own the family land (level '+G.LAND_LEVEL+', '+fmt(G.LAND_COST)+')', ok:!!st.land},
           {t:'Save '+fmt(cost), ok:st.cash>=cost, p:Math.min(1,st.cash/Math.max(1,cost))}
         ];
-        body+=`<div class="note">The greenhouse is a daylight room of its own: steel poles, a plastic topper, and dirt beds. It starts with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. This is not the Indoor Facility.</div>${reqList(reqs)}`;
-        body+=ucard({key:'ghbuild',theme:'farm',state:reqs.every(c=>c.ok)?'canbuy':'locked',img:ghImg,title:'Build the greenhouse',desc:'Opens with your current garage pot count. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${reqs.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:!st.land?'Needs the family land':fmt(cost)}</button>`});
+        body+=`<div class="note">The greenhouse is a daylight room of its own: steel poles, a plastic topper, and dirt beds. It starts with the same number of pots you own in the garage. Needs level ${need} and ${fmt(cost)}. The Indoor Facility is later, at level ${G.LAND_LEVEL}.</div>${reqList(reqs)}`;
+        body+=ucard({key:'ghbuild',theme:'farm',state:reqs.every(c=>c.ok)?'canbuy':'locked',img:ghImg,title:'Build the greenhouse',desc:'Opens with your current garage pot count. No grow lights.',action:`<button class="btn gold" data-a="ghbuild" ${reqs.every(c=>c.ok)?'':'disabled'}>${st.level<need?ico('lock')+' Lv '+need:fmt(cost)}</button>`});
       } else {
         body+=`<div class="section-t">Greenhouse · ${G.capOf('gh')} pots</div><div class="note">Outdoor daylight. Plants root in the dirt. This room has no lights.</div>`+stepCard('gh','Greenhouse');
         body+=`<div class="section-t">Greenhouse gear</div>`+['beds','shade','cooler','catch','shutters'].map(k=>upRow(k)).join(''); }
@@ -567,7 +565,7 @@ window.UI = (function(){
     body+=`<canvas id="labScene" width="720" height="260" style="width:100%;border-radius:14px;display:block;margin-bottom:8px"></canvas>`;
     { const H=st.hunt, pct=x=>(x>=0?'+':'')+Math.round(x*100)+'%';
       body+=`<div class="section-t">Pheno hunt · ${st.breedLab?'Breeding Pheno Room':'Pheno Room'}</div>`;
-      if(!st.phenoRoom) body+=`<div class="note">Pheno hunts start once Grandpa's garage becomes your Pheno Room (buy the family land).</div>`;
+      if(!st.phenoRoom) body+=`<div class="note">Pheno hunts start once you buy the Indoor Facility (level ${G.LAND_LEVEL}). That turns Grandpa's garage into your Pheno Room.</div>`;
       else if(!H){ const own=G.S.filter(x=>st.discovered[x.id]&&(st.seeds[x.id]||0)>=G.huntSize()); body+=`<div class="note">Pop ${G.huntSize()} seeds of one strain and grow them side by side. Each pheno comes out different. Keep the best one as a <b>mother</b>: every plant of that strain you grow afterwards carries her traits.</div>`+
         (own.length?`<div style="display:grid;grid-template-columns:1fr auto;gap:8px"><select data-sel="H" style="height:44px;border-radius:12px;background:#0f1d17;color:#fff;border:1px solid var(--line);font:inherit;font-weight:700;padding:0 8px">${own.map(x=>`<option value="${x.id}" ${huntSel.v===x.id?'selected':''}>${esc(x.name)} (${st.seeds[x.id]} seeds)${st.keepers[x.id]?' · has mother':''}</option>`).join('')}</select><button class="btn sm green" data-a="hunt">Start hunt</button></div><div class="note">Uses ${G.huntSize()} seeds and takes ${sec(G.huntTime(huntSel.v&&own.find(x=>x.id===huntSel.v)?huntSel.v:own[0].id))}.</div>`:`<div class="note">You need ${G.huntSize()} seeds of a strain. Buy them in Seeds.</div>`); }
       else if(!H.phenos) body+=`<div class="row"><div class="grow"><h4>Growing out ${H.n} ${esc(G.strain(H.id).name)} phenos…</h4>${bar(H.t/H.dur)}<p>${sec(H.dur-H.t)} left</p></div></div>`;

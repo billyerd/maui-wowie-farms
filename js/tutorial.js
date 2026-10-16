@@ -83,7 +83,7 @@ window.Tutorial=(function(){
     if(step.id==='dry') return 'Open Dry & Cure and load the racks. Curing jars raise the price later. You do not have to wait for them now.';
     if(step.id==='sell') return 'Open Market and sell what you grew. Fresh, dried, or cured buds all count.';
     if(step.id==='order') return 'Sell at the Market. That is how buds leave the farm.';
-    if(step.id==='land') return 'The Indoor Facility tab is the old family land, 40 plots. It opens at level '+G.LAND_LEVEL+' for '+G.fmt(G.LAND_COST)+'. Buying it turns this garage into your Pheno Room. The Greenhouse tab is the daylight room. Tap Next to move on.';
+    if(step.id==='land') return 'The Greenhouse opens at level '+G.GH_BUILD.level+' for '+G.fmt(G.GH_BUILD.cost)+'. The Indoor Facility is the last location: level '+G.LAND_LEVEL+' for '+G.fmt(G.LAND_COST)+', 40 plots. Buying it turns this garage into your Pheno Room. Tap Next to move on.';
     return "That's the loop. Plant, water, one free feed, harvest, dry, then sell. I'll stay on the goal card when you want the longer story.";
   }
   function ensure(){

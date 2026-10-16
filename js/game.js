@@ -53,9 +53,9 @@ window.G = (function(){
     {name:'Seventeen buckets',            cap:17, cost:960,  desc:'+3 buckets. The garage holds 17.'},
     {name:'Twenty buckets (garage max)',  cap:20, cost:1680, desc:'+3 buckets. Hard max 20.'},
   ];
-  const LAND_COST=12000, LAND_LEVEL=3;
+  const LAND_COST=12000, LAND_LEVEL=10;
   const FIELD=[{name:'Starter terrace (10 plants)',add:10,cost:0},{name:'East terrace',add:10,cost:3000},{name:'Lower terrace',add:10,cost:6000},{name:'Ocean-view terrace',add:10,cost:9000}];
-  const GH_BUILD={cost:12000, level:4};
+  const GH_BUILD={cost:12000, level:5};
   const GH=[{name:'Bay 1 (3 raised beds, 9 plants)',add:9,cost:0},{name:'Bay 2 (+3 beds)',add:9,cost:1500},{name:'Bay 3 (+3 beds)',add:9,cost:2500},{name:'Bay 4 (+3 beds, full house)',add:9,cost:4000}];
   // balance (QC econ report 2026-10-12): foundation is a level 10-12 cash sink paid before the build
   const INDOOR={level:11, permitCost:100000, permitLevel:9, build:300000, foundCost:250000, foundLevel:9, ghBeds:12, ghPlants:36};
@@ -130,9 +130,9 @@ window.G = (function(){
     {id:'hose',   who:'Unko Kuli',  t:'Buy a garden hose (Upgrades > Water + feed)', r:{cash:40}},
     {id:'order',  who:'Unko Kuli',  t:'Sell a harvest at the Market', r:{gems:10}},
     {id:'tent3',  who:'Unko Kuli',  t:'Add more garage buckets (Upgrades > Garage). Each upgrade is +3, up to 20.', r:{cash:80}},
-    {id:'land',   who:'Uncle Ikaika', t:'Save up and buy the family land on the hill', r:{gems:25}},
+    {id:'land',   who:'Uncle Ikaika', t:'Buy the Indoor Facility (level '+LAND_LEVEL+'). It is the last location', r:{gems:25}},
     {id:'field',  who:'Uncle Ikaika', t:'Plant on the starter terrace', r:{cash:150}},
-    {id:'ghbuild',who:'Malia',t:'Build the outdoor greenhouse', r:{gems:20}},
+    {id:'ghbuild',who:'Malia',t:'Build the greenhouse (level '+GH_BUILD.level+')', r:{gems:20}},
     {id:'mgr',    who:'Kai',  t:'Plant a seed in a greenhouse bed', r:{gems:15}},
     {id:'breed',  who:'Malia',t:'Try a crossbreed in the Pheno Room', r:{hints:1}},
     {id:'craft',  who:'Unko Kuli',t:'Press your first bubble hash (Dry & Cure > Craft)', r:{gems:15}},
@@ -352,13 +352,13 @@ window.G = (function(){
   let lvlQuiet=false;
   const GATE={land:LAND_LEVEL, gh:GH_BUILD.level, breed:5, permit:INDOOR.permitLevel, indoor:INDOOR.level, orders:2, gecko:3, events:4, customers:5, leaderboard:5, sets:6, hash:6, rosin:10, edibles:14, season:8};
   const MILES={2:['Halfway feed: one free feeding per plant (+15% speed, +20% yield). Skip it and that plant grows 20% slower','Sell dried and cured buds at the Market'],
-    3:['Family land on the hill is for sale','Watch for the golden gecko: tap it for a short boost'],
-    4:['Uncommon strains (10-30 min grows) reach the seed shop','Outdoor greenhouse can be built','Island festivals: limited-time events with exclusive strains'],
-    5:['Pheno Room opens: hunt mystery phenos','Island leaderboard'],
+    3:['Watch for the golden gecko: tap it for a short boost'],
+    4:['Uncommon strains (10-30 min grows) reach the seed shop','Island festivals: limited-time events with exclusive strains'],
+    5:['The greenhouse can be built','Island leaderboard'],
     6:['Craft bubble hash from dried buds','Collection sets: finish a set for a permanent bonus'],
     7:['Greenhouse gear (beds, shade, cooler) is in Upgrades'],8:['New Season (prestige) unlocks once you earn enough'],9:['Rare strains (1-4 hour grows) reach the seed shop','County Agricultural Permit can be bought'],
-    10:['Rosin press (craft rosin)','Golden Hour theme (free)'],
-    11:['Indoor facility: with a full greenhouse, the permit, and the foundation poured, you can build it'],
+    10:['The Indoor Facility is for sale. It is the last location','Buying it turns the garage into your Pheno Room','Rosin press (craft rosin)','Golden Hour theme (free)'],
+    11:['Sealed benches: with the Indoor Facility, a full greenhouse, the permit, and the foundation, you can build them'],
     12:['CO2, HVAC, and the veg room are in Upgrades'],14:['Epic strains (8-24 hour grows) unlock','Licensed kitchen (craft edibles)'],20:['Legendary strains (1-3 day grows) unlock']};
   function gate(k){ return st.level>=GATE[k]; }
 
@@ -380,17 +380,17 @@ window.G = (function(){
     if(kind==='bench') st.bench++;
     syncPlots(); emit('expand',{kind,n}); return true;
   }
-  function buyLand(){ if(st.land) return false; if(!gate('land')){ emit('toast',{t:'The family land goes on sale at level '+LAND_LEVEL,k:'bad'}); return false; } if(!spend(LAND_COST)) return false; st.land=true; st.phenoRoom=true; syncPlots(); done('land'); emit('land'); emit('phenoroom'); return true; }
+  function buyLand(){ if(st.land) return false; if(!gate('land')){ emit('toast',{t:'The Indoor Facility goes on sale at level '+LAND_LEVEL,k:'bad'}); return false; } if(!spend(LAND_COST)) return false; st.land=true; st.phenoRoom=true; syncPlots(); done('land'); emit('land'); emit('phenoroom'); return true; }
   // Indoor Breeding Pheno Room: takes over pheno work from the garage (crosses 60% faster, double mutation odds, +1 hint per discovery). The garage becomes storage (+4 drying slots) and a bonus grow.
   const LAB={cost:600000,level:INDOOR_LAB_LEVEL()};
   function INDOOR_LAB_LEVEL(){ return 14; }
   function buyLab(){ if(st.breedLab||!st.inBuilt) return false; if(!spend(LAB.cost)) return false; st.breedLab=true; emit('breedlab'); return true; }
   function garageRole(){ return !st.phenoRoom?'grow':st.breedLab?'storage':'pheno'; }
-  function buildGH(){ if(st.ghBuilt||!st.land) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse needs level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; const n=st.plots.filter(p=>p.zone==='garage'&&p.owned).length; st.ghBuilt=true; st.gh=0; st.ghMatch=n; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
+  function buildGH(){ if(st.ghBuilt) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse needs level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; const n=st.plots.filter(p=>p.zone==='garage'&&p.owned).length; st.ghBuilt=true; st.gh=0; st.ghMatch=n; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
   function buyPermit(){ if(st.permit) return false; if(st.level<INDOOR.permitLevel){ emit('toast',{t:'Permit office opens at level '+INDOOR.permitLevel,k:'bad'}); return false; } if(!spend(INDOOR.permitCost)) return false; st.permit=true; done('permit'); emit('permit'); return true; }
   function indoorChecklist(){
     return [
-      {k:'land',  t:'Own the family land', ok:st.land},
+      {k:'land',  t:'Own the Indoor Facility (level '+LAND_LEVEL+')', ok:st.land},
       {k:'gh',    t:'Greenhouse fully expanded (12 beds)', ok:capOf('gh')>=INDOOR.ghPlants, p:capOf('gh')/INDOOR.ghPlants, v:Math.round(capOf('gh')/3)+'/12 beds'},
       {k:'level', t:'Reach level '+INDOOR.level, ok:st.level>=INDOOR.level, p:Math.min(1,(st.level-1+st.xp/xpNeed(st.level))/(INDOOR.level-1)), v:'Level '+st.level},
       {k:'permit',t:'County Agricultural Permit ('+fmt(INDOOR.permitCost)+' at Lv '+INDOOR.permitLevel+', or quest reward)', ok:st.permit},

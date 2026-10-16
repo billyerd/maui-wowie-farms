@@ -157,8 +157,11 @@ if(!sessionStorage.getItem('lv10boot')){
           key: GAME_CONFIG.saveKey, pid: G.st.pid,
           land: !!G.st.land, gh: !!G.st.ghBuilt, indoor: !!G.st.inBuilt, permit: !!G.st.permit,
           cap: G.capOf('garage'), step: step && step.cost, garage: G.st.garage,
-          landOk: G.st.level >= G.LAND_LEVEL && G.st.cash >= G.LAND_COST,
-          ghLevel: G.GH_BUILD.level, indoorLevel: G.INDOOR.level,
+          ghLevel: G.GH_BUILD.level, facilityLevel: G.LAND_LEVEL,
+          ghCost: G.GH_BUILD.cost, facilityCost: G.LAND_COST,
+          ghReady: G.st.level >= G.GH_BUILD.level && G.st.cash >= G.GH_BUILD.cost && !G.st.ghBuilt,
+          facilityReady: G.st.level >= G.LAND_LEVEL && G.st.cash >= G.LAND_COST && !G.st.land,
+          rows: (document.getElementById('locBtn').click(), [...document.querySelectorAll('#locPick button')].map(b => (b.innerText||'').replace(/\\s+/g,' ').trim())),
           tut: G.st.tut, missing, extra,
           tag: tag ? tag.textContent : '', tagHidden: !tag || tag.classList.contains('hidden'),
           modalHidden: !modal || modal.classList.contains('hidden'),
@@ -180,7 +183,20 @@ if(!sessionStorage.getItem('lv10boot')){
     assert(started.realNow && started.realNow.pid === realPid && started.realNow.level === 4 && started.realNow.cash === 777, 'real save was overwritten ' + JSON.stringify(started.realNow && {pid:started.realNow.pid, level:started.realNow.level, cash:started.realNow.cash}));
     assert(!started.land && !started.gh && !started.indoor && !started.permit, 'buildings were granted ' + JSON.stringify(started));
     assert(started.cap === 5 && started.garage === 0 && typeof started.step === 'number', 'garage is not the starting upgradable row ' + JSON.stringify(started));
-    assert(started.landOk && started.ghLevel <= 10 && started.indoorLevel > 10, 'level gates are wrong ' + JSON.stringify(started));
+    assert(started.ghLevel === 5 && started.facilityLevel === 10 && started.ghCost === 12000 && started.facilityCost === 12000 && started.ghReady && started.facilityReady, 'level gates are wrong ' + JSON.stringify({ghLevel:started.ghLevel, facilityLevel:started.facilityLevel, ghReady:started.ghReady, facilityReady:started.facilityReady, ghCost:started.ghCost, facilityCost:started.facilityCost}));
+    assert(started.rows && started.rows.some(t => t.indexOf('Greenhouse') >= 0 && t.indexOf('Level 5') >= 0 && t.indexOf('$12.0K') >= 0) && started.rows.some(t => t.indexOf('Indoor Facility') >= 0 && t.indexOf('Level 10') >= 0 && t.indexOf('$12.0K') >= 0), 'picker rows are wrong ' + JSON.stringify(started.rows));
+    const bought = await evalJs(`(() => {
+      const cash0 = G.st.cash, quest = G.st.quest, done = G.st.questDone;
+      const gh = G.buildGH();
+      const ghWithoutLand = !!G.st.ghBuilt && !G.st.land;
+      G.st.ghBuilt = false; G.st.gh = 0; delete G.st.ghMatch; G.st.cash = cash0;
+      const land = G.buyLand();
+      const facility = !!G.st.land && !G.st.inBuilt;
+      G.st.land = false; G.st.phenoRoom = false; G.st.cash = cash0; G.st.quest = quest; G.st.questDone = done;
+      G.syncPlots(); G.save();
+      return {gh, ghWithoutLand, land, facility, cash: G.st.cash, ghBuilt: !!G.st.ghBuilt, landNow: !!G.st.land};
+    })()`);
+    assert(bought.gh && bought.ghWithoutLand && bought.land && bought.facility && bought.cash === 100000000 && !bought.ghBuilt && !bought.landNow, 'level 10 could not buy both rooms ' + JSON.stringify(bought));
     assert(started.tut && started.tut.done && started.tut.skip && !started.tut.on, 'tutorial was not skipped ' + JSON.stringify(started.tut));
     assert(started.tag === 'TEST SAVE' && !started.tagHidden && started.modalHidden && started.tutHidden, 'tag or intro is wrong ' + JSON.stringify(started));
     assert(!started.missing.length && !started.extra.length, 'shop unlocks are wrong ' + JSON.stringify({missing:started.missing, extra:started.extra}));

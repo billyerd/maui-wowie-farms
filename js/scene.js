@@ -997,10 +997,11 @@ window.R=(function(){
     if(room==='gh'&&!st.ghBuilt){
       const bw=Math.min(300,W-32), bh=132, bx=(W-bw)/2, by=Math.max(band.top, H*0.28);
       bedCard(bx,by,bw,bh,'Greenhouse','Level '+G.GH_BUILD.level+' · '+G.fmt(G.GH_BUILD.cost)+' · same pots as the garage');
-      const label=st.land?(G.gate('gh')?'Build · '+G.fmt(G.GH_BUILD.cost):'Level '+G.GH_BUILD.level):'Needs the family land';
-      ctx.fillStyle=st.land&&G.gate('gh')?'#e6b325':'#3d5244'; rr(bx+24,by+74,bw-48,44,12); ctx.fill();
-      ctx.fillStyle=st.land&&G.gate('gh')?'#2a1c00':'#d7eadc'; ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,W/2,by+96);
-      build={x:bx+24,y:by+74,w:bw-48,h:44,act:st.land?{type:'ghbuild'}:{type:'land'}};
+      const ready=G.gate('gh')&&st.cash>=G.GH_BUILD.cost;
+      const label=ready?'Build · '+G.fmt(G.GH_BUILD.cost):'Level '+G.GH_BUILD.level+' · '+G.fmt(G.GH_BUILD.cost);
+      ctx.fillStyle=ready?'#e6b325':'#3d5244'; rr(bx+24,by+74,bw-48,44,12); ctx.fill();
+      ctx.fillStyle=ready?'#2a1c00':'#d7eadc'; ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,W/2,by+96);
+      build={x:bx+24,y:by+74,w:bw-48,h:44,act:{type:'ghbuild'}};
     } else if(room==='facility'&&!st.land){
       const bw=Math.min(300,W-32), bh=120, bx=(W-bw)/2, by=band.top+12;
       bedCard(bx,by,bw,bh,'Indoor Facility','Level '+G.LAND_LEVEL+' · '+G.fmt(G.LAND_COST)+' · 40 plots');
@@ -1139,7 +1140,7 @@ window.R=(function(){
       // greenhouse
       const gw=GHW*GH.s, gh=GHH*GH.s;
       if(ok('greenhouse')){ ctx.globalAlpha=st.ghBuilt?1:.35; ctx.drawImage(roomIm('greenhouse'),GH.x,GH.y,gw,gh); ctx.globalAlpha=1; }
-      if(st.land&&!st.ghBuilt) fronts.push(()=>tag(GH.x+gw/2,GH.y+gh/2,'Build greenhouse · '+G.fmt(G.GH_BUILD.cost)+(G.gate('gh')?'':' · Lv '+G.GH_BUILD.level),{type:'ghbuild'},st.cash>=G.GH_BUILD.cost&&G.gate('gh')));
+      if(!st.ghBuilt) fronts.push(()=>tag(GH.x+gw/2,GH.y+gh/2,'Build greenhouse · '+G.fmt(G.GH_BUILD.cost)+(G.gate('gh')?'':' · Lv '+G.GH_BUILD.level),{type:'ghbuild'},st.cash>=G.GH_BUILD.cost&&G.gate('gh')));
       if(st.ghBuilt){ const nb=G.nextStep('gh'); if(nb){ const bay=st.gh+1; const [bx,by]=GH_BEDS[bay*3+1]; fronts.push(()=>stepTag('gh',GH.x+bx*GH.s,GH.y+by*GH.s)); }
         /* BUG-005: unbuilt beds no longer draw dark ovals (they read as floating shadows on the glass); the step tag marks the next bay */ }
       for(const k in BLD){ if(k==='stand') continue; const b=BLD[k]; if(b.need&&!b.need()) continue; if(!ok(b.img)) continue; const im=IM[b.img], w=im.naturalWidth*b.s, h=im.naturalHeight*b.s; list.push({y:b.y,draw:()=>{ if(k==='cart'&&ok('b_cart_buds')) ctx.drawImage(IM.b_cart_buds,b.x-w/2,b.y-h,w,h); else ctx.drawImage(im,b.x-w/2,b.y-h,w,h); }}); }

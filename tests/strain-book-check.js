@@ -62,7 +62,8 @@ function make(id){
     querySelector(){ return null; },
     querySelectorAll(){ return []; },
     getBoundingClientRect(){ return { x:0, y:0, left:0, top:0, right:44, bottom:44, width:44, height:44 }; },
-    closest(){ return null; }, appendChild(){}, remove(){}, focus(){}, select(){}, click(){}
+    closest(){ return null; }, appendChild(){}, remove(){}, focus(){}, select(){}, click(){},
+    setAttribute(k, v){ this[k] = v; }, getAttribute(k){ return this[k]; }
   };
   Object.defineProperty(node, 'innerHTML', {
     get(){ return node._html; },
