@@ -267,7 +267,7 @@ window.UI = (function(){
   function tapLoc(l){ if(l==='indoor') tapRoom('benches'); else if(l==='farm') tapRoom('facility'); else tapRoom('garage'); }
   function reqList(L){ return `<div class="reqs">${L.map(c=>`<div class="req ${c.ok?'ok':''}"><span>${c.ok?'✅':'⬜'}</span><div class="grow"><b>${esc(c.t)}</b>${c.p!=null&&!c.ok?bar(c.p,'thin'):''}${c.v&&!c.ok?`<small>${esc(c.v)}</small>`:''}</div></div>`).join('')}</div>`; }
   function inspectGlass(p){
-    if(!p||!p.strain){ toast('No plant under your finger'); return; }
+    if(!p||!p.strain){ modal('<h3>Scouting glass</h3><p>No plant under your finger. Hold on a plant to read it.</p>',[{label:'OK',cls:'gold',v:0}]); return; }
     const s=G.strain(p.strain); if(!s){ toast('No plant under your finger'); return; }
     const lines=[
       (p.prog>=1?'Ripe and ready to harvest':Math.round(p.prog*100)+'% grown'),
