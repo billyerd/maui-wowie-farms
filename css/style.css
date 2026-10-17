@@ -1020,6 +1020,7 @@ body:not(.sheet-open) #toasts{
 }
 #toasts .toast,
 #toasts .toast.long,
+#achToasts .toast,
 .toast.long{
   white-space:nowrap !important;
   overflow:visible !important;
@@ -1029,6 +1030,12 @@ body:not(.sheet-open) #toasts{
   display:block !important;
   -webkit-line-clamp:unset !important;
   -webkit-box-orient:unset !important;
+  animation:toastin .18s ease-out !important;
+}
+@keyframes toastin{from{opacity:0}to{opacity:1}}
+#achToasts{
+  top:var(--dock-top, 107px) !important;
+  bottom:auto !important;
 }
 #achToasts .toast{
   white-space:nowrap;overflow:visible;text-overflow:clip;max-width:none;display:block;-webkit-line-clamp:unset;
@@ -1053,17 +1060,22 @@ body:not(.sheet-open) #toasts{
   width:max(100%, 40px);
   transform:translateX(-50%);
 }
-/* Each bottom tab is a 40px box. The icon stays centered. At 320 the words hide so ten boxes still fit. */
+/* Each bottom tab is its own 40px box. The row scrolls instead of squeezing them together. */
 #toolbar{
-  display:grid !important;
-  grid-template-columns:repeat(10, minmax(0, 1fr));
-  justify-items:center;
+  display:flex !important;
+  flex-wrap:nowrap !important;
+  justify-content:flex-start !important;
   align-items:stretch;
   gap:0 !important;
   column-gap:0 !important;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:none;
+  pointer-events:auto;
   padding-left:var(--sal, 0px) !important;
   padding-right:var(--sar, 0px) !important;
 }
+#toolbar::-webkit-scrollbar{display:none}
 #toolbar #qaFab,
 #toolbar #locSlot,
 #toolbar #upgBtn.sidebtn,
@@ -1073,10 +1085,10 @@ body:not(.sheet-open) #toasts{
   width:40px !important;
   min-width:40px !important;
   max-width:40px !important;
-  flex:none !important;
-  justify-self:center;
-  overflow:visible;
+  flex:0 0 40px !important;
+  overflow:hidden;
 }
+#toolbar #qaFab{overflow:visible !important}
 #toolbar #locSlot{display:flex;align-items:stretch;justify-content:center;overflow:visible}
 #toolbar #qaFab{width:40px !important;min-width:40px !important;max-width:40px !important}
 #toolbar .qa-main{width:32px !important;min-width:0 !important;max-width:32px}
@@ -1090,7 +1102,7 @@ body:not(.sheet-open) #toasts{
   overflow:visible;
   text-overflow:clip;
 }
-@media (max-width:340px){
+@media (max-width:400px){
   #toolbar #locBtn small,
   #toolbar #menu button small,
   #toolbar #upgBtn b,

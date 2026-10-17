@@ -252,8 +252,9 @@ window.R=(function(){
     text=String(text||'');
     // A multi-harvest on one row used to stack a label on every pot. Fold nearby notes into one line.
     const near=floats.find(f=>f.t<0.5&&Math.abs(f.x-w.x)<260&&Math.abs(f.y-w.y)<100);
-    if(near&&near.text.length<46&&near.text.indexOf(text)<0){
-      near.text=near.text+'  '+text;
+    const merged=near&&near.text.indexOf(text)<0?near.text+'  '+text:'';
+    if(near&&merged.length<42){
+      near.text=merged;
       near.x=(near.x+w.x)/2;
       near.y=Math.min(near.y,w.y);
       return;
@@ -961,7 +962,7 @@ window.R=(function(){
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
     x.drawImage(src.c,0,0,src.w,src.h);
     if(punch){
-      // Replace the grey-green plate hue and lay the bud colour on top of it.
+      // Hue shift stays inside the plant. 'color' would paint the empty rect opaque.
       x.globalCompositeOperation='color'; x.globalAlpha=0.92; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
       x.globalCompositeOperation='source-atop'; x.globalAlpha=0.5; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
       const g=x.createLinearGradient(0,src.h,0,src.h*0.4);
@@ -975,6 +976,8 @@ window.R=(function(){
         x.globalAlpha=Math.min(0.9, amt*1.6); x.fillStyle=g; x.fillRect(0,0,src.w,src.h);
       }
     }
+    x.globalCompositeOperation='destination-in'; x.globalAlpha=1;
+    x.drawImage(src.c,0,0,src.w,src.h);
     const out={c,w:src.w,h:src.h,k:src.k}; if(WASH.size>220) WASH.clear(); WASH.set(key,out); return out;
   }
   function loadOne(k, src, bag){
@@ -998,6 +1001,29 @@ window.R=(function(){
     const stages=!!(PLANT_IM.seedling&&PLANT_IM.seedling.naturalWidth&&PLANT_IM.veg&&PLANT_IM.veg.naturalWidth&&PLANT_IM.stage2&&PLANT_IM.stage2.naturalWidth&&PLANT_IM.early&&PLANT_IM.early.naturalWidth&&PLANT_IM.mid&&PLANT_IM.mid.naturalWidth);
     return {ready:n, total:ids.length, stages};
   }
+  function washProbe(id, prog){
+    const st=G.strain(id); if(!st) return {err:'strain'};
+    const sp=describe(st, stageOf(prog==null?0.2:+prog));
+    if(!sp||!sp.im||!sp.im.naturalWidth) return {err:'art'};
+    const src=bitmapFor(sp.im, 160, 1); if(!src) return {err:'bmp'};
+    const painted=sp.hint>0.015?washKeyed(src, sp.hintColor, sp.hint, sp.stage<=3?sp.stem:''):src;
+    function pixels(node){
+      const c=document.createElement('canvas'); c.width=node.w; c.height=node.h;
+      const g=c.getContext('2d'); g.drawImage(node.c,0,0,node.w,node.h);
+      return g.getImageData(0,0,c.width,c.height).data;
+    }
+    const raw=pixels(src), out=pixels(painted);
+    let clear=0, leaked=0, maxA=0;
+    const n=src.w*src.h;
+    for(let i=0;i<n;i++){
+      if(raw[i*4+3]>16) continue;
+      clear++;
+      const a=out[i*4+3];
+      if(a>maxA) maxA=a;
+      if(a>24) leaked++;
+    }
+    return {clear, leaked, maxA, w:src.w, h:src.h, color:sp.hintColor};
+  }
   function describe(st, stage){
     const im=stageIm(stage, st); if(!im||!im.naturalWidth) return null;
     const hint=stage>=5?0:(HINT[stage]||0);
@@ -1005,43 +1031,54 @@ window.R=(function(){
     const hintColor=hintColorOf(st);
     return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor, stem:stage<=3&&L&&L.leaf&&!huePunch(hintColor)?L.leaf:'', painted:1, grown:1, closeup:0};
   }
-  // Wide plants scale down as a whole so the sprite stays inside about 1.2 cell widths.
-  // A few pixels past the screen margin are feathered, never sliced off.
-  // boxAspect, when set, sizes the height for a wider plate sharing this fade.
-  function fitBox(aspect, sl, stage, prog, ripeAspect, boxAspect){
+  // One height curve per strain, from the shared sprout to that strain's ripe height.
+  // Width follows the sprite. A plate wider than about 1.2 cells may scale down,
+  // but not below 0.6 of the row, and never below the curve.
+  function curveT(prog){
+    const p=Math.max(0, Math.min(1, +prog||0));
+    if(p>=1) return 1;
+    return (ageOf(p)-0.40)/0.60;
+  }
+  function targetRipeH(sl, ripeAspect){
+    const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
+    const cellW=sl.cellW||48;
+    const cellH=sl.cellH||(span!=null?span:cellW);
+    let want=span!=null?Math.min(span, cellH*0.78):Math.max(18, sl._hpx||cellW);
+    const a=Math.max(.05, ripeAspect||1);
+    const cap=cellW*1.2;
+    if(want*a>cap+0.2){
+      const fitted=cap/a;
+      const floor=span!=null?span*0.6:fitted;
+      want=Math.max(fitted, floor);
+      if(span!=null) want=Math.min(span, want);
+    }
+    return want;
+  }
+  function fitBox(aspect, sl, stage, prog, ripeAspect){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
     const cellW=sl.cellW||48;
     const cellH=sl.cellH||(span!=null?span:cellW);
     const a=Math.max(.05, aspect||ripeAspect||1);
-    const boxA=Math.max(a, boxAspect||0, .05);
-    const age=(prog>=1||stage>=5)?1:ageOf(prog);
-    let wantH=span!=null?Math.max(10, span):Math.max(18, sl._hpx||cellW);
-    if(span!=null) wantH=Math.min(span, cellH*0.75);
-    let h=wantH*age;
+    const ripeH=targetRipeH(sl, ripeAspect);
+    const base=span!=null?Math.min(span, cellH*0.78):ripeH;
+    const sprout=Math.min(ripeH, Math.max(span!=null&&span<48?10:18, base*0.40));
+    const t=(prog>=1||stage>=5)?1:curveT(prog);
+    let h=sprout+(ripeH-sprout)*t;
     if(span!=null && h>span) h=span;
-    if(span!=null){
-      const minH=span>=48?18:10;
-      if(h<minH) h=Math.min(minH, span);
+    let w=h*a;
+    const cap=cellW*1.2;
+    if(w>cap+0.2){
+      const floor=span!=null?Math.min(h, span*0.6):h;
+      const scaled=Math.max(floor, h*cap/w);
+      // The curve already climbs to the ripe height. Do not drop back to the wide plate.
+      if(scaled+0.4>=h){ h=scaled; w=h*a; }
     }
-    const cellCap=cellW*1.2;
-    let edgeCap=cellCap;
-    if(sl.x!=null){
-      const margin=8;
-      const left=Math.max(1, sl.x-margin);
-      const right=sl.edgeR!=null?Math.max(1, sl.edgeR-sl.x):left;
-      // Stay inside the screen margin. A leftover sliver is feathered, not budgeted in.
-      edgeCap=Math.min(left, right)*2;
-    }
-    const maxW=Math.max(8, Math.min(cellCap, edgeCap));
-    let wBox=h*boxA;
-    if(wBox>maxW+0.2){ h*=maxW/wBox; wBox=maxW; }
-    const w=h*a;
     let feather=0;
     if(sl.x!=null){
       const half=w/2;
       const overL=Math.max(0, 8-(sl.x-half));
       const overR=sl.edgeR!=null?Math.max(0, (sl.x+half)-sl.edgeR):0;
-      feather=Math.min(12, Math.max(overL, overR));
+      if(overL>0.4||overR>0.4) feather=12;
     }
     return {h,w,a,feather,crop:0};
   }
@@ -1070,8 +1107,8 @@ window.R=(function(){
       const local=(u*dw)-pad-box.w/2;
       const sx=sl.x+fdir*local;
       let al=1;
-      if(sx<8) al=Math.max(0,(sx-(8-12))/12);
-      else if(sx>W-8) al=Math.max(0,((W-8+12)-sx)/12);
+      if(sx<12) al=Math.max(0, sx/12);
+      else if(sx>W-12) al=Math.max(0, (W-sx)/12);
       g.addColorStop(u,'rgba(0,0,0,'+al+')');
     }
     x.fillStyle=g; x.fillRect(0,0,dw,dh);
@@ -1100,10 +1137,10 @@ window.R=(function(){
     let foot=0;
     if(sl.bed){
       sl._hpx=hpx;
-      const drawSp=(sp, alpha, shadow, boxAspect)=>{
+      const drawSp=(sp, alpha, shadow)=>{
         if(!sp) return null;
         const aspect=sp.w/Math.max(1,sp.h);
-        const box=fitBox(aspect, sl, sp.stage, prog, strainAspect(st), boxAspect);
+        const box=fitBox(aspect, sl, sp.stage, prog, strainAspect(st));
         const tr=ctx.getTransform?ctx.getTransform():null;
         const dev=Math.max(Math.abs(tr&&tr.a||dpr||1), Math.abs(tr&&tr.d||dpr||1));
         let src=bitmapFor(sp.im, Math.max(box.h, box.w), dev);
@@ -1125,13 +1162,12 @@ window.R=(function(){
       const take=b=>{ if(!b) return; hitW=Math.max(hitW,b.w); hitH=Math.max(hitH,b.h); };
       if(fade && primary){
         const a=describe(st, fade.from), b=describe(st, fade.to);
-        const lock=Math.max(a?a.w/Math.max(1,a.h):0, b?b.w/Math.max(1,b.h):0);
-        if(a) take(drawSp(a, 1-fade.t, fade.t<.5, lock));
-        if(b) take(drawSp(b, fade.t, fade.t>=.5, lock));
-        box=fitBox(primary.w/Math.max(1,primary.h), sl, stage, prog, strainAspect(st), lock);
+        if(a) take(drawSp(a, 1-fade.t, fade.t<.5));
+        if(b) take(drawSp(b, fade.t, fade.t>=.5));
+        box=fitBox(primary.w/Math.max(1,primary.h), sl, stage, prog, strainAspect(st));
       } else if(primary){ box=drawSp(primary, 1, true); take(box); }
       if(hitW) sl.spr={w:hitW,h:hitH};
-      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,edge:sl.edgeR,a:box.a,art:stage>=5&&st?st.id:('stage'+stage)});
+      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,edge:sl.edgeR,a:box.a,feather:box.feather||0,art:stage>=5&&st?st.id:('stage'+stage)});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
@@ -1323,12 +1359,18 @@ window.R=(function(){
     ctx.font='800 15px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
     const tb=shownEl('toolbar');
     const ceilY=tb&&tb.top>H*0.4?tb.top-16:H-20;
+    const margin=14;
+    const maxW=Math.max(48, W-margin*2);
     const L=[];
     for(const f of floats){
       f.t+=dt;
-      const tw=ctx.measureText(f.text).width/2;
+      let text=f.text;
+      while(text.length>8 && ctx.measureText(text).width>maxW) text=text.replace(/\s+\S*$/, '')||text.slice(0,-1);
+      if(text!==f.text && ctx.measureText(text).width>maxW) text=text.slice(0, Math.max(4, text.length-1));
+      const tw=ctx.measureText(text).width/2;
       const y=f.y-(f.lane||0)*22-f.t*18;
-      L.push({f, tw, a:Math.max(0,1-f.t/f.life), x:Math.max(8+tw, Math.min(W-8-tw, f.x)), y});
+      const x=Math.max(margin+tw, Math.min(W-margin-tw, f.x));
+      L.push({f, text, tw, a:Math.max(0,1-f.t/f.life), x, y});
     }
     L.sort((a,b)=>a.y-b.y);
     for(let i=1;i<L.length;i++) for(let k=0;k<i;k++){
@@ -1341,7 +1383,7 @@ window.R=(function(){
     for(const o of L){
       const f=o.f;
       ctx.globalAlpha=o.a; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=4;
-      ctx.strokeText(f.text,o.x,o.y); ctx.fillStyle=f.color; ctx.fillText(f.text,o.x,o.y);
+      ctx.strokeText(o.text,o.x,o.y); ctx.fillStyle=f.color; ctx.fillText(o.text,o.x,o.y);
     }
     ctx.globalAlpha=1; for(let i=floats.length-1;i>=0;i--) if(floats[i].t>floats[i].life) floats.splice(i,1);
     for(const c of coins){ c.t+=dt; if(c.t<0) continue; const k=Math.min(1,c.t/.7); ctx.globalAlpha=k>.82?Math.max(0,(1-k)/.18):1; ctx.fillStyle=c.gem?'#7af0ff':'#ffd23a'; ctx.beginPath(); ctx.arc(c.x+(c.tx-c.x)*k,c.y+(c.ty-c.y)*k,6,0,TAU); ctx.fill(); }
@@ -2116,5 +2158,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,gear:bedLay.gear||[],light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1,kind:bedLay.light.kind||''}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,strainSpriteUrl,spriteWarm,growthPaint,fadeMix,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,gear:bedLay.gear||[],light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1,kind:bedLay.light.kind||''}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,strainSpriteUrl,spriteWarm,growthPaint,fadeMix,washProbe,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();

@@ -180,15 +180,19 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const it = m.items[i];
         assert(it.w >= 40, tag + ' tab box is under 40px ' + JSON.stringify(it));
         const cx = (it.l + it.r) / 2;
-        assert(cx >= -1 && cx <= m.w + 1, tag + ' button center offscreen ' + JSON.stringify(it));
-        assert(it.l >= -12 && it.r <= m.w + 12 && it.b <= m.h + 1, tag + ' button offscreen ' + JSON.stringify(it));
         assert(it.t >= m.bar.t - 1 && it.b <= m.bar.b + 1, tag + ' button leaves the row ' + JSON.stringify(it));
         if (i){
           const prev = m.items[i - 1];
-          assert(cx >= (prev.l + prev.r) / 2 + 8, tag + ' tab centers are stacked ' + prev.id + ' ' + it.id);
+          assert(it.l >= prev.r - 1, tag + ' tab boxes overlap ' + prev.id + ' ' + it.id);
+          assert(cx >= (prev.l + prev.r) / 2 + 39, tag + ' tab centers are stacked ' + prev.id + ' ' + it.id);
         }
       }
-      const badHit = m.hits.find(h => h.owner !== h.id);
+      const badHit = m.hits.find((h, i) => {
+        const it = m.items[i];
+        const cx = it ? (it.l + it.r) / 2 : 0;
+        if (cx < 4 || cx > m.w - 4) return false;
+        return h.owner !== h.id;
+      });
       assert(!badHit, tag + ' a row button is covered ' + JSON.stringify(m.hits));
       const padMin = Math.min.apply(null, (m.pads || []).map(p => p.w));
       assert(m.pads && m.pads.length === 10 && padMin >= 40, tag + ' tab hit area is under 40px ' + JSON.stringify(m.pads));
@@ -203,6 +207,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
     await boot(320, 568);
     const small = await evalJs(measureSrc);
     checkLayout('320x568', small);
+
+    await boot(360, 640);
+    const mid = await evalJs(measureSrc);
+    checkLayout('360x640', mid);
 
     await boot(390, 844);
     const tall = await evalJs(measureSrc);

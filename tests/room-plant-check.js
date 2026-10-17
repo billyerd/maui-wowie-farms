@@ -159,10 +159,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const span = (s.foot || 0) - (s.cellTop || 0);
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
-        assert(s.w <= (s.cellW || 0) * 1.22 + 1, tag + ' pot ' + s.id + ' is wider than 1.2 cells ' + JSON.stringify(s));
         assert(!s.a || Math.abs(s.w / s.h - s.a) < 0.06, tag + ' pot ' + s.id + ' is cropped instead of scaled ' + JSON.stringify(s));
         assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
-        if (s.edge != null && s.x != null) assert(s.x + s.w / 2 <= s.edge + 1.5, tag + ' pot ' + s.id + ' crosses the screen edge ' + JSON.stringify(s));
+        if (s.edge != null && s.x != null && s.x + s.w / 2 > s.edge + 0.6) assert(s.feather > 0.4, tag + ' pot ' + s.id + ' is hard-clipped at the margin ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
       }
     }
@@ -219,10 +218,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const sprites=R.bedSprites();
         const slack=sprites.filter(s=>{
           const span=s.foot-s.cellTop;
-          const edgeOut=s.edge!=null && s.x+s.w/2>s.edge+1.5;
+          const edgeOut=s.edge!=null && s.x+s.w/2>s.edge+0.6 && !(s.feather>0.4);
           const cropped=s.a && Math.abs(s.w/s.h - s.a)>0.06;
-          const wide=s.w>(s.cellW||0)*1.22+1;
-          return edgeOut || cropped || wide || s.top<s.cellTop-1 || s.h>span+1.5;
+          return edgeOut || cropped || s.top<s.cellTop-1 || s.h>span+1.5;
         }).slice(0,3);
         const narrow=['blue-dream','glitter-bomb','rs11','durban-poison','jealousy'];
         const facility=[];
@@ -239,7 +237,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         UI.open('seeds');
         return {
           dpr, ripe:{h:+maui.h.toFixed(1), w:+maui.w.toFixed(1), span:+(maui.foot-maui.cellTop).toFixed(1), cellW:+maui.cellW.toFixed(1), cellH:+(maui.cellH||0).toFixed(1), top:+maui.top.toFixed(1), cellTop:+maui.cellTop.toFixed(1), id:'jealousy'},
-          edge:{right:+(edge.x+edge.w/2).toFixed(1), limit:edge.edge, id:edge.art},
+          edge:{right:+(edge.x+edge.w/2).toFixed(1), limit:edge.edge, feather:edge.feather||0, id:edge.art},
           indoor:sprites.length, slack:slack.length, facility,
           minW:+Math.min(...sprites.map(s=>s.w)).toFixed(1), maxW:+Math.max(...sprites.map(s=>s.w)).toFixed(1),
           errs:(window.__errs||[]).slice(0,3)
@@ -258,11 +256,11 @@ localStorage.removeItem('mwfarms_test_v1');` });
       console.log('size', JSON.stringify(Object.assign({}, m, {shop})));
       assert(!(m.errs && m.errs.length), 'size console errors ' + JSON.stringify(m.errs));
       assert(m.dpr >= 2.9, 'device pixel ratio is capped below 3 (' + m.dpr + ')');
-      assert(m.ripe && m.ripe.cellH > 40 && m.ripe.h >= m.ripe.cellH * 0.70 && m.ripe.h <= m.ripe.cellH * 0.82, 'garage ripe plant is not about three quarters of the cell ' + JSON.stringify(m.ripe));
-      assert(m.ripe.w <= m.ripe.cellW * 1.22 + 1, 'garage ripe plant is wider than the canopy cap ' + JSON.stringify(m.ripe));
+      assert(m.ripe && m.ripe.cellH > 40 && m.ripe.h >= m.ripe.cellH * 0.76 && m.ripe.h <= m.ripe.cellH * 0.80, 'garage ripe plant is not about 0.78 of the cell ' + JSON.stringify(m.ripe));
+      assert(m.ripe.w <= m.ripe.cellW * 1.25 + 1, 'narrow garage ripe plant is wider than the canopy ' + JSON.stringify(m.ripe));
       assert(m.ripe.h > m.ripe.w, 'tall ripe plant is not taller than it is wide ' + JSON.stringify(m.ripe));
       assert(m.ripe.top >= m.ripe.cellTop - 1, 'garage ripe plant covers the pot above ' + JSON.stringify(m.ripe));
-      assert(m.edge && m.edge.right <= m.edge.limit + 1.5, 'rightmost garage plant crosses the screen edge ' + JSON.stringify(m.edge));
+      assert(m.edge && (m.edge.right <= m.edge.limit + 0.6 || m.edge.feather > 0.4), 'rightmost garage plant is hard-clipped ' + JSON.stringify(m.edge));
       assert(m.indoor >= 20, 'indoor size sample is too small');
       assert(m.slack === 0, 'indoor ripe plants are outside the cell limits ' + JSON.stringify(m));
       assert(m.facility && m.facility.length === 5, 'facility narrow sample missing ' + JSON.stringify(m.facility));
@@ -305,21 +303,32 @@ localStorage.removeItem('mwfarms_test_v1');` });
       }
       const banner = await evalJs(`(async () => {
         const g=document.getElementById('goal');
-        g.classList.add('open');
+        g.classList.remove('open');
         document.querySelectorAll('#toasts .toast, #achToasts .toast').forEach(el=>el.remove());
-        UI.toast('Best harvest','gemt','ach');
-        await new Promise(r=>setTimeout(r, 320));
+        UI.toast('Legendary Harvest','gemt','ach');
+        await new Promise(r=>setTimeout(r, 40));
+        const hud=document.getElementById('hud').getBoundingClientRect().bottom;
+        const closed=document.querySelector('#achToasts .toast, #toasts .toast').getBoundingClientRect().top;
+        g.classList.add('open');
+        UI.update();
+        await new Promise(r=>setTimeout(r, 40));
         const el=document.querySelector('#achToasts .toast, #toasts .toast');
-        const r=el.getBoundingClientRect();
+        const open=el.getBoundingClientRect().top;
         const tx=g.querySelector('.gtx').getBoundingClientRect();
         const text=el.textContent;
         g.classList.remove('open');
+        UI.update();
+        await new Promise(r=>setTimeout(r, 40));
+        const back=document.querySelector('#achToasts .toast, #toasts .toast').getBoundingClientRect().top;
         el.remove();
-        return {top:+r.top.toFixed(1), banner:+tx.bottom.toFixed(1), text};
+        return {closed:+closed.toFixed(1), open:+open.toFixed(1), back:+back.toFixed(1), banner:+tx.bottom.toFixed(1), hud:+hud.toFixed(1), text};
       })()`);
       console.log('toast banner', JSON.stringify(banner));
-      assert(banner.text === 'Best harvest', 'achievement toast was rewritten ' + JSON.stringify(banner));
-      assert(banner.top + 1 >= banner.banner, 'achievement toast sits on the goal banner ' + JSON.stringify(banner));
+      assert(banner.text === 'Legendary Harvest', 'achievement toast was rewritten ' + JSON.stringify(banner));
+      assert(banner.closed >= banner.hud + 40, 'achievement toast sits on the HUD ' + JSON.stringify(banner));
+      assert(banner.open + 1 >= banner.banner, 'achievement toast sits on the goal banner ' + JSON.stringify(banner));
+      assert(Math.abs(banner.back - banner.closed) < 3, 'toast jumps when the goal banner closes ' + JSON.stringify(banner));
+      assert(Math.abs(banner.open - banner.closed) < 16, 'toast jumps when the goal banner opens ' + JSON.stringify(banner));
       const sheet = await evalJs(`(async () => {
         G.st.discovered=G.st.discovered||{};
         G.st.seeds=G.st.seeds||{};
@@ -427,8 +436,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
             const sp=R.bedSprites().find(s=>s.id===p.id);
             const h=sp?sp.h:0, a=sp?sp.a:0, fade=!!R.fadeMix(prog);
             const cropped=sp && Math.abs(sp.w/sp.h - a)>0.06;
-            const wide=sp && sp.w>sp.cellW*1.22+1;
-            if(cropped||wide) dips.push({id, prog, h:+h.toFixed(2), w:sp&&+sp.w.toFixed(1), a:+a.toFixed(3), cropped:!!cropped, wide:!!wide});
+            if(cropped) dips.push({id, prog, h:+h.toFixed(2), w:sp&&+sp.w.toFixed(1), a:+a.toFixed(3), cropped:!!cropped});
             else if(!fade && !prevFade && h+0.6<prev && a<=prevA+0.02) dips.push({id, prog, h:+h.toFixed(2), prev:+prev.toFixed(2), a:+a.toFixed(3)});
             prev=h; prevA=a; prevFade=fade; series.push(+h.toFixed(1));
           }
@@ -450,6 +458,47 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(m.mid && m.mid.layers && m.mid.layers.length === 1 && m.mid.layers[0].stage === 1, 'stage edge snapped back to the previous sprite ' + JSON.stringify(m.mid));
       assert(m.planted && m.art === 'durban-poison' && m.stage === 5, 'ripe Durban Poison did not draw its strain sprite ' + JSON.stringify(m));
       assert(!(m.dips && m.dips.length), 'drawn height decreased across a stage ' + JSON.stringify(m.dips) + ' ' + JSON.stringify(m.heights));
+      const grow = await evalJs(`(() => {
+        G.st.garage=0; G.st.garageKeep=0; G.syncPlots();
+        const owned=G.st.plots.filter(q=>q.zone==='garage'&&q.owned);
+        const p=owned[2]||owned[0];
+        G.setRoom('garage'); if(R.resize) R.resize();
+        const ids=['durban-poison','northern-lights','maile-grape','jealousy'];
+        const jumps=[]; const ends={};
+        ids.forEach(id=>{
+          let prev=-1;
+          for(let i=0;i<=100;i++){
+            const prog=i/100;
+            p.strain=id; p.prog=prog; p.water=1; p.food=1; p.pest=null;
+            R.frame(0.02);
+            const sp=R.bedSprites().find(s=>s.id===p.id);
+            const h=sp?sp.h:0;
+            if(prev>=0 && h+0.6<prev) jumps.push({id, prog:+prog.toFixed(2), h:+h.toFixed(1), prev:+prev.toFixed(1), drop:1});
+            else if(prev>=0 && h>prev+8) jumps.push({id, prog:+prog.toFixed(2), h:+h.toFixed(1), prev:+prev.toFixed(1), jump:1});
+            prev=h;
+          }
+          const sp=R.bedSprites().find(s=>s.id===p.id);
+          ends[id]={h:sp?+sp.h.toFixed(1):0, cellH:sp?+sp.cellH.toFixed(1):0, span:sp?+(sp.foot-sp.cellTop).toFixed(1):0};
+        });
+        const wash=['maile-grape','granddaddy-purple','blue-dream'].map(id=>{
+          const a=R.washProbe(id, 0.2), b=R.washProbe(id, 0.5);
+          return {id, a, b};
+        });
+        p.strain=null; p.prog=0;
+        return {jumps, ends, wash, errs:(window.__errs||[]).slice(0,4)};
+      })()`);
+      console.log('grow', JSON.stringify({ jumps: grow.jumps, ends: grow.ends, wash: grow.wash }));
+      assert(!(grow.errs && grow.errs.length), 'growth sweep errors ' + JSON.stringify(grow.errs));
+      assert(!(grow.jumps && grow.jumps.length), 'height is not a smooth climb ' + JSON.stringify(grow.jumps));
+      for (const id of ['durban-poison','jealousy']){
+        const e=grow.ends[id];
+        assert(e && e.h >= e.cellH*0.76 && e.h <= e.cellH*0.80, id + ' ripe height left the 0.78 cell target ' + JSON.stringify(e));
+      }
+      for (const row of grow.wash || []){
+        for (const sample of [row.a, row.b]){
+          assert(sample && sample.clear > 40 && sample.leaked === 0, row.id + ' wash painted transparent pixels ' + JSON.stringify(sample));
+        }
+      }
     }
 
     async function harvestCheck(){

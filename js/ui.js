@@ -31,7 +31,6 @@ window.UI = (function(){
     showPill(text,kind,group);
   }
   function toastTop(){
-    let y=56;
     const H=window.innerHeight||800;
     if(sheetOpen()){
       const bar=document.getElementById('toolbar');
@@ -41,10 +40,13 @@ window.UI = (function(){
       const anchor=(fr&&fr.height>8&&fr.top>120)?fr.top:(br&&br.top>120?br.top:H-80);
       return Math.max(64, Math.round(anchor-44));
     }
+    // Stay in the slot under the goal banner whether or not that banner is open,
+    // so a notice does not jump from y 109 to y 56 when the banner closes.
+    let y=107;
     const hud=document.getElementById('hud');
     if(hud&&hud.getBoundingClientRect){
       const r=hud.getBoundingClientRect();
-      if(r.height>8 && r.bottom<H*0.55) y=Math.max(y, Math.round(r.bottom+6));
+      if(r.height>8 && r.bottom<H*0.55) y=Math.max(107, Math.round(r.bottom+58));
     }
     const goal=document.getElementById('goal');
     if(goal&&goal.classList&&goal.classList.contains('open')){
@@ -52,7 +54,7 @@ window.UI = (function(){
       const r=(tx&&tx.getClientRects&&tx.getClientRects().length?tx:goal).getBoundingClientRect();
       if(r.height>8 && r.bottom<H*0.7) y=Math.max(y, Math.round(r.bottom+8));
     }
-    return Math.max(56, y);
+    return y;
   }
   function placeToasts(){
     const top=toastTop()+'px';

@@ -370,7 +370,11 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(canvas && canvas.y <= 0.5 && canvas.x <= 0.5 && canvas.r >= m.w - 0.5 && canvas.b >= m.h - 0.5,
         tag + ' room does not fill the screen ' + JSON.stringify(canvas));
       assert(bar && bar.b >= m.h - 1 && bar.y < m.h && bar.y > m.h * 0.45, tag + ' bottom row is off the screen ' + JSON.stringify(bar));
-      if (m.w <= 340){
+      const words = (m.labels || []).map(l => l.t);
+      ['Pass','Garage','Gear','Dry','Market','Breed','Strains','Story'].forEach(name => {
+        assert(words.indexOf(name) >= 0, tag + ' missing bottom label ' + name + ' ' + words.join('|'));
+      });
+      if (m.w <= 400){
         assert((m.labels || []).length >= 8, tag + ' toolbar labels were removed');
       } else {
         (m.labels || []).forEach(l => {
@@ -378,10 +382,6 @@ localStorage.removeItem('mwfarms_test_v1');` });
           assert(l.b <= l.hb + 1 && l.y >= l.hy - 1, tag + ' ' + l.t + ' is clipped by its button ' + JSON.stringify(l));
           assert(l.fs >= 10, tag + ' ' + l.t + ' label is under 10px ' + JSON.stringify(l));
           if (!l.bag) assert(l.lines <= 1 && l.sw <= l.cw + 1, tag + ' ' + l.t + ' wraps or overflows ' + JSON.stringify(l));
-        });
-        const words = (m.labels || []).map(l => l.t);
-        ['Pass','Garage','Gear','Dry','Market','Breed','Strains','Story'].forEach(name => {
-          assert(words.indexOf(name) >= 0, tag + ' missing bottom label ' + name + ' ' + words.join('|'));
         });
       }
     }
