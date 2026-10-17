@@ -792,7 +792,7 @@ window.R=(function(){
     const base=(look(st).base)||'green';
     const key='proc|'+(st.id||st.type||'p')+'|'+stage+'|'+base+'|'+sc+'|'+light;
     const hit=detailC.get(key); if(hit) return hit;
-    const LW=300, LH=380, stemY=LH-32;
+    const LW=480, LH=600, stemY=LH-8;
     const W=Math.round(LW*sc), H=Math.round(LH*sc);
     const c=document.createElement('canvas'); c.width=W; c.height=H;
     const x=c.getContext('2d');
@@ -806,24 +806,26 @@ window.R=(function(){
   }
   // In-room plant: original painted growth art, one sprite per strain and stage.
   // The seed shop keeps its own bud portraits. This drawing is the whole plant.
-  function grownSprite(st,prog){
+  function grownSprite(st,prog,variant){
     if(!st||!st.id||!window.Art) return null;
     const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
     const light=roomLight();
-    const key='grown|'+(st.id||'')+'|'+stage+'|'+light;
+    const v=(variant|0)&7;
+    const key='grown|'+(st.id||'')+'|'+stage+'|'+light+'|'+v;
     const hit=detailC.get(key); if(hit) return hit;
-    const sc=3, LW=250, LH=270, foot=LH-6;
+    // Large logical plant, painted at 2x so a zoomed bed stays smooth without caching a 3x copy of every pot.
+    const sc=2, LW=480, LH=600, foot=LH-8;
     const W=Math.round(LW*sc), H=Math.round(LH*sc);
     const c=document.createElement('canvas'); c.width=W; c.height=H;
     const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
     x.save(); x.scale(sc,sc);
-    Art.drawPlant(x,st,stage,LW/2,foot,1,0);
+    Art.drawPlant(x,st,stage,LW/2,foot,1,0,v);
     x.restore();
     applyRoomLight(x,W,H,light);
     let out; try{ out=cropOpaque(c); }catch(e){ out={c,w:W,h:H,base:1}; }
     out.painted=1; out.grown=1; out.closeup=0; out.stage=stage;
-    if(detailC.size>96) detailC.clear();
+    if(detailC.size>80) detailC.clear();
     detailC.set(key,out); return out;
   }
   function drawPlantAt(p,s,sl,now){
@@ -873,7 +875,7 @@ window.R=(function(){
         ctx.globalAlpha=prev;
         return {h:hDraw,w:wDraw};
       };
-      const spA=grownSprite(st,prog);
+      const spA=grownSprite(st,prog,seed&7);
       let box=null;
       if(spA) box=drawSp(spA,1);
       else if(window.Art){ const sp=procSprite(st,prog,dest); box=drawSp(sp,1); }
