@@ -98,6 +98,8 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const card=document.getElementById('tutc'); if(card) card.classList.add('hidden');
         const goal=document.getElementById('goal'); if(goal) goal.classList.remove('open');
         G.st.level=10; G.st.cash=900000;
+        const notes=document.getElementById('toasts');
+        if(notes){ notes.classList.remove('dock'); notes.querySelectorAll('.toast').forEach(el=>el.remove()); }
         window.__draws=0;
         if(window.Art&&Art.drawPlant&&!Art.drawPlant.__wrapped){
           const o=Art.drawPlant;
@@ -157,8 +159,8 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const span = (s.foot || 0) - (s.cellTop || 0);
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
-        assert(s.w <= (s.cellW || 0) + 0.5, tag + ' pot ' + s.id + ' is wider than its cell ' + JSON.stringify(s));
-        assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' grows out of its cell ' + JSON.stringify(s));
+        assert(s.w <= (s.cellW || 0) * 1.26 + 0.5, tag + ' pot ' + s.id + ' overlaps the next column ' + JSON.stringify(s));
+        assert(s.top >= (s.cellTop || 0) - 20, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
       }
     }
@@ -191,7 +193,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         assert(a.grown && b.grown && c.grown && !a.closeup, tag + ' zoom left the grown plant');
         assert(Math.abs(a.foot - b.foot) < 0.6 && Math.abs(a.foot - c.foot) < 0.6, tag + ' zoom moved the plant off the pot ' + JSON.stringify([a,b,c]));
         assert(Math.abs((a.top + a.h) - a.foot) < 0.6 && Math.abs((c.top + c.h) - c.foot) < 0.6, tag + ' plant is not sitting on the soil');
-        assert(a.top >= a.cellTop - 1 && c.top >= c.cellTop - 1, tag + ' zoom grew the plant out of the cell');
+        assert(a.top >= a.cellTop - 20 && c.top >= c.cellTop - 20, tag + ' zoom grew the plant over the pot above');
       }
     }
 
@@ -219,7 +221,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         G.st.discovered=G.st.discovered||{}; G.st.discovered['maui-wowie']=1; G.st.discovered['granddaddy-purple']=1;
         UI.open('seeds');
         return {
-          dpr, ripe:{h:+maui.h.toFixed(1), w:+maui.w.toFixed(1), span:+(maui.foot-maui.cellTop).toFixed(1), id:'jealousy'},
+          dpr, ripe:{h:+maui.h.toFixed(1), w:+maui.w.toFixed(1), span:+(maui.foot-maui.cellTop).toFixed(1), cellW:+maui.cellW.toFixed(1), id:'jealousy'},
           indoor:sprites.length, short:short.length,
           minW:+Math.min(...sprites.map(s=>s.w)).toFixed(1), maxW:+Math.max(...sprites.map(s=>s.w)).toFixed(1),
           errs:(window.__errs||[]).slice(0,3)
@@ -238,11 +240,34 @@ localStorage.removeItem('mwfarms_test_v1');` });
       console.log('size', JSON.stringify(Object.assign({}, m, {shop})));
       assert(!(m.errs && m.errs.length), 'size console errors ' + JSON.stringify(m.errs));
       assert(m.dpr >= 2.9, 'device pixel ratio is capped below 3 (' + m.dpr + ')');
-      assert(m.ripe && m.ripe.h >= m.ripe.span * 0.60, 'garage ripe plant is under 60% of the cell ' + JSON.stringify(m.ripe));
+      assert(m.ripe && m.ripe.w >= 90 && m.ripe.w <= 105, 'garage ripe plant is not about 90-100px wide ' + JSON.stringify(m.ripe));
+      assert(m.ripe.h > m.ripe.w, 'tall ripe plant is not taller than it is wide ' + JSON.stringify(m.ripe));
+      assert(m.ripe.h >= m.ripe.span * 0.90, 'garage ripe plant is not using the row ' + JSON.stringify(m.ripe));
+      assert(m.ripe.w <= m.ripe.cellW * 1.26 + 0.5, 'garage ripe plant overlaps the next column ' + JSON.stringify(m.ripe));
       assert(m.indoor >= 20, 'indoor size sample is too small');
       assert(m.short === 0, 'indoor ripe plants are smaller than the cell allows');
       assert(m.maxW >= 55, 'no indoor ripe plant reached 55px wide');
       assert(shop && shop.w >= 90 && shop.h >= 110, 'seed shop picture is still small ' + JSON.stringify(shop));
+    }
+
+    async function toastCheck(){
+      const m = await evalJs(`(() => {
+        UI.brief('Tutorial skipped. You can replay it in Settings.');
+        UI.toast('Harvest ready','good');
+        UI.toast('Seeds added','good');
+        UI.toast('Line advanced','good');
+        UI.toast('A longer note about the room that should still sit above the buttons','good long');
+        const box=document.getElementById('toasts');
+        const tb=document.getElementById('toolbar').getBoundingClientRect();
+        const br=box.getBoundingClientRect();
+        const n=[...box.querySelectorAll('.toast')].filter(el=>el.getClientRects().length).length;
+        box.querySelectorAll('.toast').forEach(el=>el.remove());
+        box.classList.remove('dock');
+        return {n, bottom:+br.bottom.toFixed(1), barTop:+tb.top.toFixed(1)};
+      })()`);
+      console.log('toasts', JSON.stringify(m));
+      assert(m.n <= 2 && m.n >= 1, 'more than two toasts are visible ' + JSON.stringify(m));
+      assert(m.bottom <= m.barTop + 1, 'toasts cover the bottom nav ' + JSON.stringify(m));
     }
 
     async function stageRow(label){
@@ -292,6 +317,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
     check('390 indoor', await evalJs(scene('facility', 'field', `G.st.land=true; G.st.field=1;`)));
     await shot('indoor_390x844');
     await sizeCheck();
+    await toastCheck();
     check('390 benches', await evalJs(scene('benches', 'in', `G.st.land=true; G.st.inBuilt=true; G.st.bench=0;`)));
     await shot('benches_390x844');
 

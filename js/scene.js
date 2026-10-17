@@ -832,11 +832,18 @@ window.R=(function(){
   function ensureSync(im, h){
     const hit=bmpGet(im,h); if(hit) return hit;
     const nh=im.naturalHeight||im.height||h, nw=im.naturalWidth||im.width||h;
-    const hh=Math.max(1, Math.min(h, nh)), ww=Math.max(1, Math.round(hh*nw/Math.max(1,nh)));
+    const hh=Math.max(1, Math.min(Math.round(h), nh)), ww=Math.max(1, Math.round(hh*nw/Math.max(1,nh)));
+    // One blit never shrinks by more than 2x. A 640px plate steps through half sizes.
+    let src=im;
+    if(nh>hh*2+1){
+      const mid=Math.max(hh+1, Math.round(nh/2));
+      const half=mid<nh?ensureSync(im, mid):null;
+      if(half) src=half.c;
+    }
     const c=document.createElement('canvas'); c.width=ww; c.height=hh;
     const x=c.getContext('2d'); if(!x) return null;
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
-    x.drawImage(im,0,0,ww,hh);
+    x.drawImage(src,0,0,ww,hh);
     const rec={c,w:ww,h:hh,k:im._k}; bmpPut(im,hh,rec); return rec;
   }
   function pumpWarm(){
@@ -844,7 +851,7 @@ window.R=(function(){
       const job=warmQ.shift(); if(!job.im||!job.im.naturalWidth||bmpGet(job.im, job.h)) continue;
       const mark=job.im._k+'|'+job.h; if(SPRITE_WAIT.has(mark)) continue;
       const nh=job.im.naturalHeight, nw=job.im.naturalWidth, hh=Math.min(job.h, nh), ww=Math.max(1, Math.round(hh*nw/Math.max(1,nh)));
-      if(!window.createImageBitmap){ ensureSync(job.im, hh); continue; }
+      if(!window.createImageBitmap||nh>hh*2+1){ ensureSync(job.im, hh); continue; }
       SPRITE_WAIT.add(mark); warmN++;
       createImageBitmap(job.im, {resizeWidth:ww, resizeHeight:hh, resizeQuality:'high'}).then(bm=>{
         bmpPut(job.im, hh, {c:bm, w:bm.width||ww, h:bm.height||hh, k:job.im._k});
@@ -854,7 +861,7 @@ window.R=(function(){
   }
   function queueWarm(im, heights){
     if(!im) return;
-    const go=()=>{ if(!im.naturalWidth) return; (heights||[96,192,384]).forEach(H=>{ const h=Math.min(H, im.naturalHeight); if(!bmpGet(im,h)) warmQ.push({im,h}); }); pumpWarm(); };
+    const go=()=>{ if(!im.naturalWidth) return; (heights||[160,320]).forEach(H=>{ const h=Math.min(H, im.naturalHeight); if(h<im.naturalHeight-1&&!bmpGet(im,h)) warmQ.push({im,h}); }); pumpWarm(); };
     if(im.complete && im.naturalWidth) go(); else im.addEventListener('load', go, {once:true});
   }
   function bitmapFor(im, cssPx, devScale){
@@ -906,12 +913,16 @@ window.R=(function(){
     const L=look(st);
     return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor:(L&&L.bud)||'#6a9a3a', painted:1, grown:1, closeup:0};
   }
-  // Height first, then only shrink to stay inside the cell. Age keeps a sprout shorter than a ripe plant
-  // even when a wide ripe sprite is the one that hits the cell width.
+  // Ripe plants fill the air above the pot. They may cross about a tenth of the
+  // column into each neighbour. The stem stays on the soil. Younger stages stay
+  // inside the cell, and age keeps a sprout shorter than a ripe plant.
   function fitBox(aspect, sl, stage){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
-    const maxW=Math.max(8, (sl.cellW||48)-3);
-    const maxH=span!=null?Math.max(10, span-2):Math.max(18, sl._hpx||maxW);
+    const cellW=sl.cellW||48;
+    const ripe=stage>=5;
+    const maxW=Math.max(8, ripe?cellW*1.24:cellW-3);
+    const rise=ripe?(sl.rise||0):0;
+    const maxH=span!=null?Math.max(10, span-2+rise):Math.max(18, sl._hpx||maxW);
     const age=AGE[stage]||1;
     let h=maxH, w=h*aspect;
     if(w>maxW){ w=maxW; h=w/Math.max(.05,aspect); }
@@ -927,8 +938,8 @@ window.R=(function(){
         if(h>maxH){ const k=maxH/h; h=maxH; w*=k; }
       }
     }
-    // Indoor cells are wide. A ripe plant uses that width when the cell can hold 55px.
-    if(stage>=5 && sl.cellW>=64 && w<55 && maxW>=55){
+    // A ripe plant uses the column when the cell can hold 55px and the sprite is narrow.
+    if(ripe && sl.cellW>=64 && w<55 && maxW>=55){
       const hNeed=55/Math.max(.05,aspect);
       if(hNeed<=maxH+0.01){ w=55; h=hNeed; }
     }
@@ -1341,7 +1352,9 @@ window.R=(function(){
         const stn=p.strain&&G.strain(p.strain);
         const mh=Math.max(.4,plantSize(stn?stn.type:'Hybrid',1,probe).h);
         const plantH=Math.max(18,rim-y-1); const ppm=plantH/mh; const sp=Math.max(.25,(g.cellW-4)/(ppm*1.05));
-        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW,cellTop:y};
+        // Air above this cell a ripe plant may use. Stops short of the pot above;
+        // the label is painted after the leaves, and the light is painted after the top row.
+        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW,cellTop:y,rise:pot?14:12};
         cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim,floor});
         slotOf.set(p.id,sl);
       }

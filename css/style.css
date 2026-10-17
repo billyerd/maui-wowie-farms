@@ -994,3 +994,6 @@ body.sheet-open #toolbar #qaFab{display:flex}
 @media (min-width:420px){
   #toolbar #upgBtn b{font-size:8px;letter-spacing:-.04em}
 }
+/* Notices stack above the bottom nav. Two visible at a time, never on the buttons. */
+body:not(.sheet-open) #toasts{top:auto;bottom:var(--toastb, 80px);justify-content:flex-end}
+#toasts.dock{top:auto!important;bottom:var(--dock-bot, var(--toastb, 80px))!important}

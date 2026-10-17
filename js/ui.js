@@ -30,9 +30,29 @@ window.UI = (function(){
     }
     showPill(text,kind,group);
   }
+  function toastClearance(){
+    const tb=document.getElementById('toolbar');
+    if(!tb||!tb.getBoundingClientRect) return 80;
+    const r=tb.getBoundingClientRect();
+    if(!(r.height>8)) return 80;
+    return Math.max(72, Math.round((window.innerHeight||0)-r.top+8));
+  }
+  function placeToasts(){
+    const b=toastClearance()+'px';
+    const root=document.documentElement.style;
+    if(root.getPropertyValue('--toastb')!==b) root.setProperty('--toastb', b);
+    const box=document.getElementById('toasts');
+    if(box){ box.style.setProperty('--dock-bot', b); box.style.setProperty('--dock-top','auto'); }
+  }
+  function capToasts(box){
+    const live=box&&box.querySelectorAll?[...box.querySelectorAll('.toast')]:[];
+    while(live.length>2){ const old=live.shift(); if(old&&old.remove) old.remove(); }
+  }
   function showPill(text,kind,group){
     let box=document.getElementById('toasts');
     if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
+    if(box.classList) box.classList.remove('dock');
+    placeToasts();
     const k=noticeKind(kind), long=/(^|\s)long(\s|$)/.test(String(kind||''));
     const kids=box.querySelectorAll? [...box.querySelectorAll('.toast')]:[];
     const same=kids.find(el=>group?el.dataset.group===group:el.dataset.raw===String(text));
@@ -49,8 +69,7 @@ window.UI = (function(){
     if(group) el.dataset.group=group;
     el.textContent=group&&GROUP_TXT[group]?GROUP_TXT[group](1,text):String(text||'');
     if(box.appendChild) box.appendChild(el);
-    const live=box.querySelectorAll? [...box.querySelectorAll('.toast')]:[];
-    while(live.length>4){ const old=live.shift(); if(old&&old.remove) old.remove(); }
+    capToasts(box);
     armPill(el, long);
   }
   function armPill(el, long){
@@ -62,14 +81,14 @@ window.UI = (function(){
   function brief(text){
     let box=document.getElementById('toasts');
     if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
+    placeToasts();
     box.classList.add('dock');
-    const tabs=document.getElementById('locTabs');
-    const tr=tabs&&tabs.getClientRects&&tabs.getClientRects().length?tabs.getBoundingClientRect():null;
-    if(tr&&tr.height>8&&tr.top<innerHeight*0.45&&tr.bottom+80<innerHeight-72){ box.style.setProperty('--dock-top', Math.round(tr.bottom+18)+'px'); box.style.setProperty('--dock-bot','auto'); }
-    else if(tr&&tr.height>8&&tr.top>innerHeight*0.45){ box.style.setProperty('--dock-top', Math.max(8, Math.round(tr.top-56))+'px'); box.style.setProperty('--dock-bot','auto'); }
-    else { box.style.setProperty('--dock-top','auto'); box.style.setProperty('--dock-bot','calc(var(--sab) + 18px)'); }
+    const gap=toastClearance();
+    box.style.setProperty('--dock-top','auto');
+    box.style.setProperty('--dock-bot', gap+'px');
     const el=document.createElement('div'); el.className='toast'; el.textContent=String(text||''); box.appendChild(el);
-    setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); },240); },3200);
+    capToasts(box);
+    setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); if(box&&box.classList&&!box.querySelector('.toast')) box.classList.remove('dock'); },240); },3200);
   }
   // A tiny note. No OK button, and it does not open a sheet.
   let pipFade=0, pipHide=0;
@@ -207,7 +226,7 @@ window.UI = (function(){
     }
     const el=$('#locTabs'); if(el&&el.childElementCount){ el.innerHTML=''; el.dataset.rooms=''; }
     const pick=$('#locPick'); if(pick&&!pick.classList.contains('hidden')) paintLocPick(pick);
-    const tb=$('#toolbar'); if(tb){ const b=(tb.offsetHeight+10)+'px'; if(document.documentElement.style.getPropertyValue('--toastb')!==b) document.documentElement.style.setProperty('--toastb',b); }
+    placeToasts();
   }
   function hud(dt){
     const st=G.st;

@@ -20,6 +20,7 @@ for (const m of block.matchAll(/id:\s*'([^']+)'/g)) {
 if (ids.length !== 63) fail('expected 63 strains, found ' + ids.length);
 
 if (!scene.includes("return 'art/plants/strains/'+id+'.png'")) fail('scene does not map a strain id to art/plants/strains/<id>.png');
+if (!scene.includes('ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h)')) fail('sprites are not drawn from the bottom center into the soil');
 if (!scene.includes('art/plants/stages/stage2.png')) fail('stage 2 sprite is not wired');
 if (!scene.includes('art/plants/stages/early_flower.png')) fail('early flower sprite is not wired');
 if (!scene.includes('art/plants/stages/mid_flower.png')) fail('mid flower sprite is not wired');
@@ -75,6 +76,28 @@ for p in files:
 if bad:
     raise SystemExit('pink fringe on ' + ', '.join(bad))
 print('no pink fringe on', len(files), 'sprites')
+anchors = []
+for p in (root/'art/plants/strains').glob('*.png'):
+    im = Image.open(p).convert('RGBA')
+    w, h = im.size
+    if h > 640:
+        anchors.append(p.name + ' is taller than 640')
+        continue
+    px = im.getchannel('A').load()
+    bottom = None
+    for y in range(h - 1, -1, -1):
+        if any(px[x, y] >= 16 for x in range(w)):
+            bottom = y
+            break
+    if bottom is None or h - 1 - bottom > 0:
+        anchors.append(p.name + ' stem floats')
+        continue
+    xs = [x for y in range(max(0, bottom - 4), bottom + 1) for x in range(w) if px[x, y] >= 32]
+    if not xs or abs((sum(xs) / len(xs)) - w / 2) > w * 0.08:
+        anchors.append(p.name + ' stem is off center')
+if anchors:
+    raise SystemExit('stem anchor ' + ', '.join(anchors))
+print('stems sit on the soil for', len(list((root/'art/plants/strains').glob('*.png'))), 'strains')
 `], { stdio: 'inherit' });
 } catch (e) {
   fail('pink fringe check failed');
