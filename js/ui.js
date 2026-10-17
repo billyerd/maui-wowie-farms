@@ -416,7 +416,7 @@ window.UI = (function(){
 
   function syncVol(root){ root.querySelectorAll('input[data-vol]').forEach(i=>{ const v=G.st.settings[i.dataset.vol]; i.value=v==null?70:v; }); root.querySelectorAll('[data-volv]').forEach(b=>{ const v=G.st.settings[b.dataset.volv]; b.textContent=(v==null?70:v)+'%'; }); }
   const cu=(s,sz,hidden)=>`<img class="thumb" data-cu="${s.id}" data-sz="${sz||96}" data-h="${hidden?1:0}" alt="">`;
-  const row=(s,mid,right,sel,hidden)=>s?`<div class="row ${sel?'sel':''}">${cu(s,96,hidden)}<div class="grow"><h4>${hidden?'???':esc(s.name)} ${tag(s)}</h4>${mid}</div>${right||''}</div>`:`<div class="row"><div class="grow"><h4>Retired strain</h4>${mid||''}</div>${right||''}</div>`;
+  const row=(s,mid,right,sel,hidden,pic)=>s?`<div class="row ${sel?'sel':''}">${pic?`<img class="thumb shoppic" data-cu="${s.id}" data-sz="${pic}" data-h="${hidden?1:0}" alt="">`:cu(s,96,hidden)}<div class="grow"><h4>${hidden?'???':esc(s.name)} ${tag(s)}</h4>${mid}</div>${right||''}</div>`:`<div class="row"><div class="grow"><h4>Retired strain</h4>${mid||''}</div>${right||''}</div>`;
   const pips=(l,m)=>`<span style="letter-spacing:2px;color:var(--acc)">${'●'.repeat(l)}<span style="color:rgba(255,255,255,.2)">${'●'.repeat(Math.max(0,m-l))}</span></span>`;
   const upips=(l,m)=>{ let s='<span class="upips">'; for(let i=0;i<m;i++) s+=`<i class="${i<l?'on':''}"></i>`; return s+'</span>'; };
   function flashBuy(k){ boughtKey=k; clearTimeout(boughtTimer); boughtTimer=setTimeout(()=>{ boughtKey=null; if(panel) render(); },720); }
@@ -435,7 +435,7 @@ window.UI = (function(){
     list.sort((a,b)=>a.game.growSec-b.game.growSec);
     const body=list.map(s=>{ const pr=G.seedPrice(s), m=G.mastery(s.id); const ph=s.game.payout/(s.game.growSec/3600);
       return row(s,`<div class="stats"><span>⏱ ${sec(s.game.growSec)}</span><span>${s.game.buds} buds</span><span>~${fmt(s.game.payout)}/plant</span><span>${fmt(ph)}/h</span><span>${thc(s)}</span></div><p>Seed ${fmt(pr)} · own <b>${st.seeds[s.id]||0}</b>${m.lvl?` · Mastery x${m.m}`:''}${m.next&&st.level>=3?` · ${m.n}/${m.next} harvests to x${m.nextM}`:''}</p>`,
-      `<div style="display:flex;flex-direction:column;gap:4px"><button class="btn sm" data-a="buy" data-id="${s.id}" data-n="1" ${st.cash<pr?'disabled':''}>Buy 1</button><button class="btn sm sec" data-a="buy" data-id="${s.id}" data-n="5" ${st.cash<pr*5?'disabled':''}>×5</button>${st.selSeed===s.id?'<span class="chip selchip">✓ Selected</span>':''}</div>`,st.selSeed===s.id).replace('<div class="row','<div data-pickseed="'+s.id+'" class="row '+((st.seeds[s.id]||0)>0?'pickable':'')); }).join('')
+      `<div style="display:flex;flex-direction:column;gap:4px"><button class="btn sm" data-a="buy" data-id="${s.id}" data-n="1" ${st.cash<pr?'disabled':''}>Buy 1</button><button class="btn sm sec" data-a="buy" data-id="${s.id}" data-n="5" ${st.cash<pr*5?'disabled':''}>×5</button>${st.selSeed===s.id?'<span class="chip selchip">✓ Selected</span>':''}</div>`,st.selSeed===s.id,false,400).replace('<div class="row','<div data-pickseed="'+s.id+'" class="row '+((st.seeds[s.id]||0)>0?'pickable':'')); }).join('')
       +`<div class="note">Grow times run from 30 seconds (Common) to 3 days (Legendary). Plants keep growing while you're away. Long grows pay a little more per hour. More strains unlock by level, breeding and island festivals.</div>`;
     const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length;
     const owned=G.S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>a.game.growSec-b.game.growSec);

@@ -138,6 +138,7 @@ b{font-weight:800}
 .row .stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:12px;color:#cfe2d4}
 .row .stats span{background:rgba(255,255,255,.06);padding:2px 7px;border-radius:8px}
 .thumb{width:54px;height:54px;border-radius:14px;flex:none;background:#0a1712;display:block}
+canvas.thumb.shoppic,img.thumb.shoppic{width:96px;height:124px;object-fit:cover;object-position:center 18%;background:#0c1a12;border-radius:14px}
 .tag{font-size:12px;font-weight:900;padding:2px 7px;border-radius:8px;text-transform:uppercase;letter-spacing:.04em}
 .t-Common{background:#4b5d52;color:#e6f2ea}.t-Uncommon{background:#2e8b4f;color:#eaffef}.t-Rare{background:#2f6fd6;color:#eaf2ff}
 .t-Epic{background:#8a3fd1;color:#f6eaff}.t-Legendary{background:linear-gradient(90deg,#ffb02e,#ff6fb1);color:#2a1400}

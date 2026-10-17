@@ -180,7 +180,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const pinched=feet();
         R.setDprCap(3); R.resize(); R.frame(0.05);
         const hi=feet();
-        R.setDprCap(2); R.resize(); R.frame(0.05);
+        R.setDprCap(3); R.resize(); R.frame(0.05);
         return {low, pinched, hi, errs:(window.__errs||[]).slice(0,4)};
       })()`);
       console.log(tag, JSON.stringify({ n: m.low.length, hi: m.hi.length }));
@@ -193,6 +193,56 @@ localStorage.removeItem('mwfarms_test_v1');` });
         assert(Math.abs((a.top + a.h) - a.foot) < 0.6 && Math.abs((c.top + c.h) - c.foot) < 0.6, tag + ' plant is not sitting on the soil');
         assert(a.top >= a.cellTop - 1 && c.top >= c.cellTop - 1, tag + ' zoom grew the plant out of the cell');
       }
+    }
+
+    async function sizeCheck(){
+      await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
+      const m = await evalJs(`(() => {
+        R.setDprCap(3); if(R.resize) R.resize();
+        const dpr = document.getElementById('game').width / innerWidth;
+        G.st.garage=0; G.st.garageKeep=0; G.syncPlots();
+        const g=G.st.plots.filter(p=>p.zone==='garage'&&p.owned);
+        g.forEach(p=>{ p.strain='jealousy'; p.prog=1; p.water=1; p.food=1; p.pest=null; });
+        G.setRoom('garage'); R.frame(0.05);
+        const maui=R.bedSprites()[0];
+        G.st.land=true; G.st.field=3; G.syncPlots();
+        const inn=G.st.plots.filter(p=>p.zone==='field'&&p.owned);
+        const ids=(window.STRAINS||[]).map(s=>s.id);
+        inn.forEach((p,i)=>{ p.strain=ids[i%ids.length]; p.prog=1; p.water=1; p.food=1; p.pest=null; });
+        G.setRoom('facility'); R.frame(0.05);
+        const sprites=R.bedSprites();
+        const short=sprites.filter(s=>{
+          const span=s.foot-s.cellTop, aspect=s.w/Math.max(0.01,s.h), maxH=span-2;
+          if(aspect*maxH>=55) return s.w<54.5;
+          return s.h<maxH*0.88;
+        });
+        G.st.discovered=G.st.discovered||{}; G.st.discovered['maui-wowie']=1; G.st.discovered['granddaddy-purple']=1;
+        UI.open('seeds');
+        return {
+          dpr, ripe:{h:+maui.h.toFixed(1), w:+maui.w.toFixed(1), span:+(maui.foot-maui.cellTop).toFixed(1), id:'jealousy'},
+          indoor:sprites.length, short:short.length,
+          minW:+Math.min(...sprites.map(s=>s.w)).toFixed(1), maxW:+Math.max(...sprites.map(s=>s.w)).toFixed(1),
+          errs:(window.__errs||[]).slice(0,3)
+        };
+      })()`);
+      await sleep(400);
+      const shop = await evalJs(`(() => {
+        const im=document.querySelector('.shoppic');
+        if(!im) return null;
+        const r=im.getBoundingClientRect();
+        return {w:+r.width.toFixed(1), h:+r.height.toFixed(1), sz:im.dataset.sz};
+      })()`);
+      await evalJs(`(() => { UI.close(); return true; })()`);
+      await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+      await evalJs(`(() => { if(R.resize) R.resize(); return true; })()`);
+      console.log('size', JSON.stringify(Object.assign({}, m, {shop})));
+      assert(!(m.errs && m.errs.length), 'size console errors ' + JSON.stringify(m.errs));
+      assert(m.dpr >= 2.9, 'device pixel ratio is capped below 3 (' + m.dpr + ')');
+      assert(m.ripe && m.ripe.h >= m.ripe.span * 0.60, 'garage ripe plant is under 60% of the cell ' + JSON.stringify(m.ripe));
+      assert(m.indoor >= 20, 'indoor size sample is too small');
+      assert(m.short === 0, 'indoor ripe plants are smaller than the cell allows');
+      assert(m.maxW >= 55, 'no indoor ripe plant reached 55px wide');
+      assert(shop && shop.w >= 90 && shop.h >= 110, 'seed shop picture is still small ' + JSON.stringify(shop));
     }
 
     async function stageRow(label){
@@ -241,6 +291,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
     await zoomCheck('zoom indoor', 'G.st.land=true; G.st.field=0;', 'facility', 'field');
     check('390 indoor', await evalJs(scene('facility', 'field', `G.st.land=true; G.st.field=1;`)));
     await shot('indoor_390x844');
+    await sizeCheck();
     check('390 benches', await evalJs(scene('benches', 'in', `G.st.land=true; G.st.inBuilt=true; G.st.bench=0;`)));
     await shot('benches_390x844');
 
