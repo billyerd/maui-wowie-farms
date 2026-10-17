@@ -274,11 +274,12 @@ localStorage.removeItem('mwfarms_test_v1');` });
     }
 
     async function toastCheck(){
-      const m = await evalJs(`(() => {
+      const m = await evalJs(`(async () => {
         const notes=document.getElementById('toasts');
         if(notes) notes.querySelectorAll('.toast').forEach(el=>el.remove());
         UI.toast('Daily gift ready! Tap the gift to claim your reward and keep your streak alive','good');
         UI.toast('Watered the row','good');
+        await new Promise(r=>setTimeout(r, 320));
         const box=document.getElementById('toasts');
         const hud=document.getElementById('hud').getBoundingClientRect();
         const tb=document.getElementById('toolbar').getBoundingClientRect();
@@ -287,12 +288,14 @@ localStorage.removeItem('mwfarms_test_v1');` });
           const r=el.getBoundingClientRect();
           return {t:+r.top.toFixed(1), b:+r.bottom.toFixed(1), text:el.textContent, len:(el.textContent||'').length, one:el.scrollHeight<=el.clientHeight+2, ms:el.dataset.ms};
         });
-        return {n:els.length, rects, hud:+hud.bottom.toFixed(1), bar:+tb.top.toFixed(1)};
+        const boxTop=box.getBoundingClientRect().top;
+        return {n:els.length, rects, hud:+hud.bottom.toFixed(1), bar:+tb.top.toFixed(1), boxTop:+boxTop.toFixed(1)};
       })()`);
       console.log('toasts', JSON.stringify(m));
       assert(m.n === 2, 'garage should show two toasts ' + JSON.stringify(m));
+      assert(m.boxTop + 1 >= m.hud && m.boxTop >= 56 && m.boxTop <= 120, 'toast stack is not under the HUD ' + JSON.stringify(m));
       for (const r of m.rects || []){
-        assert(r.t >= 50 && r.t <= 140, 'toast is not under the HUD ' + JSON.stringify(r));
+        assert(r.t >= m.hud - 1 && r.t <= 160, 'toast is not under the HUD ' + JSON.stringify(r));
         assert(r.t + 1 >= m.hud, 'toast covers the HUD ' + JSON.stringify(r) + ' hud ' + m.hud);
         assert(r.b < m.bar - 20, 'toast reaches the bottom row ' + JSON.stringify(r));
         assert(r.one && r.len <= 36, 'toast is not one short line ' + JSON.stringify(r));
@@ -300,7 +303,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
       }
       const gift = (m.rects || []).find(r => /Daily gift/.test(r.text));
       assert(gift && /…$/.test(gift.text), 'long toast has no ellipsis ' + JSON.stringify(m.rects));
-      const sheet = await evalJs(`(() => {
+      const sheet = await evalJs(`(async () => {
         G.st.discovered=G.st.discovered||{};
         G.st.seeds=G.st.seeds||{};
         G.st.discovered['durban-poison']=1; G.st.seeds['durban-poison']=4;
@@ -308,6 +311,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         UI.open('seeds');
         UI.toast('Daily gift ready! Tap the gift to claim your reward and keep your streak alive','good');
         UI.toast('Another note that should not stack on the seed rows','good');
+        await new Promise(r=>setTimeout(r, 320));
         const box=document.getElementById('toasts');
         const els=[...box.querySelectorAll('.toast')].filter(el=>el.getClientRects().length);
         const rows=[...document.querySelectorAll('[data-pickseed]')].filter(el=>(el.textContent||'').indexOf('in the bag')>=0).map(el=>el.getBoundingClientRect()).filter(r=>r.height>8);
