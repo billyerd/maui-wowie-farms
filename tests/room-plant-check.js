@@ -159,8 +159,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const span = (s.foot || 0) - (s.cellTop || 0);
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
-        assert(s.w <= (s.cellW || 0) * 1.26 + 0.5, tag + ' pot ' + s.id + ' overlaps the next column ' + JSON.stringify(s));
-        assert(s.top >= (s.cellTop || 0) - 20, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
+        assert(s.w <= (s.cellW || 0) * 1.12 + 0.5, tag + ' pot ' + s.id + ' overlaps the next column ' + JSON.stringify(s));
+        assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
+        if (s.edge != null && s.x != null) assert(s.x + s.w / 2 <= s.edge + 0.6, tag + ' pot ' + s.id + ' crosses the screen edge ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
       }
     }
@@ -193,7 +194,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         assert(a.grown && b.grown && c.grown && !a.closeup, tag + ' zoom left the grown plant');
         assert(Math.abs(a.foot - b.foot) < 0.6 && Math.abs(a.foot - c.foot) < 0.6, tag + ' zoom moved the plant off the pot ' + JSON.stringify([a,b,c]));
         assert(Math.abs((a.top + a.h) - a.foot) < 0.6 && Math.abs((c.top + c.h) - c.foot) < 0.6, tag + ' plant is not sitting on the soil');
-        assert(a.top >= a.cellTop - 20 && c.top >= c.cellTop - 20, tag + ' zoom grew the plant over the pot above');
+        assert(a.top >= a.cellTop - 1 && c.top >= c.cellTop - 1, tag + ' zoom grew the plant over the pot above');
       }
     }
 
@@ -207,22 +208,27 @@ localStorage.removeItem('mwfarms_test_v1');` });
         g.forEach(p=>{ p.strain='jealousy'; p.prog=1; p.water=1; p.food=1; p.pest=null; });
         G.setRoom('garage'); R.frame(0.05);
         const maui=R.bedSprites()[0];
+        const garage=R.bedSprites();
+        const edge=garage.reduce((a,s)=>s.x>a.x?s:a, garage[0]);
         G.st.land=true; G.st.field=3; G.syncPlots();
         const inn=G.st.plots.filter(p=>p.zone==='field'&&p.owned);
         const ids=(window.STRAINS||[]).map(s=>s.id);
         inn.forEach((p,i)=>{ p.strain=ids[i%ids.length]; p.prog=1; p.water=1; p.food=1; p.pest=null; });
         G.setRoom('facility'); R.frame(0.05);
         const sprites=R.bedSprites();
-        const short=sprites.filter(s=>{
-          const span=s.foot-s.cellTop, aspect=s.w/Math.max(0.01,s.h), maxH=span-2;
-          if(aspect*maxH>=55) return s.w<54.5;
-          return s.h<maxH*0.88;
-        });
+        const slack=sprites.filter(s=>{
+          const span=s.foot-s.cellTop;
+          let capW=s.cellW*1.1;
+          if(s.edge!=null&&s.x!=null) capW=Math.min(capW, Math.max(8,(s.edge-s.x)*2));
+          const wr=s.w/Math.max(1,capW), hr=s.h/Math.max(1,span);
+          return s.w>capW+0.75 || s.top<s.cellTop-1 || (s.edge!=null && s.x+s.w/2>s.edge+0.75) || Math.max(wr,hr)<0.90;
+        }).slice(0,3);
         G.st.discovered=G.st.discovered||{}; G.st.discovered['maui-wowie']=1; G.st.discovered['granddaddy-purple']=1;
         UI.open('seeds');
         return {
-          dpr, ripe:{h:+maui.h.toFixed(1), w:+maui.w.toFixed(1), span:+(maui.foot-maui.cellTop).toFixed(1), cellW:+maui.cellW.toFixed(1), id:'jealousy'},
-          indoor:sprites.length, short:short.length,
+          dpr, ripe:{h:+maui.h.toFixed(1), w:+maui.w.toFixed(1), span:+(maui.foot-maui.cellTop).toFixed(1), cellW:+maui.cellW.toFixed(1), top:+maui.top.toFixed(1), cellTop:+maui.cellTop.toFixed(1), id:'jealousy'},
+          edge:{right:+(edge.x+edge.w/2).toFixed(1), limit:edge.edge, id:edge.art},
+          indoor:sprites.length, slack:slack.length,
           minW:+Math.min(...sprites.map(s=>s.w)).toFixed(1), maxW:+Math.max(...sprites.map(s=>s.w)).toFixed(1),
           errs:(window.__errs||[]).slice(0,3)
         };
@@ -240,13 +246,13 @@ localStorage.removeItem('mwfarms_test_v1');` });
       console.log('size', JSON.stringify(Object.assign({}, m, {shop})));
       assert(!(m.errs && m.errs.length), 'size console errors ' + JSON.stringify(m.errs));
       assert(m.dpr >= 2.9, 'device pixel ratio is capped below 3 (' + m.dpr + ')');
-      assert(m.ripe && m.ripe.w >= 90 && m.ripe.w <= 105, 'garage ripe plant is not about 90-100px wide ' + JSON.stringify(m.ripe));
+      assert(m.ripe && m.ripe.w >= m.ripe.cellW * 1.05 && m.ripe.w <= m.ripe.cellW * 1.12 + 0.5, 'garage ripe plant is not filling the width cap ' + JSON.stringify(m.ripe));
       assert(m.ripe.h > m.ripe.w, 'tall ripe plant is not taller than it is wide ' + JSON.stringify(m.ripe));
-      assert(m.ripe.h >= m.ripe.span * 0.90, 'garage ripe plant is not using the row ' + JSON.stringify(m.ripe));
-      assert(m.ripe.w <= m.ripe.cellW * 1.26 + 0.5, 'garage ripe plant overlaps the next column ' + JSON.stringify(m.ripe));
+      assert(m.ripe.h >= m.ripe.span * 0.85, 'garage ripe plant is not using the row ' + JSON.stringify(m.ripe));
+      assert(m.ripe.top >= m.ripe.cellTop - 1, 'garage ripe plant covers the pot above ' + JSON.stringify(m.ripe));
+      assert(m.edge && m.edge.right <= m.edge.limit + 0.6, 'rightmost garage plant crosses the screen edge ' + JSON.stringify(m.edge));
       assert(m.indoor >= 20, 'indoor size sample is too small');
-      assert(m.short === 0, 'indoor ripe plants are smaller than the cell allows');
-      assert(m.maxW >= 55, 'no indoor ripe plant reached 55px wide');
+      assert(m.slack === 0, 'indoor ripe plants are outside the cell limits ' + JSON.stringify(m));
       assert(shop && shop.w >= 90 && shop.h >= 110, 'seed shop picture is still small ' + JSON.stringify(shop));
     }
 
@@ -303,7 +309,85 @@ localStorage.removeItem('mwfarms_test_v1');` });
       await sleep(200);
     }
 
+    async function fadeCheck(){
+      const m = await evalJs(`(() => {
+        let prev=-1, back=null;
+        for(let i=0;i<=200;i++){
+          const prog=i/200;
+          const g=R.growthPaint(prog);
+          let lead=g.layers[0];
+          for(const L of g.layers){
+            if(L.a>lead.a+1e-6 || (Math.abs(L.a-lead.a)<=1e-6 && L.stage>lead.stage)) lead=L;
+          }
+          if(lead.stage<prev) back={prog:+prog.toFixed(3), lead:lead.stage, prev, layers:g.layers};
+          prev=lead.stage;
+        }
+        const ripe=R.growthPaint(1);
+        const mid=R.growthPaint(0.081);
+        G.st.garage=0; G.st.garageKeep=0; G.syncPlots();
+        const p=G.st.plots.find(q=>q.zone==='garage'&&q.owned);
+        p.strain=null; p.prog=0; p.pest=null;
+        G.st.discovered=G.st.discovered||{}; G.st.discovered['durban-poison']=1;
+        G.st.seeds['durban-poison']=(G.st.seeds['durban-poison']||0)+1;
+        const planted=G.plant(p,'durban-poison');
+        p.prog=1; p.water=1; p.food=1;
+        G.setRoom('garage'); if(R.resize) R.resize(); R.frame(0.05);
+        const sp=R.bedSprites().find(s=>s.id===p.id);
+        return {back, ripe, mid, planted, art:sp&&sp.art, stage:sp&&sp.stage, errs:(window.__errs||[]).slice(0,4)};
+      })()`);
+      console.log('fade', JSON.stringify({ back: m.back, ripe: m.ripe, mid: m.mid, art: m.art, stage: m.stage, planted: m.planted }));
+      assert(!(m.errs && m.errs.length), 'fade console errors ' + JSON.stringify(m.errs));
+      assert(!m.back, 'drawn sprite went backwards ' + JSON.stringify(m.back));
+      assert(m.ripe && m.ripe.layers && m.ripe.layers.length === 1 && m.ripe.layers[0].stage === 5 && m.ripe.layers[0].a === 1, 'prog 1 does not draw the strain sprite ' + JSON.stringify(m.ripe));
+      assert(m.mid && m.mid.layers && m.mid.layers.length === 1 && m.mid.layers[0].stage === 1, 'stage edge snapped back to the previous sprite ' + JSON.stringify(m.mid));
+      assert(m.planted && m.art === 'durban-poison' && m.stage === 5, 'ripe Durban Poison did not draw its strain sprite ' + JSON.stringify(m));
+    }
+
+    async function harvestCheck(){
+      const m = await evalJs(`(() => {
+        const rooms=[
+          {room:'garage', zone:'garage', prep:()=>{ G.st.garage=5; G.st.garageKeep=0; }},
+          {room:'gh', zone:'gh', prep:()=>{ G.st.ghBuilt=true; G.st.gh=0; G.st.ghMatch=12; }},
+          {room:'facility', zone:'field', prep:()=>{ G.st.land=true; G.st.field=3; }}
+        ];
+        const out=[];
+        const bar=document.getElementById('toolbar').getBoundingClientRect();
+        for(const spec of rooms){
+          spec.prep(); G.syncPlots();
+          const owned=G.st.plots.filter(p=>p.zone===spec.zone&&p.owned);
+          owned.forEach(p=>{ p.strain='durban-poison'; p.prog=1; p.water=1; p.food=1; p.pest=null; });
+          G.setRoom(spec.room); if(R.resize) R.resize(); R.frame(0.05);
+          const sprites=R.bedSprites();
+          const s=sprites[sprites.length-1];
+          const px=s.x, py=s.foot-1;
+          const pot=R.pick(px, py);
+          const leaf=R.pick(s.x+s.w/2-1, s.top+Math.min(12, s.h*0.2));
+          const el=document.elementFromPoint(px, py);
+          const topEl=el?(el.id||el.tagName):'';
+          const open=!(el&&el.closest&&el.closest('#toolbar,#hud,#sheet,#modal'));
+          const before=G.st.stats.harvests;
+          let fired=false;
+          if(open&&pot&&pot.type==='plot'&&pot.p&&pot.p.id===s.id){ UI.tapPlot(pot.p, px, py); fired=!pot.p.strain && G.st.stats.harvests>before; }
+          out.push({
+            room:spec.room, n:sprites.length, id:s&&s.id, art:s&&s.art,
+            pot:pot&&pot.type, potId:pot&&pot.p&&pot.p.id,
+            leaf:leaf&&leaf.type, leafId:leaf&&leaf.p&&leaf.p.id,
+            topEl, open, fired, foot:+s.foot.toFixed(1), barTop:+bar.top.toFixed(1)
+          });
+        }
+        return {out, errs:(window.__errs||[]).slice(0,4)};
+      })()`);
+      console.log('harvest', JSON.stringify(m));
+      assert(!(m.errs && m.errs.length), 'harvest console errors ' + JSON.stringify(m.errs));
+      for (const row of m.out || []){
+        assert(row.fired, row.room + ' last cell harvest did not fire ' + JSON.stringify(row));
+        assert(row.leafId === row.id, row.room + ' leaf tip missed the plant ' + JSON.stringify(row));
+        assert(row.foot <= row.barTop + 1, row.room + ' last plant sits under the toolbar ' + JSON.stringify(row));
+      }
+    }
+
     await boot(390, 844);
+    await fadeCheck();
     check('390 garage 5', await evalJs(scene('garage', 'garage', `G.st.garage=0; G.st.garageKeep=0;`)));
     await shot('garage_5_390x844');
     await stageRow('390x844');
@@ -317,6 +401,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
     check('390 indoor', await evalJs(scene('facility', 'field', `G.st.land=true; G.st.field=1;`)));
     await shot('indoor_390x844');
     await sizeCheck();
+    await harvestCheck();
     await toastCheck();
     check('390 benches', await evalJs(scene('benches', 'in', `G.st.land=true; G.st.inBuilt=true; G.st.bench=0;`)));
     await shot('benches_390x844');

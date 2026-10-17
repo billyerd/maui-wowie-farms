@@ -792,8 +792,8 @@ window.R=(function(){
   const WASH=new Map();
   const SPRITE_WAIT=new Set();
   const warmQ=[]; let warmN=0;
-  const AGE=[0.34,0.46,0.56,0.72,0.86,1];
-  const HINT=[0,0,0.05,0.10,0.16,0];
+  // A light wash of the strain's bud colour on the shared early sprites. Ripe stays unwashed.
+  const HINT=[0.16,0.18,0.20,0.22,0.26,0];
   const BUCKETS=[48,64,96,128,160,192,256,320,384,512,640,768];
   function strainIds(){ const S=window.STRAINS||[], ids=[]; for(let i=0;i<S.length;i++) if(S[i]&&S[i].id) ids.push(S[i].id); return ids; }
   function strainSpriteUrl(id){ return 'art/plants/strains/'+id+'.png'; }
@@ -806,14 +806,30 @@ window.R=(function(){
     if(stage===4) return PLANT_IM.mid;
     return st&&STRAIN_IM[st.id];
   }
-  // A short mix only across a stage boundary. The rest of the stage is one sprite.
+  // Blend only across the last bit of a stage, from the sprite on screen toward the next one.
+  // At the edge, and for a ripe plant, there is no blend: the new sprite draws alone.
   function fadeMix(prog){
-    const stage=stageOf(prog); if(stage<=0) return null;
-    const edges=[0,.08,.25,.45,.65,1], FADE=.02, edge=edges[stage];
-    if(prog-edge>=0 && prog-edge<FADE) return {from:stage-1,to:stage,t:(prog-edge)/FADE};
-    const nxt=edges[stage+1];
-    if(nxt!=null && nxt-prog>0 && nxt-prog<FADE) return {from:stage,to:stage+1,t:1-(nxt-prog)/FADE};
+    if(!(prog>=0) || prog>=1) return null;
+    const stage=stageOf(prog);
+    if(stage>=5) return null;
+    const edges=[0,.08,.25,.45,.65,1], FADE=.02, nxt=edges[stage+1];
+    if(nxt!=null && prog<nxt && nxt-prog<FADE) return {from:stage,to:stage+1,t:1-(nxt-prog)/FADE};
     return null;
+  }
+  function growthPaint(prog){
+    const stage=stageOf(prog), fade=fadeMix(prog);
+    if(!fade) return {stage, layers:[{stage, a:1}]};
+    return {stage, layers:[{stage:fade.from, a:1-fade.t},{stage:fade.to, a:fade.t}]};
+  }
+  function strainAspect(st){
+    const im=st&&STRAIN_IM[st.id];
+    const w=im&&(im.naturalWidth||im.width), h=im&&(im.naturalHeight||im.height);
+    return w&&h?w/Math.max(1,h):0;
+  }
+  // Continuous from a sprout to the ripe box, so the last step is not a jump.
+  function ageOf(prog){
+    const p=Math.max(0, Math.min(1, +prog||0));
+    return 0.40+0.60*Math.pow(p, 0.55);
   }
   function bucketH(dest){
     const want=Math.max(32, dest||64); let pick=BUCKETS[BUCKETS.length-1];
@@ -913,20 +929,25 @@ window.R=(function(){
     const L=look(st);
     return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor:(L&&L.bud)||'#6a9a3a', painted:1, grown:1, closeup:0};
   }
-  // Ripe plants fill the air above the pot. They may cross about a tenth of the
-  // column into each neighbour. The stem stays on the soil. Younger stages stay
-  // inside the cell, and age keeps a sprout shorter than a ripe plant.
-  function fitBox(aspect, sl, stage){
+  // One box for every stage: about 1.1 columns wide and the full cell tall,
+  // pulled in so the right edge stays on screen. Age scales that box from sprout to ripe.
+  function fitBox(aspect, sl, stage, prog, ripeAspect){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
     const cellW=sl.cellW||48;
-    const ripe=stage>=5;
-    const maxW=Math.max(8, ripe?cellW*1.24:cellW-3);
-    const rise=ripe?(sl.rise||0):0;
-    const maxH=span!=null?Math.max(10, span-2+rise):Math.max(18, sl._hpx||maxW);
-    const age=AGE[stage]||1;
-    let h=maxH, w=h*aspect;
-    if(w>maxW){ w=maxW; h=w/Math.max(.05,aspect); }
-    h*=age; w*=age;
+    let maxW=Math.max(8, cellW*1.1);
+    if(sl.x!=null && sl.edgeR!=null){
+      const half=sl.edgeR-sl.x;
+      if(half>4) maxW=Math.min(maxW, half*2);
+    }
+    const maxH=span!=null?Math.max(10, span):Math.max(18, sl._hpx||maxW);
+    const ripeA=Math.max(.05, ripeAspect||aspect||1);
+    let rh=maxH, rw=rh*ripeA;
+    if(rw>maxW){ rw=maxW; rh=rw/ripeA; }
+    const age=(prog>=1||stage>=5)?1:ageOf(prog);
+    const boxW=rw*age, boxH=rh*age;
+    const a=Math.max(.05, aspect||ripeA);
+    let h=boxH, w=h*a;
+    if(w>boxW){ w=boxW; h=w/a; }
     if(w>maxW){ const s=maxW/w; w=maxW; h*=s; }
     if(h>maxH){ const s=maxH/h; h=maxH; w*=s; }
     if(span!=null){
@@ -937,11 +958,6 @@ window.R=(function(){
         if(w>maxW){ const k=maxW/w; w=maxW; h*=k; }
         if(h>maxH){ const k=maxH/h; h=maxH; w*=k; }
       }
-    }
-    // A ripe plant uses the column when the cell can hold 55px and the sprite is narrow.
-    if(ripe && sl.cellW>=64 && w<55 && maxW>=55){
-      const hNeed=55/Math.max(.05,aspect);
-      if(hNeed<=maxH+0.01){ w=55; h=hNeed; }
     }
     return {h,w};
   }
@@ -970,7 +986,7 @@ window.R=(function(){
       const drawSp=(sp, alpha, shadow)=>{
         if(!sp) return null;
         const aspect=sp.w/Math.max(1,sp.h);
-        const box=fitBox(aspect, sl, sp.stage);
+        const box=fitBox(aspect, sl, sp.stage, prog, strainAspect(st));
         const tr=ctx.getTransform?ctx.getTransform():null;
         const dev=Math.max(Math.abs(tr&&tr.a||dpr||1), Math.abs(tr&&tr.d||dpr||1));
         let src=bitmapFor(sp.im, Math.max(box.h, box.w), dev);
@@ -989,14 +1005,16 @@ window.R=(function(){
       const stage=stageOf(prog);
       const fade=fadeMix(prog);
       const primary=describe(st, stage);
-      let box=null;
+      let box=null, hitW=0, hitH=0;
+      const take=b=>{ if(!b) return; hitW=Math.max(hitW,b.w); hitH=Math.max(hitH,b.h); };
       if(fade && primary){
         const a=describe(st, fade.from), b=describe(st, fade.to);
-        if(a) drawSp(a, 1-fade.t, fade.t<.5);
-        if(b) drawSp(b, fade.t, fade.t>=.5);
-        box=fitBox(primary.w/Math.max(1,primary.h), sl, stage);
-      } else if(primary) box=drawSp(primary, 1, true);
-      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW});
+        if(a) take(drawSp(a, 1-fade.t, fade.t<.5));
+        if(b) take(drawSp(b, fade.t, fade.t>=.5));
+        box=fitBox(primary.w/Math.max(1,primary.h), sl, stage, prog, strainAspect(st));
+      } else if(primary){ box=drawSp(primary, 1, true); take(box); }
+      if(hitW) sl.spr={w:hitW,h:hitH};
+      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,x:sl.x,edge:sl.edgeR,art:stage>=5&&st?st.id:('stage'+stage)});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
@@ -1068,8 +1086,17 @@ window.R=(function(){
 
   // quick-action bubbles stay clear of the left buttons and the right location rail (screen px)
   let railR=null, railL=null;
-  function bubBounds(){ const a=document.getElementById('locTabs'), b=document.getElementById('upgBtn'); const ra=a&&a.getClientRects().length?a.getBoundingClientRect():null, rb=b&&b.getClientRects().length?b.getBoundingClientRect():null; railR=ra&&ra.width?ra.left-6:W-6; railL=rb&&rb.width?rb.right+6:6; }
-  function bubX(x,hw){ if(railR==null) bubBounds(); if(x>railR+10||x<railL-10) return NaN; // plant itself is under the rail: no bubble (pan to reach it)
+  function bubBounds(){
+    // Location used to be a side rail. It now lives in the bottom bar, so a bubble
+    // only has to stay on the screen. A button in that bar is not a side wall.
+    railL=8; railR=Math.max(railL+24, W-8);
+    const rail=document.getElementById('locTabs');
+    if(rail && getComputedStyle(rail).display!=='none'){
+      const r=rail.getBoundingClientRect();
+      if(r.width>24 && r.height>80 && r.left>W*0.55) railR=Math.min(railR, r.left-6);
+    }
+  }
+  function bubX(x,hw){ if(railR==null) bubBounds(); if(x>railR+10||x<railL-10) return NaN;
     if(x+hw>railR) x=railR-hw; if(x-hw<railL) x=railL+hw; return x; }
   // ---------------- main frame ----------------
   let sel=null;
@@ -1352,9 +1379,9 @@ window.R=(function(){
         const stn=p.strain&&G.strain(p.strain);
         const mh=Math.max(.4,plantSize(stn?stn.type:'Hybrid',1,probe).h);
         const plantH=Math.max(18,rim-y-1); const ppm=plantH/mh; const sp=Math.max(.25,(g.cellW-4)/(ppm*1.05));
-        // Air above this cell a ripe plant may use. Stops short of the pot above;
-        // the label is painted after the leaves, and the light is painted after the top row.
-        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW,cellTop:y,rise:pot?14:12};
+        // The plant stays inside this cell. The label is painted after the leaves,
+        // and the light is painted after the top row.
+        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW,cellTop:y,edgeR:W-8};
         cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim,floor});
         slotOf.set(p.id,sl);
       }
@@ -1790,15 +1817,44 @@ window.R=(function(){
     for(const c of bedLay.cells){ if(!c.owned||!c.p||!c.p.strain||!c.sl) continue; const d=Math.hypot(c.sl.x-sx,(c.sl.y||c.y)-sy); if(d<bd){ bd=d; best=c.p; } }
     return best;
   }
+  function chooseCell(c){
+    if(!c) return null;
+    if(c.expand) return {type:'expand',kind:c.expand};
+    if(c.owned&&c.p){ sel=c.p; return {type:'plot',p:c.p}; }
+    return null;
+  }
   function pick(sx,sy){
     if(bedLay){
       let bq=null, bd=22; for(const b of qbub){ const d=Math.hypot(sx-b.x,sy-b.y); if(d<bd){ bd=d; bq=b; } } if(bq) return bq.act;
       if(bedLay.build&&sx>=bedLay.build.x&&sx<=bedLay.build.x+bedLay.build.w&&sy>=bedLay.build.y&&sy<=bedLay.build.y+bedLay.build.h) return bedLay.build.act;
       if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r) return {type:'gecko'};
-      for(let i=bedLay.cells.length-1;i>=0;i--){ const c=bedLay.cells[i]; if(sx<c.x||sx>c.x+c.w||sy<c.y||sy>c.y+c.h) continue;
-        if(c.expand) return {type:'expand',kind:c.expand};
-        if(c.owned&&c.p){ sel=c.p; return {type:'plot',p:c.p}; }
-        return null; }
+      // The pot and its label belong to that plant, even when a leaf from the row below crosses them.
+      let pot=null, potD=1e9;
+      const hits=[];
+      for(const c of bedLay.cells){
+        const sl=c.sl;
+        const inCell=sx>=c.x&&sx<=c.x+c.w&&sy>=c.y&&sy<=c.y+c.h;
+        if(sl&&c.owned){
+          const top=(c.rim!=null?c.rim:sl.y)-6, bot=(c.floor!=null?c.floor:c.y+c.h)+2;
+          if(sx>=c.x&&sx<=c.x+c.w&&sy>=top&&sy<=bot){
+            const d=Math.hypot(sl.x-sx, sl.y-sy);
+            if(d<potD){ potD=d; pot=c; }
+          }
+        }
+        let inSpr=false;
+        if(sl&&sl.spr&&c.p&&c.p.strain){
+          const b=sl.spr;
+          inSpr=sx>=sl.x-b.w/2&&sx<=sl.x+b.w/2&&sy>=sl.y-b.h&&sy<=sl.y+4;
+        }
+        if(inSpr||inCell){
+          const bx=sl?sl.x:c.x+c.w/2, by=sl?sl.y:c.y+c.h;
+          hits.push({c, d:Math.hypot(bx-sx, by-sy), spr:inSpr});
+        }
+      }
+      if(pot) return chooseCell(pot);
+      const leaves=hits.filter(h=>h.spr);
+      const pool=leaves.length?leaves:hits;
+      if(pool.length){ pool.sort((a,b)=>a.d-b.d); return chooseCell(pool[0].c); }
       return null;
     }
     if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r) return {type:'gecko'};
@@ -1906,5 +1962,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,gear:bedLay.gear||[],light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1,kind:bedLay.light.kind||''}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,strainSpriteUrl,spriteWarm,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,gear:bedLay.gear||[],light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1,kind:bedLay.light.kind||''}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,strainSpriteUrl,spriteWarm,growthPaint,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();

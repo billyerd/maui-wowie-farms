@@ -284,7 +284,7 @@
   // adaptive quality for low-end phones: if frames stay slow, drop render resolution, then the extra effects (Settings > Auto quality)
   let pf={t:0,n:0,slow:0,step:0};
   function perf(dt){ if(!G.st.settings.autoQ||pf.step>=2) return; pf.t+=dt; pf.n++; if(pf.t<4) return; const fps=pf.n/pf.t; pf.t=0; pf.n=0;
-    if(fps<40){ if(++pf.slow>=2){ pf.slow=0; pf.step++; if(pf.step===1) R.setDprCap(1.25); else { R.setDprCap(1); G.st.settings.hq=false; } R.resize(); console.info('[perf] quality step',pf.step,'fps',fps.toFixed(1)); } } else pf.slow=0; }
+    if(fps<40){ if(++pf.slow>=2){ pf.slow=0; pf.step++; R.setDprCap(2); if(pf.step>=2) G.st.settings.hq=false; R.resize(); console.info('[perf] quality step',pf.step,'fps',fps.toFixed(1)); } } else pf.slow=0; }
   const sheetEl=document.getElementById('sheet'), modalEl=document.getElementById('modal'); let covN=0, covAcc=0, hudFit=false;
   function loop(now){
     let dt=(now-last)/1000; last=now; if(dt>.25) dt=.25; if(window.__paused){ requestAnimationFrame(loop); return; }   // econ-sim: deterministic, sim drives time

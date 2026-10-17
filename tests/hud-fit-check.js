@@ -256,7 +256,8 @@ localStorage.removeItem('mwfarms_test_v1');` });
           labels.push({
             t: (el.textContent || '').replace(/\\s+/g, ' ').trim(),
             lines: el.getClientRects().length,
-            sw: el.scrollWidth, cw: el.clientWidth,
+            sw: el.scrollWidth, cw: el.clientWidth, fs: parseFloat(getComputedStyle(el).fontSize)||0,
+            bag: !!(el.closest && el.closest('#seedBag')),
             y: +r.top.toFixed(1), b: +r.bottom.toFixed(1),
             hx: +hb.left.toFixed(1), hr: +hb.right.toFixed(1), hy: +hb.top.toFixed(1), hb: +hb.bottom.toFixed(1)
           });
@@ -372,13 +373,11 @@ localStorage.removeItem('mwfarms_test_v1');` });
       (m.labels || []).forEach(l => {
         assert(l.hb <= m.h - m.sab + 0.8, tag + ' ' + l.t + ' is under the home indicator ' + JSON.stringify(l) + ' sab ' + m.sab);
         assert(l.b <= l.hb + 1 && l.y >= l.hy - 1, tag + ' ' + l.t + ' is clipped by its button ' + JSON.stringify(l));
-        const dockWord = ['Garage','Upgrades','Market','Breed','Strains','Story','Seeds'].indexOf(l.t) >= 0;
-        if (dockWord){
-          assert(l.lines <= 1 && l.sw <= l.cw + 1, tag + ' ' + l.t + ' wraps or overflows ' + JSON.stringify(l));
-        }
+        assert(l.fs >= 10, tag + ' ' + l.t + ' label is under 10px ' + JSON.stringify(l));
+        if (!l.bag) assert(l.lines <= 1 && l.sw <= l.cw + 1, tag + ' ' + l.t + ' wraps or overflows ' + JSON.stringify(l));
       });
       const words = (m.labels || []).map(l => l.t);
-      ['Game Pass','Garage','Upgrades','Dry & Cure','Market','Breed','Strains','Story'].forEach(name => {
+      ['Pass','Garage','Gear','Dry','Market','Breed','Strains','Story'].forEach(name => {
         assert(words.indexOf(name) >= 0, tag + ' missing bottom label ' + name + ' ' + words.join('|'));
       });
     }

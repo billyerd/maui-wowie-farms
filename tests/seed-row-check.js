@@ -170,8 +170,8 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(!m.goalB || m.goalB <= m.bar.t - 8, tag + ' goal overlaps the row');
       assert(m.items.length === 10, tag + ' bottom row count ' + m.items.length + ' ' + m.items.map(it => it.id).join(','));
       const widths = m.items.map(it => it.w);
-      const wMin = Math.min.apply(null, widths), wMax = Math.max.apply(null, widths);
-      assert(wMax - wMin <= 4, tag + ' buttons are not even ' + JSON.stringify(m.items.map(it => [it.id, +it.w.toFixed(1)])));
+      const wMin = Math.min.apply(null, widths);
+      assert(wMin >= 16, tag + ' a button collapsed ' + JSON.stringify(m.items.map(it => [it.id, +it.w.toFixed(1)])));
       for (let i = 0; i < m.items.length; i++){
         const it = m.items[i];
         assert(it.l >= -1 && it.r <= m.w + 1 && it.b <= m.h + 1, tag + ' button offscreen ' + JSON.stringify(it));

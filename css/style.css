@@ -395,7 +395,7 @@ input.savefile{display:block;margin:6px 0 8px;max-width:100%;font-size:13px;colo
 #clock{max-width:calc(100vw - 170px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ico-scout{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10 2a8 8 0 016.3 12.9l5.4 5.4-1.4 1.4-5.4-5.4A8 8 0 1110 2zm0 2.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11z'/%3E%3C/svg%3E");background:linear-gradient(#e8f6ff,#9fd3f0)}
 .qbtn.on{outline:2px solid #ffd35a;background:rgba(255,211,90,.25)}
-.toast.long{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3;max-width:min(88vw,420px);text-align:center}
+.toast.long{white-space:normal;overflow:hidden;text-overflow:ellipsis;line-height:1.3;max-width:min(64vw,240px);max-height:2.7em;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .toast.long b{display:block;color:#ffd35a}
 .away{margin:6px 0 0;padding-left:18px;text-align:left;font-size:13px;line-height:1.45}.away li{margin:2px 0}
 /* ---- shop additions: ads, piggy, cosmetics, exclusive strains, boosts HUD ---- */
@@ -785,14 +785,14 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{di
 #toolbar #menu button[data-panel="quests"]{order:10}
 #toolbar #qaFab{
   position:relative;right:auto;bottom:auto;top:auto;left:auto;
-  flex:1 1 0;width:auto;min-width:0;height:auto;min-height:0;
+  flex:0 0 34px;width:34px;min-width:0;height:auto;min-height:0;
   display:flex;align-items:center;justify-content:center;
   z-index:2;
 }
 #toolbar .qa-main{width:min(40px,100%);height:auto;aspect-ratio:1;min-width:0;min-height:0;max-height:44px}
 #toolbar .qa-menu{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 6px);flex-direction:column}
 #toolbar #locSlot{
-  position:relative;flex:1 1 0;min-width:0;display:flex;align-items:stretch;
+  position:relative;flex:0 0 auto;min-width:0;display:flex;align-items:stretch;
 }
 #locPick{
   position:absolute;left:0;bottom:calc(100% + 6px);z-index:30;
@@ -815,9 +815,8 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{di
 #locPick button.locked small{color:#ffd96a}
 #toolbar #locBtn,
 #toolbar #menu button,
-#toolbar #upgBtn.sidebtn,
-#toolbar #seedBag{
-  position:relative;flex:1 1 0;min-width:0;width:auto;max-width:none;
+#toolbar #upgBtn.sidebtn{
+  position:relative;flex:0 0 auto;min-width:0;width:auto;max-width:none;
   height:auto;min-height:48px;margin:0;padding:3px 1px;
   border:0;border-radius:10px;background:transparent;box-shadow:none;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
@@ -825,7 +824,7 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{di
   left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;
   z-index:auto;
 }
-#toolbar #locSlot #locBtn{flex:1 1 auto;width:100%}
+#toolbar #locSlot #locBtn{flex:0 0 auto;width:auto}
 #toolbar #locBtn .li{font-size:15px;line-height:1}
 #toolbar #upgBtn .sb-up{
   width:16px;height:16px;min-height:0;border-radius:0;background:none;box-shadow:none;
@@ -837,13 +836,13 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{di
 #toolbar #upgBtn b,
 #toolbar #seedBag b,
 #toolbar #seedBag small{
-  font-size:8px;font-weight:800;line-height:1.05;letter-spacing:-.03em;
-  color:#d5eadc;white-space:normal;text-align:center;max-width:100%;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  font-size:10px;font-weight:800;line-height:1.05;letter-spacing:-.04em;
+  color:#d5eadc;white-space:nowrap;text-align:center;max-width:100%;
+  display:block;overflow:hidden;text-overflow:ellipsis;
   overflow-wrap:normal;word-break:keep-all;hyphens:none;
 }
 @media (max-width:379px){
-  #toolbar #locBtn small,#toolbar #upgBtn b,#toolbar #menu button small,#toolbar #seedBag b,#toolbar #seedBag small{font-size:7px;letter-spacing:-.04em}
+  #toolbar #locBtn small,#toolbar #upgBtn b,#toolbar #menu button small,#toolbar #seedBag b,#toolbar #seedBag small{font-size:10px;letter-spacing:-.05em}
 }
 #toolbar #menu button .ico{width:16px;height:16px;flex:none}
 #toolbar #menu button .badge{top:1px;right:1px}
@@ -851,14 +850,14 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn,body.sheet-open #orderBoard{di
 #toolbar #upgBtn:active,
 #toolbar #menu button:active{background:rgba(255,255,255,.08);transform:none}
 @media (min-width:380px){
-  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:9px}
+  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:10px}
   #toolbar #menu button .ico,#toolbar #upgBtn .sb-up,#toolbar #upgBtn .sb-up .ico,#toolbar #seedBag .sb-bag,#toolbar #seedBag .sb-bag img{width:18px;height:18px}
 }
 @media (min-width:480px){
   #toolbar{gap:4px;padding-left:8px;padding-right:8px}
   #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:11px}
 }
-#toolbar #seedBag{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:auto!important;max-width:none;z-index:auto;background:transparent;box-shadow:none;overflow:hidden}
+#toolbar #seedBag{position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:auto!important;max-width:72px;flex:1 1 40px;min-width:40px;min-height:48px;margin:0;padding:3px 1px;border:0;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#e7f6ea;z-index:auto;background:transparent;box-shadow:none;overflow:hidden}
 #toolbar #seedBag .sb-bag{width:16px;height:16px;min-height:0;margin:0;border-radius:0;background:none;box-shadow:none}
 #toolbar #seedBag .sb-bag:before{display:none}
 #toolbar #seedBag .sb-bag img{width:16px;height:16px;margin:0}
@@ -983,17 +982,22 @@ body.sheet-open #toolbar #qaFab{display:flex}
 }
 #toolbar #upgBtn b{
   white-space:nowrap;display:block;-webkit-line-clamp:unset;
-  font-size:7px;letter-spacing:-.05em;overflow:hidden;text-overflow:clip;
+  font-size:10px;letter-spacing:-.05em;overflow:hidden;text-overflow:ellipsis;
 }
-@media (max-width:389px){
-  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:7px;letter-spacing:-.05em}
+@media (max-width:400px){
+  #toolbar{gap:1px}
+  #toolbar #locBtn small,#toolbar #menu button small,#toolbar #upgBtn b,#toolbar #seedBag b,#toolbar #seedBag small{font-size:10px;letter-spacing:-.05em}
 }
 @media (max-width:340px){
-  #toolbar #upgBtn b{font-size:6px;letter-spacing:-.04em}
+  #toolbar #upgBtn b{font-size:10px;letter-spacing:-.06em}
 }
 @media (min-width:420px){
-  #toolbar #upgBtn b{font-size:8px;letter-spacing:-.04em}
+  #toolbar #upgBtn b{font-size:10px;letter-spacing:-.04em}
 }
-/* Notices stack above the bottom nav. Two visible at a time, never on the buttons. */
-body:not(.sheet-open) #toasts{top:auto;bottom:var(--toastb, 80px);justify-content:flex-end}
-#toasts.dock{top:auto!important;bottom:var(--dock-bot, var(--toastb, 80px))!important}
+/* Notices stack above the bottom nav. Two visible at a time, never on the buttons.
+   Short and narrow so a long note does not cover the bottom row of plants. */
+body:not(.sheet-open) #toasts{top:auto;bottom:var(--toastb, 80px);justify-content:flex-end;width:auto;max-width:min(64vw,240px)}
+#toasts.dock{top:auto!important;bottom:var(--dock-bot, var(--toastb, 80px))!important;max-width:min(64vw,240px)}
+#toasts .toast,.toast.long{max-width:min(64vw,240px);max-height:2.7em;overflow:hidden}
+#achToasts{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top, 0px) + var(--hud-h, 50px) + 8px);z-index:45;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:auto;max-width:min(64vw,240px)}
+#achToasts .toast{max-width:min(64vw,240px);max-height:2.7em;overflow:hidden}

@@ -48,8 +48,13 @@ window.UI = (function(){
     const live=box&&box.querySelectorAll?[...box.querySelectorAll('.toast')]:[];
     while(live.length>2){ const old=live.shift(); if(old&&old.remove) old.remove(); }
   }
+  function achHost(){
+    let box=document.getElementById('achToasts');
+    if(!box){ box=document.createElement('div'); box.id='achToasts'; document.body.appendChild(box); }
+    return box;
+  }
   function showPill(text,kind,group){
-    let box=document.getElementById('toasts');
+    let box=group==='ach'?achHost():document.getElementById('toasts');
     if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
     if(box.classList) box.classList.remove('dock');
     placeToasts();
@@ -211,7 +216,7 @@ window.UI = (function(){
   function locTabs(){
     const cur=G.currentRoom();
     const names={garage:'Garage',gh:'Greenhouse',facility:'Indoor Facility',benches:'Benches'};
-    const shown={garage:'Garage',gh:'Green\u00ADhouse',facility:'Indoor Facility',benches:'Benches'};
+    const shown={garage:'Garage',gh:'Green',facility:'Indoor',benches:'Bench'};
     const ico={garage:'🏠',gh:'🌿',facility:'🏭',benches:'💡'};
     const lb=$('#locBtn');
     if(lb){
@@ -458,7 +463,7 @@ window.UI = (function(){
       +`<div class="note">Grow times run from 30 seconds (Common) to 3 days (Legendary). Plants keep growing while you're away. Long grows pay a little more per hour. More strains unlock by level, breeding and island festivals.</div>`;
     const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length;
     const owned=G.S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>a.game.growSec-b.game.growSec);
-    const bag=owned.length?owned.map(s=>`<div class="row${st.selSeed===s.id?' sel':''}" data-pickseed="${s.id}"><div class="grow"><h4>${esc(s.name)}</h4><p>${st.seeds[s.id]} in the bag · ${sec(s.game.growSec)}</p></div>${st.selSeed===s.id?'<span class="chip selchip">Selected</span>':''}</div>`).join(''):`<div class="note">Bag's empty. Grab seeds at the shop.</div>`;
+    const bag=owned.length?owned.map(s=>`<div class="row${st.selSeed===s.id?' sel':''}" data-pickseed="${s.id}">${cu(s,56)}<div class="grow"><h4>${esc(s.name)}</h4><p>${st.seeds[s.id]} in the bag · ${sec(s.game.growSec)}</p></div>${st.selSeed===s.id?'<span class="chip selchip">Selected</span>':''}</div>`).join(''):`<div class="note">Bag's empty. Grab seeds at the shop.</div>`;
     return {title:'Seed bag',sub:'Pick a seed you own, or buy more below.',tabs:[['all','All'],['fast','Under 30m'],['island','Island'],['top','Epic+']],body:`<div class="section-t">In the bag</div>${bag}<div class="section-t">Buy seeds</div>`+body,
       foot:`<div style="flex:1;font-size:12px;color:var(--mut)">Selected: <b style="color:#fff">${esc(sel?.name||'-')}</b> (${st.seeds[st.selSeed]||0})</div><button class="btn" data-a="plantall" ${!empty?'disabled':''}>Plant ${empty} here</button>`};
   };
@@ -1028,7 +1033,7 @@ window.UI = (function(){
     $('#sheetBody').addEventListener('click',del); $('#sheetFoot').addEventListener('click',del);
     $('#sheetBody').addEventListener('change',e=>{ const s=e.target.closest('select[data-sel]'); if(s){ (s.dataset.sel==='A'?labA:s.dataset.sel==='H'?huntSel:labB).v=s.value; render(); return; } const f=e.target.closest('input[data-savefile]'); if(!f||!f.files||!f.files[0]) return; f.files[0].text().then(t=>{ importDraft=t; saveUi='import'; render(); toast('Backup file loaded. Review it, then tap Restore.','good'); }).catch(()=>toast('Could not read that file','bad')); });
     $('#sheet').addEventListener('pointerdown',()=>lastPointer=performance.now(),true);
-    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='glass'){ const p=popPlot; hidePop(true); inspectGlass(p); return; } if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
+    $('#pop').addEventListener('click',e=>{ const b=e.target.closest('[data-pa]'); if(!b||!popPlot) return; if(b.dataset.pa==='glass'){ const p=popPlot; hidePop(true); inspectGlass(p); return; } if(b.dataset.pa==='treat'){ if(!G.treat(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='prune') G.prune(popPlot); else if(b.dataset.pa==='top'||b.dataset.pa==='lst') G.train(popPlot,b.dataset.pa); else if(b.dataset.pa==='trellis'){ if(!G.trellis(popPlot)) toast('Not enough cash','bad'); } else if(b.dataset.pa==='water') G.water(popPlot); else if(b.dataset.pa==='harvest'){ G.harvest(popPlot); hidePop(); return; } else if(!G.feed(popPlot)) toast(popPlot.food>0?'Already fed this grow':'Feed opens at halfway','bad'); renderPop(); });
     $('#goal').onclick=()=>{ const g=$('#goal'); if(!g.classList.contains('open')){ goalPeek(5000); return; } if(G.st.questDone){ if(G.claimQuest()) Sound.play('level'); } else open('quests','story'); };
     document.addEventListener('click',e=>{ const b=e.target.closest('[data-buylab]'); if(!b) return; if(!G.buyLab()) toast(G.st.inBuilt?'Not enough cash':'Build the indoor facility first','bad'); else render(true); });
     const foldQa=()=>{ const m=$('#qaMenu'), b=$('#qaMain'); if(m) m.classList.add('hidden'); if(b){ b.classList.remove('open'); b.setAttribute('aria-expanded','false'); } };
