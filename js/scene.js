@@ -792,9 +792,9 @@ window.R=(function(){
   const WASH=new Map();
   const SPRITE_WAIT=new Set();
   const warmQ=[]; let warmN=0;
-  // A light wash of the strain's bud colour on the shared early sprites. Ripe stays unwashed.
-  const HINT=[0.16,0.18,0.20,0.22,0.26,0];
-  const BUCKETS=[48,64,96,128,160,192,256,320,384,512,640,768];
+  // A stronger wash of the strain's bud colour on the shared early sprites. Ripe stays unwashed.
+  const HINT=[0.34,0.38,0.40,0.36,0.26,0];
+  const BUCKETS=[24,32,48,64,96,128,160,192,256,320,384,512,640,768];
   function strainIds(){ const S=window.STRAINS||[], ids=[]; for(let i=0;i<S.length;i++) if(S[i]&&S[i].id) ids.push(S[i].id); return ids; }
   function strainSpriteUrl(id){ return 'art/plants/strains/'+id+'.png'; }
   function stageOf(prog){ return prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4; }
@@ -832,7 +832,7 @@ window.R=(function(){
     return 0.40+0.60*Math.pow(p, 0.55);
   }
   function bucketH(dest){
-    const want=Math.max(32, dest||64); let pick=BUCKETS[BUCKETS.length-1];
+    const want=Math.max(16, dest||64); let pick=BUCKETS[BUCKETS.length-1];
     for(let i=0;i<BUCKETS.length;i++){ if(BUCKETS[i]>=want){ pick=BUCKETS[i]; break; } }
     if(dest>0 && pick>dest*2){ for(let i=BUCKETS.length-1;i>=0;i--){ if(BUCKETS[i]<=dest*2){ pick=BUCKETS[i]; break; } } }
     return pick;
@@ -849,12 +849,15 @@ window.R=(function(){
     const hit=bmpGet(im,h); if(hit) return hit;
     const nh=im.naturalHeight||im.height||h, nw=im.naturalWidth||im.width||h;
     const hh=Math.max(1, Math.min(Math.round(h), nh)), ww=Math.max(1, Math.round(hh*nw/Math.max(1,nh)));
-    // One blit never shrinks by more than 2x. A 640px plate steps through half sizes.
-    let src=im;
-    if(nh>hh*2+1){
-      const mid=Math.max(hh+1, Math.round(nh/2));
-      const half=mid<nh?ensureSync(im, mid):null;
-      if(half) src=half.c;
+    // Every blit, including the last one, shrinks by at most 2x.
+    let src=im, sh=nh;
+    let guard=0;
+    while(sh>hh*2+1 && guard++<8){
+      const mid=Math.max(hh+1, Math.round(sh/2));
+      if(mid>=sh) break;
+      const half=bmpGet(im, mid)||ensureSync(im, mid);
+      if(!half||half.h>=sh-0.5) break;
+      src=half.c; sh=half.h;
     }
     const c=document.createElement('canvas'); c.width=ww; c.height=hh;
     const x=c.getContext('2d'); if(!x) return null;
@@ -887,20 +890,40 @@ window.R=(function(){
     if(nh<=dest*2+1) return {c:im, w:nw, h:nh, k:im._k};
     const near=bmpNear(im, dest); if(near) return near;
     const want=Math.min(bucketH(dest), nh);
-    const exact=bmpGet(im, want); if(exact) return exact;
-    queueWarm(im, [want]);
-    return ensureSync(im, want);
+    let rec=bmpGet(im, want);
+    if(!rec){ queueWarm(im, [want]); rec=ensureSync(im, want); }
+    let guard=0;
+    while(rec && rec.h>dest*2+1 && guard++<6){
+      const nxt=Math.max(Math.ceil(dest), Math.round(rec.h/2));
+      if(nxt>=rec.h) break;
+      const step=ensureSync(im, nxt);
+      if(!step||step.h>=rec.h-0.5) break;
+      rec=step;
+    }
+    return rec;
   }
-  function washKeyed(src, color, amt){
+  function hexA(hex, a){
+    let n=String(hex||'').replace('#','');
+    if(n.length===3) n=n.replace(/./g,ch=>ch+ch);
+    const v=parseInt(n,16);
+    if(!Number.isFinite(v)||n.length<6) return 'rgba(61,106,40,'+a+')';
+    return 'rgba('+((v>>16)&255)+','+((v>>8)&255)+','+(v&255)+','+a+')';
+  }
+  function washKeyed(src, color, amt, stem){
     const id=src.k||(src.c&&(src.c._k||src.c.src))||'';
-    const key=id+'|'+src.w+'x'+src.h+'|'+color+'|'+amt;
+    const key=id+'|'+src.w+'x'+src.h+'|'+color+'|'+amt+'|'+(stem||'');
     const hit=WASH.get(key); if(hit) return hit;
     const c=document.createElement('canvas'); c.width=src.w; c.height=src.h;
     const x=c.getContext('2d'); if(!x) return src;
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
     x.drawImage(src.c,0,0,src.w,src.h);
     x.globalCompositeOperation='source-atop'; x.globalAlpha=amt; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
-    const out={c,w:src.w,h:src.h}; if(WASH.size>220) WASH.clear(); WASH.set(key,out); return out;
+    if(stem){
+      const g=x.createLinearGradient(0,src.h,0,src.h*0.38);
+      g.addColorStop(0, hexA(stem,1)); g.addColorStop(1, hexA(stem,0));
+      x.globalAlpha=Math.min(0.9, amt*1.6); x.fillStyle=g; x.fillRect(0,0,src.w,src.h);
+    }
+    const out={c,w:src.w,h:src.h,k:src.k}; if(WASH.size>220) WASH.clear(); WASH.set(key,out); return out;
   }
   function loadOne(k, src, bag){
     const im=new Image(); im.decoding='async'; im._k=k;
@@ -927,39 +950,43 @@ window.R=(function(){
     const im=stageIm(stage, st); if(!im||!im.naturalWidth) return null;
     const hint=stage>=5?0:(HINT[stage]||0);
     const L=look(st);
-    return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor:(L&&L.bud)||'#6a9a3a', painted:1, grown:1, closeup:0};
+    return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor:(L&&L.bud)||'#6a9a3a', stem:stage<=3&&L&&L.leaf?L.leaf:'', painted:1, grown:1, closeup:0};
   }
-  // One box for every stage: about 1.1 columns wide and the full cell tall,
-  // pulled in so the right edge stays on screen. Age scales that box from sprout to ripe.
+  // Height follows the pot and the age only, so a wider sprite cannot shrink the plant.
+  // Extra width is cropped at the sides. The garage aims for about three quarters of the cell.
   function fitBox(aspect, sl, stage, prog, ripeAspect){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
     const cellW=sl.cellW||48;
-    let maxW=Math.max(8, cellW*1.1);
-    if(sl.x!=null && sl.edgeR!=null){
-      const half=sl.edgeR-sl.x;
-      if(half>4) maxW=Math.min(maxW, half*2);
-    }
-    const maxH=span!=null?Math.max(10, span):Math.max(18, sl._hpx||maxW);
-    const ripeA=Math.max(.05, ripeAspect||aspect||1);
-    let rh=maxH, rw=rh*ripeA;
-    if(rw>maxW){ rw=maxW; rh=rw/ripeA; }
+    const cellH=sl.cellH||(span!=null?span:cellW);
+    const a=Math.max(.05, aspect||ripeAspect||1);
+    const ripeA=Math.max(.05, ripeAspect||a);
     const age=(prog>=1||stage>=5)?1:ageOf(prog);
-    const boxW=rw*age, boxH=rh*age;
-    const a=Math.max(.05, aspect||ripeA);
-    let h=boxH, w=h*a;
-    if(w>boxW){ w=boxW; h=w/a; }
-    if(w>maxW){ const s=maxW/w; w=maxW; h*=s; }
-    if(h>maxH){ const s=maxH/h; h=maxH; w*=s; }
+    const garage=sl.room==='garage';
+    let wantH=span!=null?Math.max(10, span):Math.max(18, sl._hpx||cellW);
+    if(garage && span!=null) wantH=Math.min(span, cellH*0.78);
+    let h=wantH*age;
+    if(sl.room==='facility' && span!=null && (prog>=1||stage>=5)){
+      const need=55/ripeA;
+      if(h+0.4<need && need<=span+0.4) h=need;
+    }
+    if(span!=null && h>span) h=span;
     if(span!=null){
-      const minH=span>=48?18:10, minW=span>=48?14:8;
-      if(h<minH||w<minW){
-        const s=Math.max(minH/Math.max(.01,h), minW/Math.max(.01,w));
-        h*=s; w*=s;
-        if(w>maxW){ const k=maxW/w; w=maxW; h*=k; }
-        if(h>maxH){ const k=maxH/h; h=maxH; w*=k; }
+      const minH=span>=48?18:10;
+      if(h<minH) h=Math.min(minH, span);
+    }
+    let maxW=cellW*(garage?1.25:1.35);
+    if(sl.x!=null){
+      const left=sl.x-8;
+      if(left>4) maxW=Math.min(maxW, left*2);
+      if(sl.edgeR!=null){
+        const half=sl.edgeR-sl.x;
+        if(half>4) maxW=Math.min(maxW, half*2);
       }
     }
-    return {h,w};
+    maxW=Math.max(8, maxW);
+    let w=h*a, crop=0;
+    if(w>maxW+0.2){ crop=(w-maxW)/w; w=maxW; }
+    return {h,w,crop,a};
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -990,7 +1017,7 @@ window.R=(function(){
         const tr=ctx.getTransform?ctx.getTransform():null;
         const dev=Math.max(Math.abs(tr&&tr.a||dpr||1), Math.abs(tr&&tr.d||dpr||1));
         let src=bitmapFor(sp.im, Math.max(box.h, box.w), dev);
-        if(src&&sp.hint>0.015) src=washKeyed(src, sp.hintColor, sp.hint);
+        if(src&&sp.hint>0.015) src=washKeyed(src, sp.hintColor, sp.hint, sp.stage<=3?sp.stem:'');
         if(!src) return null;
         const painted=hk?sick({c:src.c,w:src.w,h:src.h},hk,seed):src.c;
         ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
@@ -998,7 +1025,12 @@ window.R=(function(){
         if(shadow){ ctx.globalAlpha=prev; ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(Math.max(2,box.w*.06),2,Math.max(5,box.w*.42),Math.max(2,box.w*.09),0,0,TAU); ctx.fill(); }
         ctx.globalAlpha=prev*(alpha==null?1:alpha);
         const tuck=Math.min(3, box.h*0.025);
-        ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h);
+        const crop=box.crop||0;
+        const pw=painted.naturalWidth||painted.width||src.w, ph=painted.naturalHeight||painted.height||src.h;
+        if(crop>0.004 && pw>2){
+          const sw=pw*(1-crop), sx=pw*crop/2;
+          ctx.drawImage(painted,sx,0,sw,ph,-box.w/2,-box.h+tuck,box.w,box.h);
+        } else ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h);
         ctx.globalAlpha=prev;
         return box;
       };
@@ -1014,7 +1046,7 @@ window.R=(function(){
         box=fitBox(primary.w/Math.max(1,primary.h), sl, stage, prog, strainAspect(st));
       } else if(primary){ box=drawSp(primary, 1, true); take(box); }
       if(hitW) sl.spr={w:hitW,h:hitH};
-      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,x:sl.x,edge:sl.edgeR,art:stage>=5&&st?st.id:('stage'+stage)});
+      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,edge:sl.edgeR,a:box.a,art:stage>=5&&st?st.id:('stage'+stage)});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
@@ -1381,7 +1413,7 @@ window.R=(function(){
         const plantH=Math.max(18,rim-y-1); const ppm=plantH/mh; const sp=Math.max(.25,(g.cellW-4)/(ppm*1.05));
         // The plant stays inside this cell. The label is painted after the leaves,
         // and the light is painted after the top row.
-        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW,cellTop:y,edgeR:W-8};
+        const sl={x:x+g.cellW/2,y:rim,cls,sp,ppm,kind:pot?'pot':'soil',bed:1,cellW:g.cellW,cellH:g.cellH,cellTop:y,edgeR:W-8,room};
         cells.push({x,y,w:g.cellW,h:g.cellH,p,owned:item.owned,expand:item.expand,sl,pot,rim,floor});
         slotOf.set(p.id,sl);
       }
@@ -1916,11 +1948,11 @@ window.R=(function(){
       const src=bitmapFor(im, size, 1)||{c:im,w:im.naturalWidth,h:im.naturalHeight};
       const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d'); if(!y) return null;
       const aspect=src.w/Math.max(1,src.h);
-      // Fill the card by height so the cola is large. Wide plants crop at the sides.
-      let dh=size*1.06, dw=dh*aspect;
-      if(dw<size*.9){ dw=size*.9; dh=dw/aspect; }
+      // Contain the whole plant, cola included. Wide plants shrink; they are not cropped.
+      let dh=size*0.96, dw=dh*aspect;
+      if(dw>size*0.96){ dw=size*0.96; dh=dw/aspect; }
       y.imageSmoothingEnabled=true; y.imageSmoothingQuality='high';
-      y.drawImage(src.c,(size-dw)/2,size*1.02-dh,dw,dh);
+      y.drawImage(src.c,(size-dw)/2,size*0.98-dh,dw,dh);
       const out={c:t,w:size,h:size,sig:false,painted:1,L}; plantC.set(key,out); return out;
     }catch(e){ if(isTaint(e)) armCors(); return null; }
   }

@@ -119,6 +119,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const r = el.getBoundingClientRect();
         return { id: el.id || el.getAttribute('data-panel') || 'btn', l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
       }).filter(it => it.w > 1 && it.h > 1).sort((a,b) => a.l - b.l);
+      const pads = [...document.querySelectorAll('#toolbar #menu button, #locBtn, #qaFab, #upgBtn, #seedBag')].map(el => {
+        const w = parseFloat(getComputedStyle(el, '::before').width) || 0;
+        return { id: el.id || el.getAttribute('data-panel') || 'btn', w: +w.toFixed(1) };
+      });
       const hits = items.map(it => {
         const stack = document.elementsFromPoint((it.l+it.r)/2, (it.t+it.b)/2);
         const top = stack && stack[0];
@@ -146,7 +150,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         bar: { l: bar.left, t: bar.top, r: bar.right, b: bar.bottom, h: bar.height },
         hudB: hud.bottom,
         goalB: goalR ? goalR.bottom : 0,
-        items, hits,
+        items, hits, pads,
         cellH: lay && lay.cell ? lay.cell.h : 0,
         expectH,
         n: lay ? lay.n : 0,
@@ -180,6 +184,8 @@ localStorage.removeItem('mwfarms_test_v1');` });
       }
       const badHit = m.hits.find(h => h.owner !== h.id);
       assert(!badHit, tag + ' a row button is covered ' + JSON.stringify(m.hits));
+      const padMin = Math.min.apply(null, (m.pads || []).map(p => p.w));
+      assert(m.pads && m.pads.length === 10 && padMin >= 40, tag + ' tab hit area is under 40px ' + JSON.stringify(m.pads));
       assert(m.above !== 'seedBag' && m.cellH > 0, tag + ' plants did not lay out ' + m.above);
       assert(Math.abs(m.cellH - m.expectH) < 3, tag + ' plant grid is not using the toolbar floor ' + m.cellH + ' vs ' + m.expectH);
       assert(m.pickHidden, tag + ' the old seed popup is open');

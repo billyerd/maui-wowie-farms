@@ -30,23 +30,46 @@ window.UI = (function(){
     }
     showPill(text,kind,group);
   }
-  function toastClearance(){
-    const tb=document.getElementById('toolbar');
-    if(!tb||!tb.getBoundingClientRect) return 80;
-    const r=tb.getBoundingClientRect();
-    if(!(r.height>8)) return 80;
-    return Math.max(72, Math.round((window.innerHeight||0)-r.top+8));
+  function toastTop(){
+    let y=56;
+    const H=window.innerHeight||800;
+    const hud=document.getElementById('hud');
+    if(hud&&hud.getBoundingClientRect){
+      const r=hud.getBoundingClientRect();
+      if(r.height>8 && r.bottom<H*0.55) y=Math.max(y, Math.round(r.bottom+6));
+    }
+    const goal=document.getElementById('goal');
+    if(goal&&goal.classList&&goal.classList.contains('open')){
+      const tx=goal.querySelector?goal.querySelector('.gtx'):null;
+      const r=(tx||goal).getBoundingClientRect();
+      if(r.height>8 && r.bottom<H*0.55) y=Math.max(y, Math.round(r.bottom+6));
+    }
+    return Math.max(56, y);
   }
   function placeToasts(){
-    const b=toastClearance()+'px';
+    const top=toastTop()+'px';
     const root=document.documentElement.style;
-    if(root.getPropertyValue('--toastb')!==b) root.setProperty('--toastb', b);
+    if(root.getPropertyValue('--dock-top')!==top) root.setProperty('--dock-top', top);
     const box=document.getElementById('toasts');
-    if(box){ box.style.setProperty('--dock-bot', b); box.style.setProperty('--dock-top','auto'); }
+    if(box){
+      box.style.top=top; box.style.bottom='auto';
+      box.style.setProperty('--dock-top', top);
+      box.style.setProperty('--dock-bot','auto');
+    }
   }
+  function sheetOpen(){ return !!(document.body&&document.body.classList&&document.body.classList.contains('sheet-open')); }
   function capToasts(box){
+    const max=sheetOpen()?1:2;
     const live=box&&box.querySelectorAll?[...box.querySelectorAll('.toast')]:[];
-    while(live.length>2){ const old=live.shift(); if(old&&old.remove) old.remove(); }
+    while(live.length>max){ const old=live.shift(); if(old&&old.remove) old.remove(); }
+  }
+  function clipToast(text){
+    const s=String(text||'').replace(/\s+/g,' ').trim();
+    if(s.length<=36) return s;
+    let cut=s.slice(0,35).trimEnd();
+    const sp=cut.lastIndexOf(' ');
+    if(sp>=18) cut=cut.slice(0,sp);
+    return cut+'…';
   }
   function achHost(){
     let box=document.getElementById('achToasts');
@@ -64,7 +87,7 @@ window.UI = (function(){
     if(same){
       const n=(+same.dataset.n||1)+1; same.dataset.n=String(n);
       const first=same.dataset.first||same.dataset.raw||text;
-      same.textContent=group&&GROUP_TXT[group]?GROUP_TXT[group](n,first):(n>1?first+'  ×'+n:first);
+      same.textContent=clipToast(group&&GROUP_TXT[group]?GROUP_TXT[group](n,first):(n>1?first+'  ×'+n:first));
       armPill(same, long||same.classList.contains('long'));
       return;
     }
@@ -72,7 +95,7 @@ window.UI = (function(){
     el.className='toast'+(k?' '+k:'')+(long?' long':'');
     el.dataset.raw=String(text||''); el.dataset.first=String(text||''); el.dataset.n='1';
     if(group) el.dataset.group=group;
-    el.textContent=group&&GROUP_TXT[group]?GROUP_TXT[group](1,text):String(text||'');
+    el.textContent=clipToast(group&&GROUP_TXT[group]?GROUP_TXT[group](1,text):String(text||''));
     if(box.appendChild) box.appendChild(el);
     capToasts(box);
     armPill(el, long);
@@ -80,20 +103,18 @@ window.UI = (function(){
   function armPill(el, long){
     if(!el) return;
     clearTimeout(el._t); if(el.classList&&el.classList.remove) el.classList.remove('out');
-    el._t=arm(()=>{ if(el.classList) el.classList.add('out'); arm(()=>{ if(el.remove) el.remove(); },240); }, long?4600:2600);
+    el.dataset.ms='2500';
+    el._t=arm(()=>{ if(el.classList) el.classList.add('out'); arm(()=>{ if(el.remove) el.remove(); },240); }, 2500);
   }
-  // A short note that stays off the location tabs. Used for the tutorial skip, which must not cover them.
+  // A short note under the HUD. Used for the tutorial skip.
   function brief(text){
     let box=document.getElementById('toasts');
     if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
+    if(box.classList) box.classList.remove('dock');
     placeToasts();
-    box.classList.add('dock');
-    const gap=toastClearance();
-    box.style.setProperty('--dock-top','auto');
-    box.style.setProperty('--dock-bot', gap+'px');
-    const el=document.createElement('div'); el.className='toast'; el.textContent=String(text||''); box.appendChild(el);
+    const el=document.createElement('div'); el.className='toast'; el.dataset.ms='2500'; el.textContent=clipToast(text); box.appendChild(el);
     capToasts(box);
-    setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); if(box&&box.classList&&!box.querySelector('.toast')) box.classList.remove('dock'); },240); },3200);
+    setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); },240); },2500);
   }
   // A tiny note. No OK button, and it does not open a sheet.
   let pipFade=0, pipHide=0;
@@ -369,7 +390,7 @@ window.UI = (function(){
     catch(err){ console.error(err); const body=$('#sheetBody'), foot=$('#sheetFoot'); if(body) body._h=''; if(foot) foot._h=''; const title=$('#sheetTitle'); if(title) title.textContent='Farm'; const sub=$('#sheetSub'); if(sub) sub.innerHTML=''; const tabsEl=$('#sheetTabs'); if(tabsEl) tabsEl.innerHTML='';
       const stack=String(err&&err.stack||''), hit=stack.match(/([A-Za-z0-9_.-]+\.js):(\d+)/), spot=(err&&err.name||'Error')+(hit?' '+hit[1]+':'+hit[2]:'');
       if(body) body.innerHTML='<div class="empty">This page hit a problem in this save. The rest of the farm is still here.</div><p class="save-err">'+esc(spot)+'</p>'; if(foot) foot.innerHTML=''; }
-    $('#sheet').classList.remove('hidden'); document.body.classList.add('sheet-open'); Sound.play('open'); }
+    $('#sheet').classList.remove('hidden'); document.body.classList.add('sheet-open'); try{ capToasts(document.getElementById('toasts')); }catch(e){} Sound.play('open'); }
   function close(){ panel=null; $('#sheet').classList.add('hidden'); document.body.classList.remove('sheet-open','web-open'); }
   // One bad picture must not blank the sheet. Mount a canvas (Safari paints that; a data URL often stays empty).
   function mountStrainArt(im){
@@ -463,7 +484,7 @@ window.UI = (function(){
       +`<div class="note">Grow times run from 30 seconds (Common) to 3 days (Legendary). Plants keep growing while you're away. Long grows pay a little more per hour. More strains unlock by level, breeding and island festivals.</div>`;
     const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length;
     const owned=G.S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>a.game.growSec-b.game.growSec);
-    const bag=owned.length?owned.map(s=>`<div class="row${st.selSeed===s.id?' sel':''}" data-pickseed="${s.id}">${cu(s,56)}<div class="grow"><h4>${esc(s.name)}</h4><p>${st.seeds[s.id]} in the bag · ${sec(s.game.growSec)}</p></div>${st.selSeed===s.id?'<span class="chip selchip">Selected</span>':''}</div>`).join(''):`<div class="note">Bag's empty. Grab seeds at the shop.</div>`;
+    const bag=owned.length?owned.map(s=>`<div class="row${st.selSeed===s.id?' sel':''}" data-pickseed="${s.id}">${cu(s,112)}<div class="grow"><h4>${esc(s.name)}</h4><p>${st.seeds[s.id]} in the bag · ${sec(s.game.growSec)}</p></div>${st.selSeed===s.id?'<span class="chip selchip">Selected</span>':''}</div>`).join(''):`<div class="note">Bag's empty. Grab seeds at the shop.</div>`;
     return {title:'Seed bag',sub:'Pick a seed you own, or buy more below.',tabs:[['all','All'],['fast','Under 30m'],['island','Island'],['top','Epic+']],body:`<div class="section-t">In the bag</div>${bag}<div class="section-t">Buy seeds</div>`+body,
       foot:`<div style="flex:1;font-size:12px;color:var(--mut)">Selected: <b style="color:#fff">${esc(sel?.name||'-')}</b> (${st.seeds[st.selSeed]||0})</div><button class="btn" data-a="plantall" ${!empty?'disabled':''}>Plant ${empty} here</button>`};
   };

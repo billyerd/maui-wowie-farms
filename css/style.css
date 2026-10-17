@@ -1001,3 +1001,55 @@ body:not(.sheet-open) #toasts{top:auto;bottom:var(--toastb, 80px);justify-conten
 #toasts .toast,.toast.long{max-width:min(64vw,240px);max-height:2.7em;overflow:hidden}
 #achToasts{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top, 0px) + var(--hud-h, 50px) + 8px);z-index:45;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:auto;max-width:min(64vw,240px)}
 #achToasts .toast{max-width:min(64vw,240px);max-height:2.7em;overflow:hidden}
+
+/* Notices sit just under the HUD, one line, so they stay off the pots and the seed rows. */
+#toasts,
+#toasts.dock,
+body.sheet-open #toasts,
+body:not(.sheet-open) #toasts{
+  top:var(--dock-top, 64px) !important;
+  bottom:auto !important;
+  left:50% !important;
+  right:auto !important;
+  transform:translateX(-50%) !important;
+  width:auto !important;
+  max-width:36ch !important;
+  align-items:center;
+  justify-content:flex-start;
+  z-index:40;
+}
+#toasts .toast,
+#toasts .toast.long,
+.toast.long{
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  max-width:36ch !important;
+  max-height:none !important;
+  display:block !important;
+  -webkit-line-clamp:unset !important;
+  -webkit-box-orient:unset !important;
+}
+#achToasts .toast{
+  white-space:nowrap;text-overflow:ellipsis;max-width:36ch;display:block;-webkit-line-clamp:unset;
+}
+
+/* Bottom tabs keep their look. The invisible pad makes each one at least 40px wide to tap. */
+#toolbar #locBtn,
+#toolbar #menu button,
+#toolbar #upgBtn.sidebtn,
+#toolbar #qaFab,
+#toolbar #seedBag{overflow:visible}
+#toolbar #locBtn::before,
+#toolbar #menu button::before,
+#toolbar #upgBtn.sidebtn::before,
+#toolbar #qaFab::before,
+#toolbar #seedBag::before{
+  content:'';
+  position:absolute;
+  left:50%;
+  top:0;
+  bottom:0;
+  width:max(100%, 40px);
+  transform:translateX(-50%);
+}
