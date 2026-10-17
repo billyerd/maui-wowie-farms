@@ -1,15 +1,15 @@
-/* Scouting glass: 3 second hold on a plant or empty floor.
-   Real touches go through Chrome's touch pipeline (Input.dispatchTouchEvent),
-   not element.dispatchEvent, plus a synthesized pointerType:"touch" sequence
-   that pretends the finger lifted when the iOS callout starts.
+/* Live magnifier: hold ~0.45s on the room, drag while the finger is down, release to dismiss.
+   Real touches go through Chrome's touch pipeline (Input.dispatchTouchEvent).
    Run: node tests/hold-inspect-check.js
    Uses headless Chrome against the local static server. */
 const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
+const path = require('path');
 
-const PORT = process.env.HOLD_CHROME_PORT || '9348';
+const PORT = process.env.HOLD_CHROME_PORT || '9494';
 const GAME = process.env.HOLD_GAME_URL || 'http://127.0.0.1:8765/index.html';
+const SHOTS = process.env.HOLD_SHOTS || '/tmp/hold-shots';
 
 function fail(msg){ console.error('FAIL', msg); process.exitCode = 1; }
 function assert(cond, msg){ if (!cond) fail(msg); }
@@ -27,18 +27,11 @@ function get(url, method){
   });
 }
 
-async function waitPort(){
-  for (let i = 0; i < 40; i++){
-    try { await get('http://127.0.0.1:' + PORT + '/json/version'); return; }
-    catch (e){ await sleep(250); }
-  }
-  throw new Error('Chrome did not open port ' + PORT);
-}
-
 async function main(){
   let serverUp = false;
   try { const r = await get(GAME); serverUp = r.status === 200; } catch (e){ serverUp = false; }
   if (!serverUp){ fail('static server is not serving ' + GAME); return; }
+  fs.mkdirSync(SHOTS, { recursive: true });
 
   const profile = '/tmp/chrome-hold-' + PORT;
   fs.rmSync(profile, { recursive: true, force: true });
@@ -73,7 +66,7 @@ async function main(){
     }
     async function evalJs(expression){
       const r = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-      if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails).slice(0, 1400));
+      if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails).slice(0, 1600));
       return r.result && r.result.value;
     }
     async function touch(type, x, y){
@@ -82,6 +75,11 @@ async function main(){
         type,
         touchPoints: end ? [] : [{ x: x, y: y, id: 1, radiusX: 2, radiusY: 2, rotationAngle: 0, force: 0.6 }]
       });
+    }
+    async function shot(name){
+      const data = await evalJs(`(() => { R.frame(0.016); return document.getElementById('game').toDataURL('image/png'); })()`);
+      const b64 = String(data || '').replace(/^data:image\/png;base64,/, '');
+      fs.writeFileSync(path.join(SHOTS, name + '.png'), Buffer.from(b64, 'base64'));
     }
 
     await cdp('Page.enable');
@@ -94,7 +92,12 @@ window.addEventListener('error', e => window.__errs.push(String(e.message||e.err
 const _ce=console.error; console.error=function(){ window.__errs.push([].map.call(arguments,String).join(' ')); return _ce.apply(console, arguments); };
 localStorage.removeItem('mwfarms_save_v1');
 localStorage.setItem('mwfarms_age_ok','1');
-localStorage.setItem('mwfarms_ad_consent_v1','contextual');`
+localStorage.setItem('mwfarms_ad_consent_v1','contextual');
+(function(){
+  const orig = Element.prototype.setPointerCapture;
+  window.__caps = 0;
+  Element.prototype.setPointerCapture = function(id){ window.__caps++; return orig.apply(this, arguments); };
+})();`
     });
     await cdp('Emulation.setDeviceMetricsOverride', {
       width: 390, height: 844, deviceScaleFactor: 1, mobile: true
@@ -103,46 +106,38 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');`
     await cdp('Page.navigate', { url: GAME + '?hold=' + Date.now() });
     await sleep(1600);
     await evalJs(`(() => { const b=document.getElementById('playBtn'); if(b) b.click(); if(window.Tutorial&&Tutorial.skip) Tutorial.skip(); const m=document.getElementById('modal'); if(m) m.classList.add('hidden'); return true; })()`);
-    await sleep(400);
+    await sleep(500);
 
-    const boot = await evalJs(`(() => {
+    const boot = await evalJs(`(async () => {
       const cs = id => getComputedStyle(document.getElementById(id)||document.documentElement);
       const stage = document.getElementById('stage');
-      window.__hit = [];
-      ['pointerdown','pointerup','pointercancel','touchstart','touchend','touchcancel','contextmenu'].forEach(type => {
-        document.addEventListener(type, e => {
-          window.__hit.push(type + ':' + ((e.target&& (e.target.id||e.target.tagName)) || '') + ':' + (e.pointerType||''));
-          if (window.__hit.length > 30) window.__hit.shift();
-        }, true);
-      });
-      window.__glass = () => {
-        const m = document.getElementById('modal');
-        const card = document.getElementById('modalCard');
-        return { open: !!(m && !m.classList.contains('hidden')), text: card ? (card.innerText||card.textContent||'') : '' };
-      };
-      window.__ring = () => {
-        const el = document.getElementById('holdRing');
-        if (!el || el.classList.contains('hidden')) return { on:false, prog:0 };
-        const arc = el.querySelector('.arc');
-        const off = arc ? parseFloat(arc.getAttribute('stroke-dashoffset')) : 113;
-        const vis = getComputedStyle(el).visibility;
-        return { on: vis !== 'hidden', prog: Math.max(0, 113.097 - off), pe: getComputedStyle(el).pointerEvents };
+      const game = document.getElementById('game');
+      window.__lens = () => {
+        const L = window.R && R.lens;
+        const modal = document.getElementById('modal');
+        const pop = document.getElementById('pop');
+        return {
+          on: !!(L && L.on), x: L ? L.x : null, y: L ? L.y : null,
+          modal: !!(modal && !modal.classList.contains('hidden')),
+          pop: !!(pop && !pop.classList.contains('hidden'))
+        };
       };
       window.__closeGlass = async () => {
         const sleep = ms => new Promise(r => setTimeout(r, ms));
         if (window.UI && UI.hidePop) UI.hidePop();
+        try { if (window.R && R.lens && R.lens.on) R.setLens(false); } catch (e){}
         const cel = document.getElementById('celebrate');
         if (cel && !cel.classList.contains('hidden')){
           const b = cel.querySelector('button');
           if (b) b.click(); else cel.classList.add('hidden');
-          await sleep(180);
+          await sleep(120);
         }
-        for (let i = 0; i < 5; i++){
+        for (let i = 0; i < 4; i++){
           const m = document.getElementById('modal');
           if (!m || m.classList.contains('hidden')) break;
           const b = m.querySelector('.acts .btn');
           if (b) b.click(); else m.classList.add('hidden');
-          await sleep(180);
+          await sleep(120);
         }
         return true;
       };
@@ -154,178 +149,121 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');`
         const pot = G.st.plots.find(p => p.zone === zone && p.owned);
         G.st.plots.forEach(p => { p.strain = null; p.eggs = 0; p.pest = null; });
         if (pot){ pot.strain = 'northern-lights'; pot.prog = 0.55; pot.water = 1; pot.food = 1; pot.pest = null; pot.eggs = 0; }
-        for (let i = 0; i < 4; i++) R.frame(0.016);
+        for (let i = 0; i < 5; i++) R.frame(0.016);
         function top(x, y){
           const el = document.elementsFromPoint(x, y)[0];
           return el ? (el.id || el.tagName) : '';
         }
         function world(x, y){ const id = top(x, y); return id === 'stage' || id === 'game'; }
-        function far(x, y){
-          if (R.nearPlant && R.nearPlant(x, y)) return false;
-          const ov = R._ovl ? R._ovl() : [];
-          for (const o of ov){ if (o && Math.hypot(o.x - x, o.y - y) < 100) return false; }
-          return true;
-        }
-        function clearFloor(x, y){
-          if (!world(x, y)) return false;
-          for (let dy = -24; dy <= 24; dy += 12){
-            for (let dx = -24; dx <= 24; dx += 12){
-              let h = null; try { h = R.pick(x + dx, y + dy); } catch (e){ return false; }
-              if (h) return false;
-              if (!far(x + dx, y + dy)) return false;
-              if (!world(x + dx, y + dy)) return false;
-            }
-          }
-          return true;
-        }
-        let plant = null, empty = null, emptyD = 1e9;
-        for (let y = 150; y < 700; y += 8){
-          for (let x = 36; x < 354; x += 8){
+        let minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
+        for (let y = 150; y < 700; y += 6){
+          for (let x = 24; x < 366; x += 6){
             if (!world(x, y)) continue;
-            let h = null; try { h = R.pick(x, y); } catch (e){ h = { type:'err' }; }
-            if (!plant && h && h.type === 'plot' && h.p && h.p.strain) plant = { x, y, top: top(x, y) };
-            if (clearFloor(x, y)){
-              const d = Math.hypot(x - 195, y - 200);
-              if (d < emptyD){ emptyD = d; empty = { x, y, top: top(x, y) }; }
+            let h = null; try { h = R.pick(x, y); } catch (e){ h = null; }
+            if (h && h.type === 'plot' && h.p && h.p.strain){
+              if (x < minX) minX = x; if (x > maxX) maxX = x;
+              if (y < minY) minY = y; if (y > maxY) maxY = y;
             }
           }
         }
+        let plant = null;
+        if (maxX >= 0){
+          const x = Math.round((minX + maxX) / 2), y = Math.round((minY + maxY) / 2);
+          plant = { x, y, top: top(x, y), box: { minX, maxX, minY, maxY } };
+        }
+        const sprites = (R.bedSprites ? R.bedSprites() : []).filter(s => s && s.id);
+        const painted = sprites.filter(s => s.painted && s.grown && !s.closeup);
         const btn = document.getElementById('locBtn');
         const br = btn ? btn.getBoundingClientRect() : null;
         return {
-          room: G.currentRoom(), zone, owned: G.st.plots.filter(p => p.zone === zone && p.owned).length,
-          plant, empty,
-          hud: br ? { x: Math.round(br.left + br.width / 2), y: Math.round(br.top + br.height / 2), top: top(br.left + br.width / 2, br.top + br.height / 2) } : null,
+          room: G.currentRoom(), zone,
+          plant, painted: painted.length, sprites: sprites.length,
+          hud: br ? { x: Math.round(br.left + br.width / 2), y: Math.round(br.top + br.height / 2), top: top(br.left + 4, br.top + 4) } : null,
           sheetBlocks: top(195, 420) === 'sheet'
         };
       };
+      window.__ringPx = () => {
+        const L = R.lens;
+        if (!L || !L.on) return { on:false };
+        const cv = document.getElementById('game');
+        const ctx = cv.getContext('2d');
+        const dpr = cv.width / Math.max(1, cv.clientWidth);
+        const r0 = Math.min(78, innerWidth * 0.2) * (G.lv('loupe') ? 1.3 : 1);
+        let hit = 0, n = 0;
+        for (const r of [r0 - 4, r0, r0 + 4]){
+          for (let i = 0; i < 16; i++){
+            const a = (i / 16) * Math.PI * 2;
+            const px = Math.round((L.x + Math.cos(a) * r) * dpr);
+            const py = Math.round((L.y + Math.sin(a) * r) * dpr);
+            if (px < 1 || py < 1 || px >= cv.width - 1 || py >= cv.height - 1) continue;
+            const p = ctx.getImageData(px, py, 1, 1).data;
+            n++;
+            // The lens rim is #f0c45a. Dark room pixels must not count.
+            const gold = p[0] > 190 && p[1] > 140 && p[1] < 235 && p[2] > 40 && p[2] < 155 && p[0] > p[2] + 40;
+            if (gold) hit++;
+          }
+        }
+        const cols = [];
+        for (let i = 0; i < 8; i++){
+          const a = (i / 8) * Math.PI * 2;
+          const px = Math.round((L.x + Math.cos(a) * r0) * dpr);
+          const py = Math.round((L.y + Math.sin(a) * r0) * dpr);
+          if (px < 0 || py < 0 || px >= cv.width || py >= cv.height){ cols.push(null); continue; }
+          const p = ctx.getImageData(px, py, 1, 1).data;
+          cols.push([p[0], p[1], p[2], p[3]]);
+        }
+        return { on:true, hit, n, r: r0, dpr, x: L.x, y: L.y, cols };
+      };
+      const stageCS = stage ? cs('stage') : null;
+      const gameCS = game ? cs('game') : null;
+      const cssText = await (await fetch('css/style.css', { cache: 'no-store' })).text();
+      const flat = cssText.replace(/\\s+/g, '');
       return {
         htmlTA: getComputedStyle(document.documentElement).touchAction,
         bodyTA: getComputedStyle(document.body).touchAction,
-        stageTA: stage ? cs('stage').touchAction : 'missing',
-        gameTA: cs('game').touchAction,
-        confettiTA: cs('confetti').touchAction,
+        stageTA: stage ? stageCS.touchAction : 'missing',
+        gameTA: game ? gameCS.touchAction : 'missing',
         confettiPE: cs('confetti').pointerEvents,
-        stageCallout: stage ? cs('stage').webkitTouchCallout : 'missing',
+        stageCallout: stageCS ? stageCS.webkitTouchCallout : 'missing',
+        gameCallout: gameCS ? gameCS.webkitTouchCallout : 'missing',
+        stageSelect: stageCS ? stageCS.userSelect : 'missing',
+        gameSelect: gameCS ? gameCS.userSelect : 'missing',
+        htmlCallout: getComputedStyle(document.documentElement).webkitTouchCallout,
+        htmlSelect: getComputedStyle(document.documentElement).userSelect,
+        cssCallout: flat.indexOf('-webkit-touch-callout:none') >= 0,
+        cssSelect: flat.indexOf('user-select:none') >= 0,
+        cssTouch: flat.indexOf('touch-action:none') >= 0,
+        cssCanvas: flat.indexOf('canvas') >= 0 && flat.indexOf('touch-action:none') > flat.indexOf('canvas'),
         hasStage: !!stage
       };
     })()`);
     console.log('styles', JSON.stringify(boot));
     assert(boot && boot.hasStage, 'playfield stage is missing');
-    assert(boot.htmlTA === 'manipulation' && boot.bodyTA === 'manipulation', 'page touch-action should be manipulation so a child none is honored: ' + JSON.stringify(boot));
+    assert(boot.htmlTA === 'manipulation' && boot.bodyTA === 'manipulation', 'page touch-action should stay manipulation: ' + JSON.stringify(boot));
     assert(boot.stageTA === 'none' && boot.gameTA === 'none', 'stage and canvas need touch-action none: ' + JSON.stringify(boot));
     assert(boot.confettiPE === 'none', 'confetti canvas still receives touches');
+    assert(boot.stageSelect === 'none' && boot.gameSelect === 'none' && boot.htmlSelect === 'none', 'user-select should be none: ' + JSON.stringify(boot));
+    assert(boot.cssCallout && boot.cssSelect && boot.cssTouch && boot.cssCanvas, 'stylesheet is missing callout, user-select, canvas, or touch-action: ' + JSON.stringify(boot));
 
-    const synth = await evalJs(`(async () => {
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const blocked = await evalJs(`(() => {
       const stage = document.getElementById('stage');
-      const cv = document.getElementById('game');
-      const out = { cases: {} };
-      function ptr(type, x, y, id, kind, target){
-        (target || stage).dispatchEvent(new PointerEvent(type, {
-          bubbles:true, cancelable:true, clientX:x, clientY:y, pointerId:id,
-          pointerType:kind || 'mouse', isPrimary:true, button:0,
-          buttons: (type === 'pointerup' || type === 'pointercancel') ? 0 : 1,
-          width:4, height:4, pressure: type === 'pointerup' ? 0 : 0.5
-        }));
-      }
-      const spot = window.__spots('garage');
-      out.spot = spot;
-      if (!spot.plant || !spot.empty) return out;
-      const plant = spot.plant, empty = spot.empty;
-
-      await window.__closeGlass();
-      ptr('pointerdown', plant.x, plant.y, 1, 'mouse', cv);
-      await sleep(500);
-      const ringEarly = window.__ring();
-      ptr('pointermove', plant.x + 12, plant.y + 8, 1, 'mouse', cv);
-      await sleep(2800);
-      const held = window.__glass();
-      const ringLate = window.__ring();
-      ptr('pointerup', plant.x + 12, plant.y + 8, 1, 'mouse', cv);
-      out.cases.mousePlant = { open: held.open, text: held.text.slice(0, 160), ringEarly, ringGone: !ringLate.on };
-
-      await window.__closeGlass();
-      const emptyNow = window.__spots('garage').empty || empty;
-      ptr('pointerdown', emptyNow.x, emptyNow.y, 2, 'mouse');
-      await sleep(200);
-      ptr('pointerup', emptyNow.x + 3, emptyNow.y + 2, 2, 'mouse');
-      await sleep(80);
-      const justUp = { ring: window.__ring().on, open: window.__glass().open, text: window.__glass().text.slice(0, 80) };
-      await sleep(3000);
-      out.cases.earlyLift = { open: window.__glass().open, text: window.__glass().text.slice(0, 80), justUp };
-      await window.__closeGlass();
-
-      ptr('pointerdown', empty.x, empty.y, 3, 'mouse');
-      ptr('pointermove', empty.x + 40, empty.y, 3, 'mouse');
-      await sleep(3200);
-      out.cases.bigMove = { open: window.__glass().open };
-      ptr('pointerup', empty.x + 40, empty.y, 3, 'mouse');
-      await window.__closeGlass();
-
-      ptr('pointerdown', plant.x, plant.y, 4, 'mouse', cv);
-      ptr('pointercancel', plant.x, plant.y, 4, 'mouse', cv);
-      const menu = cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles:true, cancelable:true, clientX:plant.x, clientY:plant.y }));
-      await sleep(3200);
-      const cancelled = window.__glass();
-      out.cases.pointerCancel = { open: cancelled.open, text: cancelled.text.slice(0, 120), menuPrevented: menu === false };
-      await window.__closeGlass();
-
-      // iOS: the callout arrives as pointerup, then about 180ms later contextmenu and pointercancel.
-      ptr('pointerdown', plant.x, plant.y, 11, 'touch', stage);
-      const tStart = new Touch({ identifier:11, target:stage, clientX:plant.x, clientY:plant.y, radiusX:2, radiusY:2, force:0.5 });
-      stage.dispatchEvent(new TouchEvent('touchstart', { bubbles:true, cancelable:true, touches:[tStart], targetTouches:[tStart], changedTouches:[tStart] }));
-      await sleep(520);
-      ptr('pointerup', plant.x, plant.y, 11, 'touch', stage);
-      const tEnd = new Touch({ identifier:11, target:stage, clientX:plant.x, clientY:plant.y, radiusX:2, radiusY:2, force:0 });
-      stage.dispatchEvent(new TouchEvent('touchend', { bubbles:true, cancelable:true, touches:[], targetTouches:[], changedTouches:[tEnd] }));
-      await sleep(50);
-      const ringAfterFakeLift = window.__ring();
-      await sleep(130);
-      stage.dispatchEvent(new PointerEvent('pointercancel', { bubbles:true, cancelable:true, clientX:plant.x, clientY:plant.y, pointerId:11, pointerType:'touch', isPrimary:true, buttons:0 }));
-      const menu2 = stage.dispatchEvent(new MouseEvent('contextmenu', { bubbles:true, cancelable:true, clientX:plant.x, clientY:plant.y }));
-      await sleep(2700);
-      const ios = window.__glass();
-      out.cases.iosCallout = { open: ios.open, text: ios.text.slice(0, 160), ringHeld: ringAfterFakeLift.on, menuPrevented: menu2 === false };
-      await window.__closeGlass();
-      out.errs = (window.__errs || []).slice(0, 8);
-      return out;
+      const menu = stage.dispatchEvent(new MouseEvent('contextmenu', { bubbles:true, cancelable:true, clientX:40, clientY:200 }));
+      const sel = stage.dispatchEvent(new Event('selectstart', { bubbles:true, cancelable:true }));
+      return { menuPrevented: menu === false, selectPrevented: sel === false };
     })()`);
-    console.log('synth', JSON.stringify(synth, null, 2));
-    assert(synth && synth.spot && synth.spot.plant && synth.spot.empty, 'could not find a plant cell and empty floor on the stage: ' + JSON.stringify(synth && synth.spot));
-    assert(synth.cases.mousePlant && synth.cases.mousePlant.open && /Northern Lights/i.test(synth.cases.mousePlant.text), 'mouse hold on a plant did not open the glass: ' + JSON.stringify(synth.cases.mousePlant));
-    assert(synth.cases.mousePlant.ringEarly && synth.cases.mousePlant.ringEarly.on && synth.cases.mousePlant.ringEarly.prog > 5, 'growing ring did not show during the mouse hold');
-    assert(synth.cases.mousePlant.ringGone, 'ring stayed up after the glass opened');
-    assert(synth.cases.earlyLift && synth.cases.earlyLift.open === false, 'lifting before 3 seconds still opened the glass');
-    assert(synth.cases.bigMove && synth.cases.bigMove.open === false, 'a 40px move still opened the glass');
-    assert(synth.cases.pointerCancel && synth.cases.pointerCancel.open && /Northern Lights/i.test(synth.cases.pointerCancel.text), 'pointercancel aborted the hold: ' + JSON.stringify(synth.cases.pointerCancel));
-    assert(synth.cases.pointerCancel.menuPrevented === true, 'context menu was not cancelled');
-    assert(synth.cases.iosCallout && synth.cases.iosCallout.ringHeld, 'the iOS fake lift cleared the ring: ' + JSON.stringify(synth.cases.iosCallout));
-    assert(synth.cases.iosCallout.open && /Northern Lights/i.test(synth.cases.iosCallout.text) && synth.cases.iosCallout.menuPrevented, 'iOS callout (pointerup then contextmenu) aborted the hold: ' + JSON.stringify(synth.cases.iosCallout));
+    assert(blocked && blocked.menuPrevented && blocked.selectPrevented, 'contextmenu or selectstart was not cancelled: ' + JSON.stringify(blocked));
 
-    async function pressHold(x, y){
-      await evalJs('window.__closeGlass()');
-      await sleep(60);
-      try { await touch('touchCancel', x, y); } catch (e){}
-      try { await touch('touchEnd', x, y); } catch (e){}
-      await evalJs('window.__hit.length=0');
-      await touch('touchStart', x, y);
-      const t0 = Date.now();
-      await sleep(650);
-      const mid = await evalJs('({ ring: window.__ring(), top: (document.elementsFromPoint(' + x + ',' + y + ')[0]||{}).id || (document.elementsFromPoint(' + x + ',' + y + ')[0]||{}).tagName, hits: window.__hit.slice() })');
-      let n = 0;
-      while (Date.now() - t0 < 3300){
-        n++;
-        const left = 3300 - (Date.now() - t0);
-        if (left <= 40) break;
-        await touch('touchMove', x + (n % 2 ? 3 : -2), y + (n % 2 ? -2 : 3));
-        await sleep(Math.min(240, Math.max(0, 3300 - (Date.now() - t0))));
+    const images = await evalJs(`(async () => {
+      for (let i = 0; i < 50; i++){
+        if (window.R && R.imagesLoaded && R.imagesLoaded()) return true;
+        await new Promise(r => setTimeout(r, 100));
       }
-      const held = await evalJs('window.__glass()');
-      const late = await evalJs('window.__ring()');
-      await touch('touchEnd', x, y);
-      await sleep(80);
-      return { mid: mid.ring, top: mid.top, hits: mid.hits, held, late };
+      return false;
+    })()`);
+    assert(images === true, 'plant sprites did not finish loading');
+
+    function near(lens, x, y){
+      return lens && lens.on && Math.abs(lens.x - x) <= 8 && Math.abs(lens.y - y) <= 8;
     }
 
     const rooms = {};
@@ -334,115 +272,129 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');`
       await evalJs('window.__closeGlass()');
       await sleep(80);
       rooms[room] = { spot };
-      if (!spot || !spot.plant || !spot.empty) continue;
-      rooms[room].plant = await pressHold(spot.plant.x, spot.plant.y);
-      await evalJs('window.__closeGlass()');
-      await sleep(200);
-      rooms[room].empty = await pressHold(spot.empty.x, spot.empty.y);
-      await evalJs('window.__closeGlass()');
-      await sleep(200);
-    }
-    console.log('cdp rooms', JSON.stringify(rooms, null, 2));
-    for (const room of ['garage', 'gh', 'facility']){
-      const r = rooms[room];
-      assert(r && r.spot && r.spot.plant && r.spot.empty && !r.spot.sheetBlocks, room + ' had no stage plant/empty: ' + JSON.stringify(r && r.spot));
-      assert(r.spot.plant.top === 'stage' || r.spot.plant.top === 'game', room + ' plant touch would hit ' + r.spot.plant.top);
-      assert(r.spot.empty.top === 'stage' || r.spot.empty.top === 'game', room + ' empty touch would hit ' + r.spot.empty.top);
-      assert(r.plant.mid && r.plant.mid.on && r.plant.mid.prog > 5 && r.plant.mid.pe === 'none', room + ' ring did not grow under a real touch: ' + JSON.stringify(r.plant.mid));
-      assert(r.plant.held && r.plant.held.open && /Northern Lights/i.test(r.plant.held.text) && r.plant.late && !r.plant.late.on, room + ' plant hold did not open the glass: ' + JSON.stringify(r.plant));
-      assert(r.empty.mid && r.empty.mid.on, room + ' empty floor showed no ring: ' + JSON.stringify(r.empty && r.empty.mid));
-      assert(r.empty.held && r.empty.held.open && /No plant/i.test(r.empty.held.text), room + ' empty hold did not open the glass: ' + JSON.stringify(r.empty && r.empty.held));
+      assert(spot && spot.plant && !spot.sheetBlocks, room + ' had no plant on the stage: ' + JSON.stringify(spot));
+      assert(spot.plant.top === 'stage' || spot.plant.top === 'game', room + ' plant touch would hit ' + (spot.plant && spot.plant.top));
+      assert(spot.painted > 0, room + ' plant is not a painted grown sprite: ' + JSON.stringify(spot));
+
+      const x = spot.plant.x, y = spot.plant.y;
+      try { await touch('touchCancel', x, y); } catch (e){}
+      try { await touch('touchEnd', x, y); } catch (e){}
+      await sleep(40);
+      await evalJs('window.__caps=0; window.__closeGlass()');
+      await touch('touchStart', x, y);
+      await sleep(180);
+      const early = await evalJs('window.__lens()');
+      await sleep(420);
+      const held = await evalJs('(() => { R.frame(0.016); return { lens: window.__lens(), ring: window.__ringPx(), caps: window.__caps }; })()');
+      const dx = x + 64, dy = y + 36;
+      await touch('touchMove', dx, dy);
+      await sleep(40);
+      const dragged = await evalJs('(() => { R.frame(0.016); return { lens: window.__lens(), ring: window.__ringPx() }; })()');
+      if (room === 'garage') await shot('hold_lens_garage');
+      if (room === 'gh') await shot('hold_lens_greenhouse');
+      if (room === 'facility') await shot('hold_lens_facility');
+      await evalJs(`(() => {
+        const stage = document.getElementById('stage');
+        stage.dispatchEvent(new PointerEvent('pointercancel', { bubbles:true, cancelable:true, clientX:${dx}, clientY:${dy}, pointerId:7, pointerType:'touch', isPrimary:true, buttons:0 }));
+        return true;
+      })()`);
+      await sleep(40);
+      const afterCancel = await evalJs('window.__lens()');
+      const dx2 = dx - 28, dy2 = dy + 22;
+      await touch('touchMove', dx2, dy2);
+      await sleep(30);
+      const still = await evalJs('(() => { R.frame(0.016); return window.__lens(); })()');
+      await touch('touchEnd', dx2, dy2);
+      await sleep(60);
+      const up = await evalJs('window.__lens()');
+      rooms[room].gesture = { early, held, dragged: dragged.lens, ring: dragged.ring, afterCancel, still, up };
+      console.log(room, JSON.stringify(rooms[room].gesture));
+
+      assert(early && early.on === false && early.modal === false, room + ' glass appeared before 0.45s: ' + JSON.stringify(early));
+      assert(near(held.lens, x, y) && held.lens.modal === false, room + ' hold did not put the glass under the finger: ' + JSON.stringify(held.lens));
+      assert(dragged.ring && dragged.ring.hit >= 8, room + ' glass ring did not draw: ' + JSON.stringify(dragged.ring));
+      assert(held.caps > 0, room + ' setPointerCapture was not called');
+      assert(near(dragged.lens, dx, dy), room + ' drag did not move the glass: ' + JSON.stringify(dragged.lens));
+      assert(afterCancel && afterCancel.on === true, room + ' pointercancel dismissed the glass mid-drag: ' + JSON.stringify(afterCancel));
+      assert(near(still, dx2, dy2), room + ' glass stopped following after pointercancel: ' + JSON.stringify(still));
+      assert(up && up.on === false, room + ' lift did not dismiss the glass: ' + JSON.stringify(up));
     }
 
-    await evalJs('R.fit(); R.frame(0.016); window.__closeGlass()');
     const garage = await evalJs('window.__spots("garage")');
     await evalJs('window.__closeGlass()');
-    await touch('touchStart', garage.empty.x, garage.empty.y);
-    await sleep(280);
-    await touch('touchEnd', garage.empty.x, garage.empty.y);
-    await sleep(3100);
-    const early = await evalJs('window.__glass()');
-    assert(early && early.open === false, 'a 280ms real touch still opened the glass: ' + JSON.stringify(early));
-
-    await evalJs('window.__closeGlass()');
-    await touch('touchStart', garage.empty.x, garage.empty.y);
-    await sleep(800);
-    await touch('touchEnd', garage.empty.x, garage.empty.y);
-    await sleep(2800);
-    const midLift = await evalJs('window.__glass()');
-    assert(midLift && midLift.open === false, 'letting go at 0.8s still opened the glass: ' + JSON.stringify(midLift));
-
-    await evalJs('window.__closeGlass()');
+    await sleep(60);
     await touch('touchStart', garage.plant.x, garage.plant.y);
-    await sleep(40);
-    await touch('touchMove', garage.plant.x + 48, garage.plant.y);
-    await sleep(3300);
-    const big = await evalJs('window.__glass()');
-    await touch('touchEnd', garage.plant.x + 48, garage.plant.y);
-    assert(big && big.open === false, 'a 48px real touch move still opened the glass: ' + JSON.stringify(big));
-
-    await evalJs('R.fit(); R.frame(0.016); window.__closeGlass()');
-    const again = await evalJs('window.__spots("garage")');
-    await sleep(200);
-    await touch('touchStart', again.empty.x, again.empty.y);
+    await sleep(70);
+    await touch('touchEnd', garage.plant.x, garage.plant.y);
     await sleep(80);
-    await touch('touchCancel', again.empty.x, again.empty.y);
-    await sleep(3300);
-    const cancelled = await evalJs('window.__glass()');
-    assert(cancelled && cancelled.open && /No plant/i.test(cancelled.text), 'touchcancel aborted the real touch hold: ' + JSON.stringify(cancelled));
-    await evalJs('window.__closeGlass()');
+    const oneTap = await evalJs(`(() => { R.frame(0.016); const pop=document.getElementById('pop'); return { lens: window.__lens(), pop: !!(pop && !pop.classList.contains('hidden')), bubbles: (R._qb?R._qb():[]).length }; })()`);
+    await sleep(500);
+    const afterTap = await evalJs('window.__lens()');
+    console.log('quick tap', JSON.stringify({ oneTap, afterTap }));
+    assert(oneTap && oneTap.lens.on === false && oneTap.pop === false, 'a quick tap opened the glass or the plant card: ' + JSON.stringify(oneTap));
+    assert(afterTap && afterTap.on === false, 'a quick tap armed the glass late: ' + JSON.stringify(afterTap));
 
-    if (garage.hud){
-      await touch('touchStart', garage.hud.x, garage.hud.y);
-      await sleep(500);
-      const hudRing = await evalJs('window.__ring()');
-      await touch('touchEnd', garage.hud.x, garage.hud.y);
-      await sleep(2800);
-      const hudGlass = await evalJs('window.__glass()');
-      assert(hudRing && hudRing.on === false && hudGlass && hudGlass.open === false, 'a hold on the location button started the glass: ' + JSON.stringify({ hud: garage.hud, hudRing, hudGlass }));
-    }
-
-    await evalJs('window.__closeGlass()');
-    await sleep(150);
-    const card = await evalJs(`(async () => {
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const s = window.__spots('garage');
-      UI.hidePop();
-      return { x:s.plant.x, y:s.plant.y };
-    })()`);
-    await touch('touchStart', card.x, card.y);
+    await touch('touchStart', garage.plant.x, garage.plant.y);
     await sleep(70);
-    await touch('touchEnd', card.x, card.y);
+    await touch('touchEnd', garage.plant.x, garage.plant.y);
     await sleep(200);
-    await touch('touchStart', card.x, card.y);
-    await sleep(70);
-    await touch('touchEnd', card.x, card.y);
-    await sleep(250);
-    let popped = await evalJs(`(() => {
+    const popped = await evalJs(`(() => {
       const pop = document.getElementById('pop');
       const btn = pop && pop.querySelector('[data-pa="glass"]');
-      return { open: !!(pop && !pop.classList.contains('hidden')), has: !!btn, text: pop ? (pop.innerText||'').slice(0,120) : '' };
+      return { open: !!(pop && !pop.classList.contains('hidden')), has: !!btn, text: pop ? (pop.innerText||'').slice(0, 120) : '', lens: window.__lens() };
     })()`);
-    if (!popped.open){
-      await evalJs(`(() => { const p = G.st.plots.find(q => q.strain); UI.tapPlot(p, ${card.x}, ${card.y}); UI.tapPlot(p, ${card.x}, ${card.y}); return true; })()`);
-      await sleep(80);
-      popped = await evalJs(`(() => {
-        const pop = document.getElementById('pop');
-        const btn = pop && pop.querySelector('[data-pa="glass"]');
-        return { open: !!(pop && !pop.classList.contains('hidden')), has: !!btn, text: pop ? (pop.innerText||'').slice(0,120) : '', via: 'api' };
-      })()`);
-    }
     console.log('plant card', JSON.stringify(popped));
-    assert(popped && popped.open && popped.has, 'plant card has no Scouting glass button: ' + JSON.stringify(popped));
+    assert(popped && popped.open && popped.has && popped.lens.on === false, 'second quick tap did not open the plant card: ' + JSON.stringify(popped));
     await evalJs(`document.querySelector('#pop [data-pa="glass"]').click()`);
-    await sleep(200);
-    const fromCard = await evalJs('window.__glass()');
-    assert(fromCard && fromCard.open && /Northern Lights/i.test(fromCard.text), 'Scouting glass button did not open the glass: ' + JSON.stringify(fromCard));
-    await evalJs('window.__closeGlass()');
+    await sleep(180);
+    const fromCard = await evalJs(`(() => { const m=document.getElementById('modal'); const card=document.getElementById('modalCard'); return { open: !!(m && !m.classList.contains('hidden')), text: card ? (card.innerText||'').slice(0,160) : '' }; })()`);
+    assert(fromCard && fromCard.open && /Northern Lights/i.test(fromCard.text), 'Scouting glass button did not open the card: ' + JSON.stringify(fromCard));
+    await evalJs('window.__closeGlass(); if (window.R && R.select) R.select(null); R.frame(0.016);');
+
+    await touch('touchStart', garage.plant.x, garage.plant.y);
+    await sleep(40);
+    await touch('touchMove', garage.plant.x + 48, garage.plant.y + 8);
+    await sleep(620);
+    const swiped = await evalJs('(() => { R.frame(0.016); return { lens: window.__lens(), bubbles: (R._qb?R._qb():[]).length }; })()');
+    await touch('touchEnd', garage.plant.x + 48, garage.plant.y + 8);
+    await sleep(40);
+    const swipedUp = await evalJs('window.__lens()');
+    console.log('swipe', JSON.stringify({ swiped, swipedUp }));
+    assert(swiped && swiped.lens.on === false, 'a swipe before the hold still opened the glass: ' + JSON.stringify(swiped));
+    assert(swipedUp && swipedUp.on === false, 'swipe release showed the glass: ' + JSON.stringify(swipedUp));
+    await touch('touchStart', garage.plant.x, garage.plant.y);
+    await sleep(60);
+    await touch('touchEnd', garage.plant.x, garage.plant.y);
+    await sleep(120);
+    const afterSwipeTap = await evalJs(`(() => { const pop=document.getElementById('pop'); return { open: !!(pop && !pop.classList.contains('hidden')), lens: window.__lens() }; })()`);
+    assert(afterSwipeTap && afterSwipeTap.open === false && afterSwipeTap.lens.on === false, 'the swipe counted as a tap: ' + JSON.stringify(afterSwipeTap));
+
+    if (garage.hud){
+      await evalJs('window.__closeGlass()');
+      const before = await evalJs(`(() => { const p=document.getElementById('locPick'); return { open: !!(p && !p.classList.contains('hidden')) }; })()`);
+      await touch('touchStart', garage.hud.x, garage.hud.y);
+      await sleep(80);
+      await touch('touchEnd', garage.hud.x, garage.hud.y);
+      await sleep(200);
+      const hudTap = await evalJs(`(() => { const p=document.getElementById('locPick'); return { lens: window.__lens(), open: !!(p && !p.classList.contains('hidden')) }; })()`);
+      await touch('touchStart', garage.hud.x, garage.hud.y);
+      await sleep(560);
+      const hudHold = await evalJs('window.__lens()');
+      await touch('touchEnd', garage.hud.x, garage.hud.y);
+      console.log('hud', JSON.stringify({ before, hudTap, hudHold, hud: garage.hud }));
+      assert(hudTap && hudTap.lens.on === false && hudTap.open !== before.open, 'a quick tap on the location button did not click it: ' + JSON.stringify(hudTap));
+      assert(hudHold && hudHold.on === false, 'a hold on the location button started the glass: ' + JSON.stringify(hudHold));
+    }
+
+    await cdp('Page.navigate', { url: GAME + '?test=lv10&holdlv=' + Date.now() });
+    await sleep(1600);
+    await evalJs(`(() => { const b=document.getElementById('playBtn'); if(b) b.click(); if(window.Tutorial&&Tutorial.skip) Tutorial.skip(); const m=document.getElementById('modal'); if(m) m.classList.add('hidden'); return true; })()`);
+    await sleep(400);
+    const lv = await evalJs(`(() => ({ level: G.st.level, cash: G.st.cash, fmt: G.fmt(G.st.cash), key: window.GAME_CONFIG.saveKey, tag: !document.getElementById('testTag').classList.contains('hidden'), lens: typeof R.setLens }))()`);
+    console.log('lv10', JSON.stringify(lv));
+    assert(lv && lv.level === 10 && lv.cash === 100000000 && lv.fmt === '$100M' && lv.key === 'mwfarms_test_v1' && lv.tag === true && lv.lens === 'function', '?test=lv10 did not boot: ' + JSON.stringify(lv));
 
     const errs = await evalJs('(window.__errs||[]).slice(0, 12)');
-    const hits = await evalJs('(window.__hit||[]).slice(-12)');
-    console.log('last hits', JSON.stringify(hits));
     const bad = (errs || []).filter(e => !/AudioContext|favicon/i.test(e));
     assert(!bad.length, 'console errors: ' + bad.join(' | '));
     if (!process.exitCode) console.log('hold inspect checks passed');
@@ -450,6 +402,14 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');`
   } finally {
     chrome.kill('SIGKILL');
   }
+}
+
+async function waitPort(){
+  for (let i = 0; i < 40; i++){
+    try { await get('http://127.0.0.1:' + PORT + '/json/version'); return; }
+    catch (e){ await sleep(250); }
+  }
+  throw new Error('Chrome did not open port ' + PORT);
 }
 
 main().catch(err => { console.error(err); process.exitCode = 1; });

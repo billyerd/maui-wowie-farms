@@ -1549,11 +1549,13 @@ window.R=(function(){
     drawGecko(now);
     stepScreenBits(dt);
     st.plots.forEach(p=>{ if(p._pop>0) p._pop=Math.max(0,p._pop-dt); if(p._shake>0) p._shake=Math.max(0,p._shake-dt); });
+    // Stacked rooms return before the farm overlay pass, which is where the lens used to draw.
+    lastOvl=cells.filter(c=>c&&c.p&&c.p.strain&&c.sl).map(c=>({p:c.p,sl:c.sl,h:Math.max(20,(c.sl.y||0)-(c.sl.cellTop!=null?c.sl.cellTop:c.y)||40)}));
     return true;
   }
   function frame(dt){
     t+=dt; const now=t, st=G.st; if(!st) return; if(!SC.garage.slots) rebuild();
-    try{ if(drawBeds(dt,now)) return; }catch(e){ if((frame._bedN=(frame._bedN|0)+1)<3) console.error(e); return; }
+    try{ if(drawBeds(dt,now)){ drawLens(); return; } }catch(e){ if((frame._bedN=(frame._bedN|0)+1)<3) console.error(e); return; }
     if(G.st.loc!==loc) setLoc(G.st.loc);
     stepPan(dt);
     drawBase(); // static backdrop comes from the cached blit only (a stray second drawWorldBase() here re-painted the full room art every frame)
@@ -1809,7 +1811,7 @@ window.R=(function(){
   function drawLens(){ if(!lens.on) return; const Z=2.2, r=Math.min(78,W*.2)*(G.lv('loupe')?1.3:1), D=dpr; if(!lensC){ lensC=document.createElement('canvas'); }
     const sw=Math.ceil(2*r/Z*D); if(lensC.width!==sw){ lensC.width=sw; lensC.height=sw; } const lc=lensC.getContext('2d');
     lc.clearRect(0,0,sw,sw); lc.drawImage(cv,(lens.x-r/Z)*D,(lens.y-r/Z)*D,sw,sw,0,0,sw,sw);
-    ctx.save(); ctx.setTransform(D,0,0,D,0,0); ctx.beginPath(); ctx.arc(lens.x,lens.y,r,0,TAU); ctx.save(); ctx.clip(); ctx.imageSmoothingEnabled=true; ctx.drawImage(lensC,lens.x-r,lens.y-r,2*r,2*r);
+    ctx.save(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setTransform(D,0,0,D,0,0); ctx.beginPath(); ctx.arc(lens.x,lens.y,r,0,TAU); ctx.save(); ctx.clip(); ctx.imageSmoothingEnabled=true; ctx.drawImage(lensC,lens.x-r,lens.y-r,2*r,2*r);
     if(lens.crisp!==false){ // Inspect: re-render plants under the lens at the lens zoom with full-res art (hiSprite picks the cache from cam.z*dpr), so they stay crisp instead of a stretched frame
       const z0=cam.z, x0=cam.x, y0=cam.y, wx=lens.x/z0+x0, wy=lens.y/z0+y0, z1=z0*Z; const now=performance.now()/1000, hq0=G.st.settings.hq; G.st.settings.hq=true;
       cam.z=z1; cam.x=wx-lens.x/z1; cam.y=wy-lens.y/z1; ctx.imageSmoothingQuality='high';
