@@ -17,47 +17,60 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="stage" aria-hidden="true"></div>
 
 <div id="hud">
   <div class="hud-left">
+    <div id="goal" class="goal" role="button" tabindex="0" aria-label="Unko Kuli"></div>
+    <div class="lvl" id="lvlBox" aria-label="Level 1">
+      <svg class="lvl-ring" viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="lvl-track" cx="22" cy="22" r="18"></circle>
+        <circle class="lvl-fill" id="xpRing" cx="22" cy="22" r="18" transform="rotate(-90 22 22)" stroke-dasharray="0 113.097"></circle>
+      </svg>
+      <span id="lvl">1</span>
+    </div>
     <div class="pill cash" id="cashPill"><span class="ico ico-coin"></span><b id="cash">$0</b></div>
-    <button class="pill gems" id="gemPill" aria-label="Gems, open shop"><span class="ico ico-gem"></span><b id="gems">0</b><i class="plus">+</i></button>
+    <button class="pill gems" id="gemPill" aria-label="Gems, open shop"><span class="ico ico-gem"></span><b id="gems">0</b></button>
   </div>
   <div class="hud-mid">
-    <div class="lvl" id="lvlBox"><div class="lvl-ring"><span id="lvl">1</span></div><div class="xpbar"><i id="xpfill"></i></div></div>
     <div class="mult" id="multBadge" title="Earnings multiplier">x1.0</div>
   </div>
   <div class="hud-right">
-    <button class="shopbtn" id="shopBtn"><span class="ico ico-gem"></span><span>Shop</span></button>
+    <button class="shopbtn" id="shopBtn" aria-label="Shop"><span class="ico ico-gem"></span><span class="shop-label">Shop</span></button>
     <button class="iconbtn" id="settingsBtn" aria-label="Settings"><span class="ico ico-gear"></span></button>
   </div>
 </div>
 
 <div id="clock"><span id="wxIco"></span><span id="clockTxt">Day 1 · 08:00</span></div>
 <div id="eventChip" class="hidden"></div>
+<div id="testTag" class="hidden">TEST SAVE</div>
 <div id="celebrate" class="hidden"></div>
 <canvas id="confetti"></canvas>
-<div id="goal" class="goal"></div>
-<button id="orderBoard" aria-label="Order board"><span class="ob-pin l"></span><span class="ob-pin r"></span><b class="ob-t">ORDERS <em id="obN">0</em></b><small id="obTop">No orders yet</small></button>
-<button id="seedBag" aria-label="Seed bag: switch seeds"><span class="sb-bag"><img src="art/seed_96.webp" alt=""></span><b id="sbName">Seeds</b><small id="sbCount">0</small></button>
-<button id="scoutBtn" class="sidebtn" aria-label="Inspect plants" title="Inspect: magnify plants to find pest eggs and mold"><span class="sb-mag"><span class="ico ico-scout"></span></span><b>Inspect</b></button>
-<button id="upgBtn" class="sidebtn" data-panel="upgrades" aria-label="Upgrades"><span class="sb-up"><span class="ico ico-up"></span></span><b>Upgrades</b></button>
 <div id="seedPick" class="hidden" role="dialog" aria-label="Pick a seed"></div>
-<nav id="locTabs" aria-label="Locations"></nav>
+<nav id="locTabs" aria-hidden="true"></nav>
 
 <div id="toolbar">
-  <div class="tools">
-    <button class="qbtn" id="harvestAll"><span class="ico ico-scythe"></span><small>Harvest all</small></button>
-    <button class="qbtn" id="waterAll"><span class="ico ico-drop"></span><small>Water all</small></button>
-    <button class="qbtn" id="feedAll"><span class="ico ico-feed"></span><small>Feed all</small></button>
+  <div id="qaFab">
+    <div id="qaMenu" class="qa-menu hidden">
+      <button type="button" class="qbtn qa-act" id="harvestAll"><span class="ico ico-scythe"></span><small>Harvest all</small></button>
+      <button type="button" class="qbtn qa-act" id="waterAll"><span class="ico ico-drop"></span><small>Water all</small></button>
+      <button type="button" class="qbtn qa-act" id="feedAll"><span class="ico ico-feed"></span><small>Feed all</small></button>
+    </div>
+    <button type="button" class="qa-main" id="qaMain" aria-label="Harvest, water, and feed" aria-expanded="false"><span class="qa-arrow"></span></button>
   </div>
+  <div id="locSlot">
+    <div id="locPick" class="hidden" role="menu" aria-label="Choose a location"></div>
+    <button type="button" id="locBtn" class="dockbtn" aria-label="Location: Garage" aria-haspopup="true" aria-expanded="false"><span class="li" aria-hidden="true">🏠</span><small>Garage</small></button>
+  </div>
+  <button id="upgBtn" class="sidebtn" data-panel="upgrades" aria-label="Upgrades"><span class="sb-up"><span class="ico ico-up"></span></span><b>Gear</b></button>
+  <button id="seedBag" aria-label="Seed bag: pick a seed or buy more"><span class="sb-bag"><img src="art/seed_96.webp" alt=""></span><b id="sbName">Seeds</b><small id="sbCount">0</small></button>
   <nav class="menu" id="menu">
-    <button data-panel="seeds"><span class="ico ico-seed"></span><small>Seeds</small></button>
-    <button data-panel="process"><span class="ico ico-jar"></span><small>Dry &amp; Cure</small><em class="badge" id="procBadge"></em></button>
-    <button data-panel="market"><span class="ico ico-cart"></span><small>Market</small><em class="badge" id="mktBadge"></em></button>
-    <button data-panel="lab"><span class="ico ico-dna"></span><small>Breed</small></button>
-    <button data-panel="book"><span class="ico ico-book"></span><small>Strains</small></button>
-    <button data-panel="quests"><span class="ico ico-quest"></span><small>Story</small><em class="badge" id="qBadge"></em></button>
+    <button type="button" data-panel="pass" aria-label="Game Pass"><span class="ico ico-gem"></span><small>Pass</small></button>
+    <button type="button" data-panel="process" aria-label="Dry and cure"><span class="ico ico-jar"></span><small>Dry</small><em class="badge" id="procBadge"></em></button>
+    <button type="button" data-panel="market"><span class="ico ico-cart"></span><small>Market</small><em class="badge" id="mktBadge"></em></button>
+    <button type="button" data-panel="lab"><span class="ico ico-dna"></span><small>Breed</small></button>
+    <button type="button" data-panel="book"><span class="ico ico-book"></span><small>Strains</small></button>
+    <button type="button" data-panel="quests"><span class="ico ico-quest"></span><small>Story</small><em class="badge" id="qBadge"></em></button>
   </nav>
 </div>
 

@@ -58,12 +58,25 @@ window.UpgIcons=(function(){
     labPollen:()=>{ shade(64,108,40); metal(28,30,72,74,8,'#eef1f3','#b0b8be'); x.fillStyle='rgba(180,230,255,.45)'; rr(36,40,56,44,4); x.fill(); x.fillStyle='#f3d04a'; for(let i=0;i<9;i++){ el(44+(i%3)*20,50+Math.floor(i/3)*12,3,3); x.fill(); } },
     labTissue:()=>{ shade(64,108,44); for(let i=0;i<3;i++){ x.fillStyle='rgba(220,245,255,.4)'; rr(22+i*30,46,22,56,6); x.fill(); x.strokeStyle='rgba(255,255,255,.7)'; x.lineWidth=2; x.stroke(); x.fillStyle='#e9f3c4'; rr(24+i*30,84,18,16,3); x.fill(); leaf(33+i*30,86,18,0); } },
     labSeq:()=>{ shade(64,108,46); metal(18,40,92,62,8,'#f1f3f4','#b6bec3'); x.fillStyle='#16202a'; rr(28,50,48,30,4); x.fill(); const C=['#ff6b6b','#4cd4ff','#7be07b','#ffd35a']; for(let i=0;i<10;i++){ x.fillStyle=C[i%4]; x.fillRect(32+i*4,56+((i*7)%14),3,14-((i*7)%14)); } x.fillStyle='#4ce07a'; el(94,58,4,4); x.fill(); },
+    veg:()=>{ x.fillStyle='#6b4528'; x.fillRect(22,78,84,10); x.fillStyle='#8a5a34'; rr(18,68,92,14,3); x.fill(); x.fillStyle='#4a3018'; x.fillRect(28,88,8,22); x.fillRect(92,88,8,22); for(const px of [40,64,88]){ x.fillStyle='#222'; x.beginPath(); x.moveTo(px-8,68); x.lineTo(px-6,52); x.lineTo(px+6,52); x.lineTo(px+8,68); x.fill(); x.fillStyle='#3d8a38'; el(px,46,8,10); x.fill(); } },
+    step_garage:()=>{ x.fillStyle='#6b4528'; x.fillRect(18,82,92,8); x.fillStyle='#9a6840'; rr(14,70,100,14,3); x.fill(); x.fillStyle='#3a2814'; x.fillRect(26,90,8,20); x.fillRect(94,90,8,20); for(const px of [36,64,92]){ x.fillStyle='#1c1e22'; x.fillRect(px-7,58,14,12); x.fillStyle='#3f8f3a'; el(px,52,9,12); x.fill(); } },
+    step_bench:()=>{ x.fillStyle='#5c4632'; x.fillRect(16,86,96,8); x.fillStyle='#7a5a3c'; x.fillRect(20,48,88,8); x.fillRect(20,66,88,8); x.fillStyle='#3a2a1c'; x.fillRect(24,48,6,46); x.fillRect(98,48,6,46); },
     _:()=>{ x.fillStyle=rg(64,64,36,[[0,'#f2f4f5'],[1,'#8f979d']]); for(let i=0;i<8;i++){ x.save(); x.translate(64,64); x.rotate(i*.785); x.fillRect(-8,-42,16,16); x.restore(); } el(64,64,30,30); x.fill(); x.fillStyle='#3a3f45'; el(64,64,12,12); x.fill(); },
   };
   function paint(key,bg){ const c=document.createElement('canvas'); c.width=c.height=S; x=c.getContext('2d'); const B=BG[bg]||BG.all;
     x.fillStyle=rg(64,52,90,[[0,B[0]],[1,B[1]]]); rr(0,0,S,S,26); x.fill(); x.fillStyle='rgba(255,255,255,.08)'; rr(4,4,S-8,S*.42,22); x.fill();
     x.save(); x.shadowColor='rgba(0,0,0,.35)'; x.shadowBlur=6; x.shadowOffsetY=3; (D[key]||D._)(); x.restore();
     x.strokeStyle='rgba(255,255,255,.18)'; x.lineWidth=2; rr(1,1,S-2,S-2,25); x.stroke(); return c.toDataURL('image/png'); }
-  function url(key,loc){ const k=key+'|'+loc; return cache[k]||(cache[k]=paint(key,loc)); }
+  const PNG={
+    oscfan:'assets/new-art/sprites/clip-fan.png', air:'assets/new-art/sprites/clip-fan.png', timer:'assets/new-art/sprites/temp-meter.png', trays:'assets/new-art/sprites/boxes.png',
+    light:'assets/new-art/sprites/led-bar-light.png', led:'assets/new-art/sprites/led-bar-light.png', phkit:'assets/new-art/sprites/ph-meter.png',
+    fan:'assets/new-art/sprites/inline-fan.png', dehu:'assets/new-art/sprites/dehumidifier.png', hvac:'assets/new-art/sprites/dehumidifier.png',
+    press:'assets/new-art/sprites/rosin-press.png', shade:'assets/new-art/sprites/shade-cloth.png', cooler:'assets/new-art/sprites/swamp-cooler.png',
+    shutters:'assets/new-art/sprites/hoop-house.png', catch:'assets/new-art/sprites/water-barrel.png', fert:'assets/new-art/sprites/reservoir.png',
+    dryroom:'assets/new-art/sprites/drying-rack.png', dryer:'assets/new-art/sprites/drying-rack.png',
+    beds:'assets/new-art/sprites/boxes.png', step_field:'assets/new-art/sprites/boxes.png',
+    step_gh:'assets/new-art/sprites/hoop-house.png', co2:'assets/new-art/sprites/reservoir.png'
+  };
+  function url(key,loc){ if(PNG[key]) return PNG[key]; const k=key+'|'+loc; return cache[k]||(cache[k]=paint(key,loc)); }
   return {url,keys:()=>Object.keys(D).filter(k=>k!=='_'),has:k=>!!D[k]};
 })();

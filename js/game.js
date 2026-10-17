@@ -40,28 +40,28 @@ window.G = (function(){
   const UPK_NAME={power:'Electricity',fan:'Fan + filter',water:'Water',upkeep:'Glass + vents upkeep',climate:'AC + dehumidifier',nutrients:'Nutrients',fixed:'Rent + insurance'};
   const LOCS=['garage','farm','indoor'];
   const LOC_NAME={get garage(){ return locName('garage'); },farm:'Greenhouse',indoor:'Indoor'};
-  function locName(l){ if(l!=='garage') return {farm:'Greenhouse',indoor:'Indoor'}[l]; const r=st?garageRole():'grow'; return r==='pheno'?'Pheno Room':r==='storage'?'Garage storage':"Grandpa's Garage"; }
-  // Garage capacity steps (hard max 25). Real tent sizes and street prices (tent + matching light), see SETUPS.md:
-  // 2x2 = 1-2 plants, 3x3 = up to 4, 4x4 = 6 (9 with a SCROG net), 5x5 = up to 13 SCROG, 4x8 = 8. The main tent is swapped up in place.
-  // Save migration (garage v2): capacities per level are unchanged (2,4,6,9,13,17,21,25), so old levels map 1:1 and no plant is lost;
-  // only the layout changed (old level 4 'second 4x4' = new level 4 '5x5 tent', same 13 plants).
+  function locName(l){ if(l!=='garage') return {farm:'Greenhouse',indoor:'Indoor'}[l]; const r=st?garageRole():'grow'; return r==='pheno'?'Pheno Room':r==='storage'?'Garage storage':'Garage'; }
+  // Garage buckets. A new game starts at 5 and each upgrade adds 3, landing on 20.
+  // Costs sum to the old path's $3,590 (2→25) so filling the garage still costs the same.
+  // Plot records stay g0–g24 so an older save keeps every plant and its id. Buys stop at 20.
+  const GARAGE_MAX=20;
   const GARAGE=[
-    {name:'Two buckets on a grow table',cap:2, cost:0, desc:'Two 5-gal buckets in drip trays on a grow table under a hanging LED bar'},
-    {name:'Fill the back table',   cap:4,  cost:110,  desc:'+2 buckets on the back table, longer LED bar'},
-    {name:'Second grow table',     cap:6,  cost:180,  desc:'A second table with +2 buckets and its own LED bar'},
-    {name:'Drip irrigation',       cap:9,  cost:90,   desc:'Drip lines along every table: +3 buckets'},
-    {name:'Third grow table',      cap:13, cost:260,  desc:'A third table with +4 buckets and a third LED bar'},
-    {name:'Fourth table + fans',   cap:17, cost:650,  desc:'+4 buckets on a fourth table, fans on stands at the table ends'},
-    {name:'Fill the fourth table', cap:21, cost:1400, desc:'+4 buckets, bigger LED bars'},
-    {name:'Front table (garage max)',cap:25,cost:900, desc:'+4 buckets on the front table. Hard max 25.'},
+    {name:'Five buckets on a grow table', cap:5,  cost:0,    desc:'Five 5-gal buckets on a grow table under a hanging LED bar'},
+    {name:'Eight buckets',                cap:8,  cost:150,  desc:'+3 buckets. The garage holds 8.'},
+    {name:'Eleven buckets',               cap:11, cost:280,  desc:'+3 buckets. The garage holds 11.'},
+    {name:'Fourteen buckets',             cap:14, cost:520,  desc:'+3 buckets. The garage holds 14.'},
+    {name:'Seventeen buckets',            cap:17, cost:960,  desc:'+3 buckets. The garage holds 17.'},
+    {name:'Twenty buckets (garage max)',  cap:20, cost:1680, desc:'+3 buckets. Hard max 20.'},
   ];
-  const LAND_COST=12000, LAND_LEVEL=3;
+  const LAND_COST=12000, LAND_LEVEL=10;
   const FIELD=[{name:'Starter terrace (10 plants)',add:10,cost:0},{name:'East terrace',add:10,cost:3000},{name:'Lower terrace',add:10,cost:6000},{name:'Ocean-view terrace',add:10,cost:9000}];
-  const GH_BUILD={cost:12000, level:4};
+  const GH_BUILD={cost:12000, level:5};
   const GH=[{name:'Bay 1 (3 raised beds, 9 plants)',add:9,cost:0},{name:'Bay 2 (+3 beds)',add:9,cost:1500},{name:'Bay 3 (+3 beds)',add:9,cost:2500},{name:'Bay 4 (+3 beds, full house)',add:9,cost:4000}];
   // balance (QC econ report 2026-10-12): foundation is a level 10-12 cash sink paid before the build
   const INDOOR={level:11, permitCost:100000, permitLevel:9, build:300000, foundCost:250000, foundLevel:9, ghBeds:12, ghPlants:36};
   const BENCH=[{name:'Back bench (8 pots)',add:8,cost:0},{name:'Middle bench',add:8,cost:40000},{name:'Front bench',add:8,cost:80000},{name:'Vertical rack tier (2nd level)',add:8,cost:250000}];
+  // Sheet order matches the greenhouse gear row: leveled buy, then the single upgrades.
+  const INDOOR_GEAR=['led','air','hvac','fert','co2'];
   // ---------- upgrades ----------
   // loc: which tab lists it. Watering + feeding lines are farm-wide.
   const UPG = {
@@ -74,39 +74,40 @@ window.G = (function(){
               descs:['Cheap, hot, weak','+12% growth, +5% yield','+25% growth, +10% yield, runs cooler','+38% growth, +15% yield, most efficient per watt']},
     fan:     {loc:'garage', name:'Inline fan + carbon filter', desc:'Exhaust + odor control: -25% garage mold and pests, +3% quality', base:180, mul:1, max:1},
     oscfan:  {loc:'garage', name:'Clip-on oscillating fans', desc:'Air movement through the canopy: -15% mold, +2% quality', base:30, mul:1, max:1},
-    dehu:    {loc:'garage', name:'Dehumidifier', desc:'-35% garage mold (Kauai humidity!), +4% power', base:280, mul:1, max:1},
-    timer:   {loc:'garage', name:'Light timer', desc:'Steady photoperiod: +5% growth, -10% power', base:15, mul:1, max:1},
+    dehu:    {loc:'garage', name:'Dehumidifier', desc:'-35% garage mold (Kauai humidity!)', base:280, mul:1, max:1},
+    timer:   {loc:'garage', name:'Light timer', desc:'Steady photoperiod: +5% growth', base:15, mul:1, max:1},
     phkit:   {loc:'garage', name:'pH / EC meter kit', desc:'Dial in the feed: +5% quality (better grades)', base:120, mul:1, max:1},
     trays:   {loc:'garage', name:'Deep drip trays', desc:'Bigger drip trays under every bucket: garage plants hold water 25% longer', base:25, mul:1, max:1},
     // --- greenhouse gear ---
-    stand:   {loc:'farm', name:'Farm stand upgrades', desc:'Lv1 shelves: customers arrive 25% faster. Lv2 cold case: +10% stand prices. Lv3 painted sign: up to 4 customers wait', base:3000, mul:3, max:3, need:'land',
-              descs:['Shelves: customers arrive 25% faster','Cold case: +10% stand prices','Painted sign: up to 4 customers wait at once']},
     beds:    {loc:'farm', name:'Raised beds + compost', desc:'+20% greenhouse and terrace yield per level', base:1500, mul:2.6, max:3, need:'land'},
     shade:   {loc:'farm', name:'Shade cloth (30%)', desc:'Cuts midday heat: +4% greenhouse quality, sunny days no longer dry plants faster', base:350, mul:1, max:1, need:'gh'},
     lightdep:{loc:'farm', name:'Light-dep blackout tarps', desc:'Force flowering on schedule: +15% greenhouse growth per level (Lv3-4: automated light-dep greenhouse roof)', costs:[0,1200,3360,90000,180000], need:'gh'},   // Lv3-4 = level 9-11 cash sink
     loupe:   {loc:'farm', name:'Jeweler\'s loupe', desc:'Bigger Inspect lens, and hidden eggs show as orange dots on screen while you inspect', base:40, mul:1, max:1},
     cooler:  {loc:'farm', name:'Exhaust fans + swamp cooler', desc:'-40% greenhouse mold, +3% quality', base:1800, mul:1, max:1, need:'gh'},
-    catch:   {loc:'farm', name:'Rain catchment tank', desc:'-60% water upkeep on the farm; rain refills the terraces', base:2500, mul:1, max:1, need:'land'},
-    supp:    {loc:'farm', name:'Supplemental lights', desc:'Greenhouse keeps growing at night (+power upkeep)', base:4500, mul:1, max:1, need:'gh'},
+    catch:   {loc:'farm', name:'Catchment tank', desc:'Terraces and greenhouse beds hold water about 40% longer.', base:2500, mul:1, max:1, need:'land'},
+    supp:    {loc:'farm', name:'Supplemental lights', desc:'Greenhouse keeps growing at night', base:4500, mul:1, max:1, need:'gh'},
     shutters:{loc:'farm', name:'Storm shutters + hoop covers', desc:'Trade-wind storms no longer hurt ripe farm plants', base:3500, mul:1, max:1, need:'land'},
-    // --- indoor facility gear ---
-    led:     {loc:'indoor', name:'LED light bars', desc:'+15% indoor growth per level (+5% power)', base:12000, mul:2.5, max:4, need:'in'},
-    hvac:    {loc:'indoor', name:'HVAC (ducted mini-splits)', desc:'-22% indoor mold per level, +6% quality, -10% climate cost', base:9000, mul:2.5, max:3, need:'in'},
-    co2:     {loc:'indoor', name:'CO2 enrichment', desc:'+20% indoor growth (sealed room), +6% climate upkeep', base:6000, mul:1, max:1, need:'in'},
-    fert:    {loc:'indoor', name:'Fertigation system', desc:'Auto-feeds each indoor plant once, at the halfway mark, and +10% indoor yield', base:15000, mul:1, max:1, need:'in'},
-    veg:     {loc:'indoor', name:'Veg room', desc:'Plants move in pre-vegged: indoor plants start 15% grown', base:35000, mul:1, max:1, need:'in'},
-    clone:   {loc:'indoor', name:'Clone + mother room', desc:'Cut clones instead of buying seeds: -40% seed prices, +10% head start indoors', base:20000, mul:1, max:1, need:'in'},
+    // Indoor Facility gear. Same shape as the greenhouse list: one 3-step upgrade, then four single buys
+    // from a few hundred dollars to a few thousand. Effects cover the facility plots and the sealed benches.
+    // veg/clone/dryroom/solar stay on the save for farms that already bought them; they are not on this list.
+    led:     {loc:'indoor', name:'Grow light bars', desc:'+15% growth per level on the Indoor Facility and the sealed benches', base:1500, mul:2.6, max:3, need:'land'},
+    air:     {loc:'indoor', name:'Airflow fans', desc:'Moves air through the canopy: -25% mold and +3% quality', base:350, mul:1, max:1, need:'land'},
+    hvac:    {loc:'indoor', name:'Climate control', desc:'-22% mold and +6% quality per level', base:1800, mul:1, max:1, need:'land'},
+    fert:    {loc:'indoor', name:'Nutrient doser', desc:'Feeds each indoor plant once at the halfway mark, and +10% yield', base:2500, mul:1, max:1, need:'land'},
+    co2:     {loc:'indoor', name:'CO2 enrichment', desc:'+20% growth on the Indoor Facility and the sealed benches', base:3500, mul:1, max:1, need:'land'},
+    veg:     {loc:'indoor', name:'Veg room', desc:'Plants move in pre-vegged: sealed-bench plants start 15% grown', base:35000, mul:1, max:1, need:'in'},
+    clone:   {loc:'indoor', name:'Clone + mother room', desc:'Cut clones instead of buying seeds: -40% seed prices, +10% head start on the sealed benches', base:20000, mul:1, max:1, need:'in'},
     labPollen:{loc:'garage', name:'Pollen chamber', desc:'Clean pollen storage: crosses finish 15% faster per level', base:80000, mul:3, max:3, need:'lab'},
     labTissue:{loc:'garage', name:'Tissue culture bench', desc:'Pheno grow-outs (line stabilizing) finish 20% faster per level', base:120000, mul:3, max:3, need:'lab'},
     labSeq:  {loc:'garage', name:'Genetic sequencer', desc:'Every finished pheno hunt also gives a hint token', base:500000, mul:1, max:1, need:'lab'},
     dryroom: {loc:'indoor', name:'Drying + cure room', desc:'+3 drying slots and 25% faster drying and curing', base:25000, mul:1, max:1, need:'in'},
-    solar:   {loc:'indoor', name:'Solar roof', desc:'-15% indoor electricity per level (Kauai sun!)', base:45000, mul:2.6, max:3, need:'in'},
+    solar:   {loc:'indoor', name:'Solar roof', desc:'+6% indoor growth per level. Kept for farms that already bought it.', base:45000, mul:2.6, max:3, need:'in'},
     // --- processing / sales ---
     dryer:   {loc:'all', name:'Drying racks', desc:'+1 drying slot and 12% faster drying per level', base:60, mul:2.3, max:8},
     cure:    {loc:'all', name:'Curing jars', desc:'Dried buds cure automatically (+45% value). Faster each level', base:150, mul:2.6, max:4},
     press:   {loc:'all', name:'Rosin press', desc:'Heat + pressure, no solvents: unlocks Live rosin crafting and +1 craft slot', base:1500, mul:1, max:1, lvl:10},
     kitchen: {loc:'all', name:'Licensed commercial kitchen', desc:'Permitted kitchen for infused edibles: unlocks edibles and +1 craft slot', base:150000, mul:1, max:1, lvl:14},
-    sign:    {loc:'all', name:'Farm stand sign', desc:'+8% sale prices per level', base:500, mul:1.8, max:6},
+    sign:    {loc:'all', name:'Sale sign', desc:'+8% sale prices per level', base:500, mul:1.8, max:6},
   };
   // Managers (one per location) + two farm-wide helpers.
   const WORKERS_ALL = {
@@ -128,16 +129,16 @@ window.G = (function(){
     {id:'water',  who:'Unko Kuli', t:'Water your plant (tap it, or use the Water tool)', r:{cash:5}},
     {id:'harvest',who:'Unko Kuli', t:'Harvest a ripe plant', r:{cash:10}},
     {id:'dry',    who:'Unko Kuli', t:'Load fresh buds onto the drying racks (Dry & Cure)', r:{cash:10}},
-    {id:'sell',   who:'Unko Kuli', t:'Sell buds at the farm stand (Market)', r:{gems:10,mgr:'mgrG'}},
+    {id:'sell',   who:'Unko Kuli', t:'Sell buds at the Market', r:{gems:10}},
     {id:'gcap',   who:'Unko Kuli', t:'Garage: add buckets to your grow table (Upgrades > Garage)', r:{cash:30}},
     {id:'feed',   who:'Unko Kuli', t:'Feed a plant once it is halfway grown', r:{cash:20}},
     {id:'hose',   who:'Unko Kuli',  t:'Buy a garden hose (Upgrades > Water + feed)', r:{cash:40}},
-    {id:'order',  who:'Unko Kuli',  t:'Fill an order on the Order Board (it opens at level 2)', r:{gems:10}},
-    {id:'tent3',  who:'Unko Kuli',  t:'Add the second grow table in the garage (Upgrades > Garage)', r:{cash:80}},
-    {id:'land',   who:'Uncle Ikaika', t:'Save up and buy the family land on the hill', r:{gems:25}},
+    {id:'order',  who:'Unko Kuli',  t:'Sell a harvest at the Market', r:{gems:10}},
+    {id:'tent3',  who:'Unko Kuli',  t:'Add more garage buckets (Upgrades > Garage). Each upgrade is +3, up to 20.', r:{cash:80}},
+    {id:'land',   who:'Uncle Ikaika', t:'Buy the Indoor Facility (level '+LAND_LEVEL+'). It is the last location', r:{gems:25}},
     {id:'field',  who:'Uncle Ikaika', t:'Plant on the starter terrace', r:{cash:150}},
-    {id:'ghbuild',who:'Malia',t:'Build the outdoor greenhouse', r:{gems:20}},
-    {id:'mgr',    who:'Kai',  t:F.managers?'Hire Kai as your garage manager (Upgrades > Helpers)':'Hire Kai the farmhand (Upgrades > Helpers)', r:{gems:15}},
+    {id:'ghbuild',who:'Malia',t:'Build the greenhouse (level '+GH_BUILD.level+')', r:{gems:20}},
+    {id:'mgr',    who:'Kai',  t:'Plant a seed in a greenhouse bed', r:{gems:15}},
     {id:'breed',  who:'Malia',t:'Try a crossbreed in the Pheno Room', r:{hints:1}},
     {id:'craft',  who:'Unko Kuli',t:'Press your first bubble hash (Dry & Cure > Craft)', r:{gems:15}},
     {id:'ghfull', who:'Malia',t:'Expand the greenhouse to all 12 beds', r:{gems:30}},
@@ -153,7 +154,7 @@ window.G = (function(){
   let st;
   function freshPlots(){
     const P=[]; const mk=(zone,pre,n,c0)=>{ for(let i=0;i<n;i++) P.push({id:pre+i,zone,loc:ZONE[zone].loc,idx:i,c:c0+i,r:0,owned:false,strain:null,prog:0,water:0,food:0,q:1,readyT:0,last:null,pest:null}); };
-    mk('garage','g',25,0); mk('field','f',40,100); mk('gh','h',36,200); mk('in','i',32,300);
+    mk('garage','g',25,0); mk('field','f',40,100); mk('gh','h',36,200); mk('in','i',32,300); // g0–g24 stay so an old 25-pot garage keeps its ids
     return P;
   }
   // Anonymous support id. Random, stored on the save, never derived from a name or the farm.
@@ -168,8 +169,8 @@ window.G = (function(){
   function newState(keep){
     const s={
       v:2, econ:2, cash:ECON.startCash, gems:20, xp:0, level:1, lifetime:0, runEarn:0, rebirths:0, mana:0, manaSpent:{},
-      garage:1, land:false,   // 4 starting buckets (QC econ report)
- field:0, ghBuilt:false, gh:0, permit:false, inBuilt:false, bench:0, loc:'garage',
+      garage:0, garageV:3, garageKeep:0, land:false,   // 5 starting buckets
+ field:0, ghBuilt:false, gh:0, permit:false, inBuilt:false, bench:0, loc:'garage', room:'garage',
       plots:freshPlots(), seeds:{'northern-lights':4}, selSeed:'northern-lights',
       inv:{wet:{},dry:{},cured:{}}, dryer:[], upg:{}, workers:{}, discovered:{}, clones:{},
       market:{f:{},hist:{},hot:null,hotT:-150,next:0}, weather:{type:'sunny',t:0,dur:90,rainbow:0},
@@ -197,6 +198,8 @@ window.G = (function(){
   const cost=(def,lvl)=>def.once?(lvl>0?0:Math.round(def.base)):def.costs?def.costs[lvl+1]:Math.round(def.base*Math.pow(def.mul,lvl));
   const maxLv=d=>d.costs?d.costs.length-1:d.max;
   const lv=k=>st.upg[k]||0;
+  // Indoor Facility plots are zone field. Sealed benches are zone in. Gear on the indoor sheet covers both.
+  const indoorPlots=z=>z==='field'||z==='in';
   const wk=k=>st.workers[k]||0;
   const mana=k=>F.prestigeTree?(st.manaSpent[k]||0):0;
   function fmt(n){ if(n<0) return '-'+fmt(-n); if(n<100&&n%1>.004) return '$'+n.toFixed(2); n=Math.floor(n); if(n<1e4) return '$'+n.toLocaleString('en-US'); const u=['','K','M','B','T','Qa']; let i=0; let v=n; while(v>=1000&&i<u.length-1){v/=1000;i++;} return '$'+(v<100?v.toFixed(v<10?2:1):Math.floor(v))+u[i]; }
@@ -213,7 +216,7 @@ window.G = (function(){
   function plotScore(p){ return quality(p)*(p.zone==='in'?.97:1); }
   const GRADE=[1,1.5,2.5,3.75], GRADE_L=['','Indoor AAA','Mutant','Indoor AAA Mutant'];
   function gradeLabel(g){ return GRADE_L[g]||''; }
-  function invCount(stage){ return Object.values(st.inv[stage]).reduce((a,b)=>a+b,0); }
+  function invCount(stage){ const bag=st.inv&&st.inv[stage]; if(!bag||typeof bag!=='object'||Array.isArray(bag)) return 0; return Object.values(bag).reduce((a,b)=>a+(typeof b==='number'&&isFinite(b)?b:0),0); }
   // ---------- reputation, mastery, sets ----------
   const REP=[{n:'Backyard Grower',at:0,b:0},{n:'Local Favorite',at:40,b:.05},{n:'North Shore Name',at:250,b:.10},{n:'Island Famous',at:1200,b:.18},{n:'Legendary Grower',at:5000,b:.30}];
   function addRep(n){ if(!F.repTiers) return; if(festOn('aloha')) n*=2; const t0=repTier(); st.rep+=n; const t1=repTier(); if(t1>t0) emit('rep',{tier:t1,r:REP[t1]}); }
@@ -221,10 +224,10 @@ window.G = (function(){
   function mastery(id){ const n=st.harv[id]||0; if(!F.mastery) return {n,m:1,lvl:0,next:null,nextM:null}; let m=1, lvl=0; MASTERY.forEach(([k,v],i)=>{ if(n>=k){ m=v; lvl=i+1; } }); const nx=MASTERY[lvl]; return {n,m,lvl,next:nx?nx[0]:null,nextM:nx?nx[1]:null}; }
   const SETS={
     aloha:  {name:'Island Collection', desc:'Harvest every island strain', bonus:'+10% all sale prices', ids:S.filter(s=>s.island).map(s=>s.id)},
-    classics:{name:'Old-School Classics', desc:'Harvest the classic landrace-era strains', bonus:'Managers work 20% faster', ids:['northern-lights','durban-poison','granddaddy-purple','chemdawg','og-kush','sour-diesel','blue-dream'].filter(i=>BY[i])},
+    classics:{name:'Old-School Classics', desc:'Harvest the classic landrace-era strains', bonus:'The classic strains are on the family record', ids:['northern-lights','durban-poison','granddaddy-purple','chemdawg','og-kush','sour-diesel','blue-dream'].filter(i=>BY[i])},
     purple: {name:'Purple Reign', desc:'Harvest the purple-flowering strains', bonus:'+10% growth speed everywhere', ids:S.filter(s=>s.look&&s.look.base==='purple'&&s.tier<=3).map(s=>s.id)},
     dessert:{name:'Dessert Menu', desc:'Harvest the cookie, gelato and cake family', bonus:'+10% yield everywhere', ids:['gsc','gelato','biscotti','ice-cream-cake','wedding-cake','gmo-cookies','lemon-cherry-gelato'].filter(i=>BY[i])},
-    cbd:    {name:'Hemp Heritage', desc:'Harvest every CBD-rich hemp strain', bonus:'-15% upkeep everywhere', ids:S.filter(s=>s.hemp).map(s=>s.id)},
+    cbd:    {name:'Hemp Heritage', desc:'Harvest every CBD-rich hemp strain', bonus:'Your hemp strains are on the family record', ids:S.filter(s=>s.hemp).map(s=>s.id)},
     soty:   {name:'Garden Cup', desc:'Harvest every Garden Cup winner', bonus:'+15% XP', ids:S.filter(s=>/Garden Cup \d{4} \(winner\)/.test(s.recognition||'')).map(s=>s.id)},
   };
   function checkSets(){ if(!F.sets) return; for(const [k,d] of Object.entries(SETS)){ if(st.sets[k]) continue; if(d.ids.length&&d.ids.every(i=>(st.harv[i]||0)>0)){ st.sets[k]=true; emit('set',{k,d}); } } }
@@ -233,13 +236,13 @@ window.G = (function(){
     thumb:{name:'Green Thumb', desc:'+8% growth speed everywhere per level', max:5},
     fame: {name:'Island Fame', desc:'+10% sale prices per level', max:5},
     roots:{name:'Deep Roots', desc:'Start each season with +$2,000 and +1 garage step per level', max:3},
-    crew: {name:'Family Crew', desc:'Managers and helpers work 25% faster per level', max:3},
+    crew: {name:'Family Crew', desc:'Retired. Helpers have left the farm, so this node no longer changes anything. Spirit already spent stays spent.', max:3},
     vault:{name:'Seed Vault', desc:'-15% seed prices per level', max:3},
     pheno:{name:'Pheno Luck', desc:'+25% mutation chance per level, +1 hint token each season', max:3},
   };
   const manaCost=(k)=>[1,2,4,7,11][mana(k)];
   function manaGain(){ return Math.floor(3*Math.sqrt(st.runEarn/1e6)); }
-  function buyMana(k){ if(!F.prestigeTree) return false; const d=MANA_UPG[k]; if(mana(k)>=d.max) return false; const c=manaCost(k); if(st.mana<c) return false; st.mana-=c; st.manaSpent[k]=mana(k)+1; emit('mana',k); return true; }
+  function buyMana(k){ if(!F.prestigeTree||k==='crew') return false; const d=MANA_UPG[k]; if(!d||mana(k)>=d.max) return false; const c=manaCost(k); if(st.mana<c) return false; st.mana-=c; st.manaSpent[k]=mana(k)+1; emit('mana',k); return true; }
 
   // ---------- island festivals (seasonal, real-calendar, limited time) ----------
   // A festival runs Thu-Sun every week, rotating through four. Each has an exclusive strain earned by its festival goal.
@@ -255,7 +258,7 @@ window.G = (function(){
   const PREMIUM=['menehune-mint','lilikoi-pop','honu-blue'];
   const DROP={packPremium:.04, packSeason:.02, huntPremium:.03, huntSeason:.02};
   PREMIUM.forEach(id=>{ if(S.some(s=>s.id===id)) EVENT_ONLY[id]='premium'; }); S.forEach(s=>{ if(s.passExclusive) EVENT_ONLY[s.id]='pass'; });
-  function premiumDrop(chance,how){ if(Math.random()>=chance) return null; const live=PREMIUM.filter(id=>strain(id)); if(!live.length) return null; const id=live[Math.floor(Math.random()*live.length)]; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare find! A '+strain(id).name+' seed ('+how+')',k:'good'}); return id; }
+  function premiumDrop(chance,how){ if(Math.random()>=chance) return null; const live=PREMIUM.filter(id=>strain(id)); if(!live.length) return null; const id=live[Math.floor(Math.random()*live.length)]; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare seed: '+strain(id).name.split(' ')[0],k:'good'}); return id; }
   // Timed gem boosts (1 hour each, stack by adding time): 2x growth, 2x sale price, better pheno odds
   const BOOSTS={grow:{name:'2x growth',icon:'🌱'},price:{name:'2x sale price',icon:'💰'},pheno:{name:'Better pheno odds',icon:'🧬'}};
   function boostLeft(k){ return Math.max(0,(st.boosts&&st.boosts[k])||0); }
@@ -293,7 +296,7 @@ window.G = (function(){
   function passClaim(tier,track){ const P=passState(), row=PZ.track(PZ.seasonNow())[tier-1]; if(!row) return false; if(tier>passTier()) return false; const key=track==='p'?'cp':'cf';
     if(P[key][tier]) return false; if(track==='p'&&!P.premium) return false; const r=track==='p'?row.p:row.f; if(!r) return false; P[key][tier]=1; grantReward(r,'Grower Pass'); save(); emit('passclaim',{tier,track,r}); return true; }
   function passClaimAll(){ let n=0; for(let t=1;t<=passTier();t++){ if(passClaim(t,'f')) n++; if(passClaim(t,'p')) n++; } return n; }
-  function seasonDrop(chance,how){ if(Math.random()>=chance) return null; const id=PZ.seasonNow().strain; if(!strain(id)) return null; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare season find! A '+strain(id).name+' seed ('+how+')',k:'good'}); return id; }
+  function seasonDrop(chance,how){ if(Math.random()>=chance) return null; const id=PZ.seasonNow().strain; if(!strain(id)) return null; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Season seed: '+strain(id).name.split(' ')[0],k:'good'}); return id; }
   // Piggy bank: fills with gems as you play (0.25 per harvest, 3 per goal / quest / achievement claim) up to PIGGY.cap; one purchase cracks it
   const PIGGY={cap:400,min:40};
   function piggyHook(n){ passHook(n); if(!st||!st.piggy) return; const add=n==='harvest'?.25:(n==='qclaim'||n==='questclaim'||n==='achclaim')?3:0; if(add) st.piggy.g=Math.min(PIGGY.cap,st.piggy.g+add); }
@@ -307,8 +310,8 @@ window.G = (function(){
   const GECKO=[{k:'grow',name:'Growth rush',desc:'2x growth for 60s',t:60,w:3},{k:'price',name:'Market buzz',desc:'+50% sale prices for 60s',t:60,w:3},{k:'cash',name:'Lucky find',desc:'Instant cash',t:0,w:2},{k:'hint',name:'Old seed journal',desc:'+1 hint token',t:0,w:1}];
   function boostOn(k){ const b=st.gecko&&st.gecko.boost; return !!b&&b.k===k&&b.t>0; }
   function tickGecko(dt){ if(!F.gecko||st.level<GATE.gecko) return; const g=st.gecko; if(g.boost){ g.boost.t-=dt; if(g.boost.t<=0) g.boost=null; }
-    if(g.on){ g.on.t-=dt; if(g.on.t<=0||g.on.loc!==st.loc){ g.on=null; g.next=180+Math.random()*240; } return; }
-    g.next-=dt; if(g.next<=0){ g.on={loc:st.loc,t:12,u:Math.random(),v:Math.random()}; emit('gecko',g.on); } }
+    if(g.on){ const dur=g.on.dur||8; g.on.p=(g.on.p||0)+dt/dur; g.on.t=(g.on.t||dur)-dt; if(g.on.p>=1||g.on.t<=0){ g.on=null; g.next=36+Math.random()*40; } return; }
+    g.next-=dt; if(g.next<=0){ const dur=6+Math.random()*4; g.on={t:dur,dur,p:0,y:0.28+Math.random()*0.38,dir:Math.random()<.5?1:-1}; emit('gecko',g.on); } }
   function geckoTap(){ const g=st.gecko; if(!g.on) return false; g.on=null; g.next=200+Math.random()*260; let r=Math.random()*GECKO.reduce((a,b)=>a+b.w,0), pick=GECKO[0]; for(const x of GECKO){ r-=x.w; if(r<=0){ pick=x; break; } }
     let extra=''; if(pick.k==='cash'){ const v=Math.round(25*Math.pow(st.level,2.1)); addCash(v,'gecko'); extra=fmt(v); } else if(pick.k==='hint'){ st.hints++; } else g.boost={k:pick.k,t:pick.t,max:pick.t};
     bump('geckos'); emit('geckotap',{b:pick,extra}); return pick; }
@@ -328,7 +331,7 @@ window.G = (function(){
   function goodPrice(key){ const [t,id,c,q]=key.split('|'); const s=strain(id), C=CRAFT[t]; return (boostLeft('price')>0?2:1)*s.game.budValue*C.need*C.mult*(QMULT[q]||1)*(+c?STAGE_MULT.cured:1)*st.market.f[id]*mastery(id).m*earnMult()*(boostOn('price')?1.5:1)*(festOn('leiday')?1.15:1)*(evFx('swell')?1.25:1); }
   function sellGood(key,n){ const have=st.goods[key]||0; n=Math.min(n==null?have:n,have); if(n<=0) return 0; const v=goodPrice(key)*n; st.goods[key]-=n; if(st.goods[key]<=0) delete st.goods[key];
     addCash(v,'sale'); addXP(Math.max(1,Math.round(n*2))); addRep(n*.08); bump('goodsSold',n); emit('sold',{v,n,id:key.split('|')[1],good:true}); return v; }
-  function goodsCount(){ return Object.values(st.goods||{}).reduce((a,b)=>a+b,0); }
+  function goodsCount(){ const bag=st.goods; if(!bag||typeof bag!=='object'||Array.isArray(bag)) return 0; return Object.values(bag).reduce((a,b)=>a+(typeof b==='number'&&isFinite(b)?b:0),0); }
   // ---------- availability / mystery strains ----------
   function refreshUnlocks(){
     S.forEach(s=>{ if(st.discovered[s.id]||s.mystery||EVENT_ONLY[s.id]) return; if(st.level>=s.game.unlockLevel) discover(s.id,true); });
@@ -355,46 +358,46 @@ window.G = (function(){
       emit('level',{L:st.level,gems,cash,strains:fresh,miles:MILES[st.level]||[]}); checkQuest(); } }
   let lvlQuiet=false;
   const GATE={land:LAND_LEVEL, gh:GH_BUILD.level, breed:5, permit:INDOOR.permitLevel, indoor:INDOOR.level, orders:2, gecko:3, events:4, customers:5, leaderboard:5, sets:6, hash:6, rosin:10, edibles:14, season:8};
-  const MILES={2:['Halfway feed: one free feeding per plant (+15% speed, +20% yield). Skip it and that plant grows 20% slower','Order Board: neighbors post contracts for bonus cash and reputation'],
-    3:['Family land on the hill is for sale','Watch for the golden gecko: tap it for a short boost'],
-    4:['Uncommon strains (10-30 min grows) reach the seed shop','Outdoor greenhouse can be built','Hire Kai as garage manager','Island festivals: limited-time events with exclusive strains'],
-    5:['Pheno Room opens: hunt mystery phenos','Walk-in customers visit the farm stand','Leilani the runner is hiring','Island leaderboard'],
-    6:['Noa the merchant is hiring','Craft bubble hash from dried buds','Collection sets: finish a set for a permanent bonus'],
-    7:['Hire Malia as farm manager'],8:['New Season (prestige) unlocks once you earn enough'],9:['Rare strains (1-4 hour grows) reach the seed shop','County Agricultural Permit can be bought'],
-    10:['Rosin press (craft rosin)','Golden Hour theme (free)'],
-    11:['Indoor facility: with a full greenhouse, the permit, and the foundation poured, you can build it'],
-    12:['Hire Nick as indoor manager'],14:['Epic strains (8-24 hour grows) unlock','Licensed kitchen (craft edibles)'],20:['Legendary strains (1-3 day grows) unlock']};
+  const MILES={2:['Halfway feed: one free feeding per plant (+15% speed, +20% yield). Skip it and that plant grows 20% slower','Sell dried and cured buds at the Market'],
+    3:['Watch for the golden gecko: tap it for a short boost'],
+    4:['Uncommon strains (10-30 min grows) reach the seed shop','Island festivals: limited-time events with exclusive strains'],
+    5:['The greenhouse can be built','Island leaderboard'],
+    6:['Craft bubble hash from dried buds','Collection sets: finish a set for a permanent bonus'],
+    7:['Greenhouse gear (beds, shade, cooler) is in Upgrades'],8:['New Season (prestige) unlocks once you earn enough'],9:['Rare strains (1-4 hour grows) reach the seed shop','County Agricultural Permit can be bought'],
+    10:['The Indoor Facility is for sale. It is the last location','Buying it turns the garage into your Pheno Room','Rosin press (craft rosin)','Golden Hour theme (free)'],
+    11:['Sealed benches: with the Indoor Facility, a full greenhouse, the permit, and the foundation, you can build them'],
+    12:['CO2, HVAC, and the veg room are in Upgrades'],14:['Epic strains (8-24 hour grows) unlock','Licensed kitchen (craft edibles)'],20:['Legendary strains (1-3 day grows) unlock']};
   function gate(k){ return st.level>=GATE[k]; }
 
   // ---------- capacity / plots ----------
-  function capOf(zone){ if(zone==='garage') return GARAGE[st.garage].cap; if(zone==='field') return st.land?FIELD.slice(0,st.field+1).reduce((a,b)=>a+b.add,0):0; if(zone==='gh') return st.ghBuilt?GH.slice(0,st.gh+1).reduce((a,b)=>a+b.add,0):0; if(zone==='in') return st.inBuilt?BENCH.slice(0,st.bench+1).reduce((a,b)=>a+b.add,0):0; return 0; }
+  function capOf(zone){ if(zone==='garage'){ const i=Math.max(0,Math.min(GARAGE.length-1,st.garage|0)); return Math.max(GARAGE[i].cap, st.garageKeep|0); } if(zone==='field') return st.land?FIELD.slice(0,st.field+1).reduce((a,b)=>a+b.add,0):0; if(zone==='gh'){ if(!st.ghBuilt) return 0; if(typeof st.ghMatch==='number'){ const extra=st.gh>0?GH.slice(1,st.gh+1).reduce((a,b)=>a+b.add,0):0; return st.ghMatch+extra; } return GH.slice(0,st.gh+1).reduce((a,b)=>a+b.add,0); } if(zone==='in') return st.inBuilt?BENCH.slice(0,st.bench+1).reduce((a,b)=>a+b.add,0):0; return 0; }
   function syncPlots(){ st.plots.forEach(p=>{ p.owned=p.idx<capOf(p.zone); }); }
   function locOpen(l){ return l==='garage'||(l==='farm'&&st.land)||(l==='indoor'&&st.inBuilt); }
   function nextStep(kind){ // {name,cost,...} of next capacity purchase or null
-    if(kind==='garage') return GARAGE[st.garage+1]||null;
+    if(kind==='garage'){ const cur=capOf('garage'); if(cur>=GARAGE_MAX) return null; const idx=GARAGE.findIndex(g=>g.cap>cur); if(idx<0) return null; const src=GARAGE[idx], gain=src.cap-cur, cost=gain>=3?src.cost:Math.max(0,Math.round(src.cost*gain/3)); return {name:src.name, cap:src.cap, cost, desc:gain===3?src.desc:('+'+gain+' buckets, up to '+src.cap+'.'), add:gain}; }
     if(kind==='field') return st.land?FIELD[st.field+1]||null:null;
     if(kind==='gh') return st.ghBuilt?GH[st.gh+1]||null:null;
     if(kind==='bench') return st.inBuilt?BENCH[st.bench+1]||null:null;
   }
   function buyStep(kind){
     const n=nextStep(kind); if(!n) return false; if(!spend(n.cost)) return false;
-    if(kind==='garage'){ st.garage++; if(st.garage>=2) done('gcap'); if(st.garage>=3) done('tent3'); }
+    if(kind==='garage'){ const cur=capOf('garage'), idx=GARAGE.findIndex(g=>g.cap>cur); if(idx>=0) st.garage=idx; if((st.garageKeep|0)<=GARAGE[st.garage].cap) st.garageKeep=0; if(capOf('garage')>5) done('gcap'); if(capOf('garage')>=9) done('tent3'); }
     if(kind==='field') st.field++;
     if(kind==='gh'){ st.gh++; if(capOf('gh')>=INDOOR.ghPlants) done('ghfull'); }
     if(kind==='bench') st.bench++;
     syncPlots(); emit('expand',{kind,n}); return true;
   }
-  function buyLand(){ if(st.land) return false; if(!gate('land')){ emit('toast',{t:'The family land goes on sale at level '+LAND_LEVEL,k:'bad'}); return false; } if(!spend(LAND_COST)) return false; st.land=true; st.phenoRoom=true; syncPlots(); done('land'); emit('land'); emit('phenoroom'); return true; }
+  function buyLand(){ if(st.land) return false; if(!gate('land')){ emit('toast',{t:'Indoor at level '+LAND_LEVEL,k:'bad'}); return false; } if(!spend(LAND_COST)) return false; st.land=true; st.phenoRoom=true; syncPlots(); done('land'); emit('land'); emit('phenoroom'); return true; }
   // Indoor Breeding Pheno Room: takes over pheno work from the garage (crosses 60% faster, double mutation odds, +1 hint per discovery). The garage becomes storage (+4 drying slots) and a bonus grow.
   const LAB={cost:600000,level:INDOOR_LAB_LEVEL()};
   function INDOOR_LAB_LEVEL(){ return 14; }
   function buyLab(){ if(st.breedLab||!st.inBuilt) return false; if(!spend(LAB.cost)) return false; st.breedLab=true; emit('breedlab'); return true; }
   function garageRole(){ return !st.phenoRoom?'grow':st.breedLab?'storage':'pheno'; }
-  function buildGH(){ if(st.ghBuilt||!st.land) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse needs level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; st.ghBuilt=true; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
-  function buyPermit(){ if(st.permit) return false; if(st.level<INDOOR.permitLevel){ emit('toast',{t:'Permit office opens at level '+INDOOR.permitLevel,k:'bad'}); return false; } if(!spend(INDOOR.permitCost)) return false; st.permit=true; done('permit'); emit('permit'); return true; }
+  function buildGH(){ if(st.ghBuilt) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse at level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; const n=st.plots.filter(p=>p.zone==='garage'&&p.owned).length; st.ghBuilt=true; st.gh=0; st.ghMatch=n; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
+  function buyPermit(){ if(st.permit) return false; if(st.level<INDOOR.permitLevel){ emit('toast',{t:'Permit at level '+INDOOR.permitLevel,k:'bad'}); return false; } if(!spend(INDOOR.permitCost)) return false; st.permit=true; done('permit'); emit('permit'); return true; }
   function indoorChecklist(){
     return [
-      {k:'land',  t:'Own the family land', ok:st.land},
+      {k:'land',  t:'Own the Indoor Facility (level '+LAND_LEVEL+')', ok:st.land},
       {k:'gh',    t:'Greenhouse fully expanded (12 beds)', ok:capOf('gh')>=INDOOR.ghPlants, p:capOf('gh')/INDOOR.ghPlants, v:Math.round(capOf('gh')/3)+'/12 beds'},
       {k:'level', t:'Reach level '+INDOOR.level, ok:st.level>=INDOOR.level, p:Math.min(1,(st.level-1+st.xp/xpNeed(st.level))/(INDOOR.level-1)), v:'Level '+st.level},
       {k:'permit',t:'County Agricultural Permit ('+fmt(INDOOR.permitCost)+' at Lv '+INDOOR.permitLevel+', or quest reward)', ok:st.permit},
@@ -402,14 +405,14 @@ window.G = (function(){
       {k:'cash',  t:'Build cost '+fmt(INDOOR.build), ok:st.cash>=INDOOR.build, p:Math.min(1,st.cash/INDOOR.build), v:fmt(st.cash)},
     ];
   }
-  function buyFoundation(){ if(st.found) return false; if(!st.permit||st.level<INDOOR.foundLevel){ emit('toast',{t:'Foundation needs the permit and level '+INDOOR.foundLevel,k:'bad'}); return false; } if(!spend(INDOOR.foundCost)) return false; st.found=true; emit('toast',{t:'Foundation poured! The indoor build is next.',k:'good'}); return true; }
-  function buildIndoor(){ if(st.inBuilt) return false; const ck=indoorChecklist(); if(!ck.slice(0,5).every(c=>c.ok)){ emit('toast',{t:'Finish the indoor checklist first',k:'bad'}); return false; } if(!spend(INDOOR.build)) return false;
+  function buyFoundation(){ if(st.found) return false; if(!st.permit||st.level<INDOOR.foundLevel){ emit('toast',{t:'Foundation at level '+INDOOR.foundLevel,k:'bad'}); return false; } if(!spend(INDOOR.foundCost)) return false; st.found=true; emit('toast',{t:'Foundation poured',k:'good'}); return true; }
+  function buildIndoor(){ if(st.inBuilt) return false; const ck=indoorChecklist(); if(!ck.slice(0,5).every(c=>c.ok)){ emit('toast',{t:'Finish the checklist',k:'bad'}); return false; } if(!spend(INDOOR.build)) return false;
     st.inBuilt=true; syncPlots(); done('indoor'); emit('indoor'); return true; }
   function seedPrice(s){ return Math.max(1,Math.round(s.game.seedCost*(1-.15*mana('vault'))*(lv('clone')?.6:1)*100)/100); }
   function buySeeds(id,n){ const s=strain(id); if(!st.discovered[id]) return false; if(!spend(seedPrice(s)*n)) return false; st.seeds[id]=(st.seeds[id]||0)+n; if(!(st.seeds[st.selSeed]>0)) st.selSeed=id; if(st.tut&&typeof st.tut==='object') st.tut.bought=(st.tut.bought|0)+n; emit('seeds',{id,n}); return true; }
   function plant(p,id){
     id=id||st.selSeed; if(!p.owned||p.strain||!id) return false;
-    if(!(st.seeds[id]>0)){ emit('noseed',id); return false; }
+    if(!(st.seeds[id]>0)) return false;
     const dn=ZONE[p.zone].dens||1; if(dn<1){ st.sf=st.sf||{}; st.sf[id]=(st.sf[id]||0)+dn; if(st.sf[id]>=.999){ st.sf[id]-=1; st.seeds[id]--; } } else st.seeds[id]--; p.strain=id; p.prog=p.zone==='in'?.15*lv('veg')+.1*lv('clone'):0; if(st.cutSeeds&&st.cutSeeds[id]>0){ st.cutSeeds[id]--; p.prog=Math.max(p.prog,.1); p.fromCut=true; } else p.fromCut=false; p.water=lv('water')>=4?1:.6; p.food=0; p.q=1; p.readyT=0; p.last=id; p.pest=null; p.t0=st.playT;
     bump('plant'); done('plant'); if(p.zone==='field'||p.zone==='gh') done('field'); emit('plant',p); return true;
   }
@@ -421,9 +424,9 @@ window.G = (function(){
   // of that grow (it does not drain) and restores the fed bonuses. Before halfway there is no penalty.
   function feedCost(){ return 0; }
   function feed(p,auto){ if(!p||!p.strain||p.prog>=1||p.prog<.5||p.food>0) return false; p.food=1; bump('feed'); if(!auto) done('feed'); emit('feed',p); return true; }
-  function quality(p){ let q=p.q; { const K=st.keepers&&st.keepers[p.strain]; if(K) q+=K.q; q*=lineGen(p.strain)>=LINE.stable?1:lineMult(p.strain); } if(p.zone==='in') q+=.1+.06*lv('hvac'); if(p.zone==='garage') q+=.03*lv('fan')+.02*lv('oscfan')+.05*lv('phkit'); if(p.zone==='gh') q+=.04*lv('shade')+.03*lv('cooler'); if(lv('water')>=4) q+=.03; if(lv('nutes')>=3) q+=.05; return Math.max(.5,q); }
-  function yieldMult(p){ const z=ZONE[p.zone]; let y=z.yield; { const K=st.keepers&&st.keepers[p.strain]; if(K) y*=K.y; y*=lineMult(p.strain); } if(p.zone==='garage') y*=1+.05*lv('light'); if(p.zone==='in'&&lv('fert')) y*=1.1; if(p.zone==='gh'||p.zone==='field') y*=1+.2*lv('beds');  if(lv('nutes')>=3) y*=1.15; if(setDone('dessert')) y*=1.1; return y; }
-  function mgrCovers(l){ return wk('farmhand')>0||(l==='garage'&&wk('mgrG')>0)||(l==='farm'&&wk('mgrF')>0)||(l==='indoor'&&wk('mgrI')>0); }
+  function quality(p){ let q=p.q; { const K=keeperRec(p.strain); if(K&&typeof K.q==='number') q+=K.q; q*=lineGen(p.strain)>=LINE.stable?1:lineMult(p.strain); } if(p.zone==='in') q+=.1; if(indoorPlots(p.zone)) q+=.06*lv('hvac')+.03*lv('air'); if(p.zone==='garage') q+=.03*lv('fan')+.02*lv('oscfan')+.05*lv('phkit'); if(p.zone==='gh') q+=.04*lv('shade')+.03*lv('cooler'); if(lv('water')>=4) q+=.03; if(lv('nutes')>=3) q+=.05; return Math.max(.5,q); }
+  function yieldMult(p){ const z=ZONE[p.zone]; let y=z.yield; { const K=keeperRec(p.strain); if(K&&typeof K.y==='number') y*=K.y; y*=lineMult(p.strain); } if(p.zone==='garage') y*=1+.05*lv('light'); if(indoorPlots(p.zone)&&lv('fert')) y*=1.1; if(p.zone==='gh'||p.zone==='field') y*=1+.2*lv('beds');  if(lv('nutes')>=3) y*=1.15; if(setDone('dessert')) y*=1.1; return y; }
+  function mgrCovers(){ return false; }
   function offColCap(){ return (8+4*lv('water'))*3600; }   // upgradable via Watering
   function harvest(p){
     if(!p.strain||p.prog<1) return false;
@@ -451,40 +454,27 @@ window.G = (function(){
   function upkeepFrac(p,k){ let f=ZONE[p.zone].up[k]||0;
     if(p.zone==='garage'&&k==='power') f*=[1,1.1,1.05,.95][lv('light')]*(1+.04*lv('dehu'))*(1-.1*lv('timer'));
     if((p.zone==='gh'||p.zone==='field')&&k==='water') f*=1-.6*lv('catch');
-    if(p.zone==='gh'&&k==='upkeep'&&lv('supp')) f+=.03;
     if(p.zone==='in'&&k==='power') f*=(1+.05*lv('led'))*(1-.15*lv('solar'));
     if(p.zone==='in'&&k==='climate') f*=(1-.1*lv('hvac'))*(1+.6*lv('co2'));
     if(k==='nutrients') return 0;
     if(setDone('cbd')) f*=.85; return f; }
-  function cycleCost(p){ // cost of growing this plant from 0 to 1, by component
-    // real $ per plant per full grow (Kauai power $0.342/kWh, county water ~$6/1000 gal), scaled by ECON.yield like the harvest itself
-    const o={total:0}, Z=ZONE[p.zone];
-    for(const k of Object.keys(Z.up)){ const base=Z.up[k]; if(!base) continue; const part=(UPK_REAL[p.zone][k]||0)*ECON.yield*upkeepFrac(p,k)/base; if(!(part>0)) continue; o[k]=part; o.total+=part; } return o;
-  }
-  const FIXED={farm:()=>st.ghBuilt?4+.1*capOf('gh'):0, indoor:()=>st.inBuilt?130+4*capOf('in'):0}; // $/hour = $/game day (real time): greenhouse insurance ~$120/mo; indoor lease + insurance + security ~$4k/mo
-  function upkeepRates(){ // $/hour per location with breakdown (current growing plants at current rates)
-    const R={garage:{total:0,parts:{}},farm:{total:0,parts:{}},indoor:{total:0,parts:{}}};
-    st.plots.forEach(p=>{ if(!p.strain||p.prog>=1) return; const cc=cycleCost(p), r=growRate(p)*3600; const L=R[p.loc];
-      for(const k of Object.keys(ZONE[p.zone].up)){ L.parts[k]=(L.parts[k]||0)+cc[k]*r; L.total+=cc[k]*r; } });
-    for(const l of ['farm','indoor']){ const f=FIXED[l](); if(f){ R[l].parts.fixed=f; R[l].total+=f; } }
-    return R;
-  }
+  function cycleCost(){ return {total:0}; }
+  function upkeepRates(){ return {garage:{total:0,parts:{}},farm:{total:0,parts:{}},indoor:{total:0,parts:{}}}; }
   // ---------- growth ----------
-  function isNight(){ const t=(st.time%DAY_LEN)/DAY_LEN; return t<.2||t>.8; }
-  function dayPhase(){ return (st.time%DAY_LEN)/DAY_LEN; }
+  function isNight(){ return false; }
+  function dayPhase(){ return 0.45; }
   function growRate(p,offline){
-    const s=strain(p.strain); let r=1/s.game.growSec; { const K=st.keepers&&st.keepers[p.strain]; if(K) r*=K.g; }
+    const s=strain(p.strain); let r=1/s.game.growSec; { const K=keeperRec(p.strain); if(K&&typeof K.g==='number') r*=K.g; }
     const z=ZONE[p.zone];
     if(!st.stats.harvests) r*=3;   // fast first harvest (~10 s) for the guided first minute
     if(p.zone==='garage') r*=(1+.125*lv('light'))*(1+.05*lv('timer'));
     if(p.zone==='gh') r*=1+.15*lv('lightdep');
-    if(p.zone==='in') r*=(1+.15*lv('led'))*(1+.2*lv('co2'));
-    if(z.outdoor){ let w; if(offline) w=.85; else { w=WEATHER[st.weather.type].out*(st.weather.type==='sunny'&&isNight()?.77:1); if(isNight()&&!(p.zone==='gh'&&lv('supp'))) w*=.6; } r*=Math.pow(w,z.outdoor); }
+    if(indoorPlots(p.zone)) r*=(1+.15*lv('led'))*(1+.2*lv('co2'))*(1+.06*lv('solar'));
+    if(z.outdoor) r*=1;
     r*=1+.08*mana('thumb'); if(setDone('purple')) r*=1.1; if(boostOn('grow')) r*=2; if(boostLeft('grow')>0) r*=2; if(festOn('monarch')) r*=1.2;
     if(p.water<=0) r*=.15;
     if(p.food>0) r*=1.15; else if(isHungry(p)) r*=.8;
     if(p.pest) r*=.5;
-    if(st.upkeepWarn[p.loc]>0) r*=.3;
     // Tester growth speed (?dev=1 only). Ignored in normal play, store builds, and time-skip catch-up.
     if(!offline && devOn() && st.devSpeed>1) r*=Math.min(10000, st.devSpeed);
     return r;
@@ -495,11 +485,10 @@ window.G = (function(){
   // Pest / mold chance per grow cycle (scaled by progress so a 3-day plant is not doomed).
   function pestRisk(p){
     if(!p.strain||p.prog<.1) return {pests:0,mold:0};
-    if(p.zone==='in') return {pests:.0004, mold:.0028*Math.max(.15,1-.22*lv('hvac'))};
+    if(indoorPlots(p.zone)){ const moldBase=p.zone==='in'?.0028:.0002, pests=p.zone==='in'?.0004:.0012; return {pests, mold:moldBase*Math.max(.15,1-.22*lv('hvac'))*(1-.25*lv('air'))}; }
     if(p.zone==='garage'){ const f=1-.25*lv('fan'); return {pests:.0008*f, mold:.0014*f*(1-.15*lv('oscfan'))*(1-.35*lv('dehu'))}; }
-    const wet=st.weather.type==='rain'||st.weather.type==='storm';
-    if(p.zone==='gh') return {pests:.0009, mold:(wet?.0006:.0003)*(1-.4*lv('cooler'))*(season()==='wet'?1.3:1)};
-    return {pests:.0012*(st.weather.type==='sunny'?1.2:1), mold:(wet?.0012:.0002)*(season()==='wet'?1.6:1)};
+    if(p.zone==='gh') return {pests:.0009, mold:.0003*(1-.4*lv('cooler'))};
+    return {pests:.0012, mold:.0002};
   }
   function treatCost(p){ const s=strain(p.strain); return Math.max(.5,Math.round(s.game.payout*.06*ZONE[p.zone].yield*100)/100); }
   // training in veg (prog 0.15-0.5): prune the lower branches (+12% yield, once) and, for tall outdoor/greenhouse plants, tie them to a trellis (+8%)
@@ -509,7 +498,7 @@ window.G = (function(){
   function trellis(p,auto){ if(!canTrellis(p)) return false; const c=Math.round(strain(p.strain).game.budValue*.15); if(!auto&&!spend(c)) return false; if(auto){ if(st.cash<c) return false; st.cash-=c; } p.trellis=true; bump('trellis'); emit('trellis',{p,auto}); return true; }
   function trellisCost(p){ return Math.round(strain(p.strain).game.budValue*.15); }
   // scouting: early eggs/spores can be found with the magnifier before they hatch; removing them is free and keeps quality up
-  function eggHint(off){ if(off||st.stats.eggHint) return; st.stats.eggHint=1; emit('tip','Something is laying eggs on your plants. Tap Inspect and look closely to remove them before they hatch.'); }
+  function eggHint(off){ if(off||st.stats.eggHint) return; st.stats.eggHint=1; emit('tip','Something is laying eggs on your plants. Press and hold on a plant to look, then wipe the eggs before they hatch.'); }
   function scout(p){ if(!p||!(p.eggs>0)) return false; p.eggs=0; p.q=Math.min(1.15,p.q+.02); bump('scouted'); st.scoutStreak=(st.scoutStreak||0)+1; emit('scouted',p);
     if(st.scoutStreak%5===0){ const g=2+Math.min(8,st.scoutStreak/5|0); addGems(g,'scout'); emit('scoutstreak',{n:st.scoutStreak,g}); } return true; }
   // training choice in veg (one per plant): topping = +15% yield but 10% slower growth; low-stress training (LST) = +8% yield, +3% quality, no slowdown
@@ -517,21 +506,15 @@ window.G = (function(){
   function train(p,kind,auto){ if(!canTrain(p)||(kind!=='top'&&kind!=='lst')) return false; p.train=kind; if(kind==='lst') p.q=Math.min(1.15,p.q+.03); bump('trained'); emit('train',{p,kind,auto}); return true; }
   function treat(p,auto){ if(!p.pest) return false; if(!spend(treatCost(p))) return false; const k=p.pest; p.pest=null; bump('treated'); emit('treat',{p,k,auto}); return true; }
   function stage(p){ if(!p.strain) return -1; const x=p.prog; return x>=1?5:x<.08?0:x<.25?1:x<.45?2:x<.65?3:4; }
-  const warnNow={};
   function tickPlot(p,dt,offline){
     if(!p.strain) return;
-    if(p.prog>=1&&offline&&!mgrCovers(p.loc)&&(st.offCol||0)<offColCap()){ const id=p.strain; st._half=1; harvest(p); st._half=0; st.stats.offCollected=(st.stats.offCollected||0)+1; if((st.seeds[id]||0)>0) plant(p,id); return; }   // neighbour collects ripe buds while you're away (50% yield)
     if(p.prog>=1){ p.readyT+=dt; if(p.pest) p.q=Math.max(.55,p.q-.01*dt*(60/strain(p.strain).game.growSec)); return; }
     const s=strain(p.strain), gs=s.game.growSec;
-    if(offline&&p.water<.3&&!mgrCovers(p.loc)&&(st.offCol||0)<offColCap()) p.water=1;   // the neighbour also waters while you're away
-    if(!offline&&WEATHER[st.weather.type].waters&&p.zone==='field') p.water=1;
     if(lv('water')>=4&&p.water<.6) p.water=1;
     let dp=growRate(p,offline)*dt*(p.train==='top'?1/1.1:1);
     if(!offline&&!st.stats.pruneHint&&canPrune(p)){ st.stats.pruneHint=1; emit('tip','Your first plant is ready for training. Tap it to prune, top or tie it down for a bigger harvest.'); }
-    const cc=cycleCost(p).total*dp;
-    if(cc>0){ if(st.cash>=cc){ st.cash-=cc; st.upkeepPaid+=cc; } else warnNow[p.loc]=1; }
     p.prog=Math.min(1,p.prog+dp);
-    const wdrain=dt/(gs*.5)*(st.stats.harvests?1:.3)*(lv('water')>=2?.625:1)*(p.zone==='garage'&&lv('trays')?.8:1)*(((p.zone==='field')||(p.zone==='gh'&&!lv('shade')))&&!offline&&st.weather.type==='sunny'?1.3:1)*((p.zone==='field'||p.zone==='gh')&&season()==='dry'?1.3:1);
+    const wdrain=dt/(gs*.5)*(st.stats.harvests?1:.3)*(lv('water')>=2?.625:1)*(p.zone==='garage'&&lv('trays')?.8:1)*(lv('catch')&&(p.zone==='field'||p.zone==='gh')?.7:1);
     p.water=Math.max(0,p.water-wdrain); if(!(p.food>0)) p.food=0;
     const hurt=(p.water<=0?.006:0)+(isHungry(p)?.0015:0)+(p.pest?.012:0);
     p.q=Math.max(.55,Math.min(1.15,p.q+(p.food>0?.16:0)*dp-hurt*dt*(26/gs)));
@@ -565,7 +548,7 @@ window.G = (function(){
     }
   }
   // ---------- market ----------
-  function price(id,g,stg,q){ const s=strain(id); return (boostLeft('price')>0?2:1)*s.game.budValue*(QMULT[q]||1)*st.market.f[id]*STAGE_MULT[stg]*GRADE[g||0]*mastery(id).m*earnMult()*(st.market.hot===id?2:1)*(st.weather.rainbow>0?1.1:1)*(evFx('swell')?1.25:1)*(boostOn('price')?1.5:1)*(festOn('leiday')?1.15:1); }
+  function price(id,g,stg,q){ const s=strain(id); return (boostLeft('price')>0?2:1)*s.game.budValue*(QMULT[q]||1)*st.market.f[id]*STAGE_MULT[stg]*GRADE[g||0]*mastery(id).m*earnMult()*(st.market.hot===id?2:1)*(evFx('swell')?1.25:1)*(boostOn('price')?1.5:1)*(festOn('leiday')?1.15:1); }
   function sell(stg,k,n,bonus){
     const have=st.inv[stg][k]||0; n=Math.min(n==null?have:n,have); if(n<=0) return 0;
     const {id,g,q}=unkey(k); const v=price(id,g,stg,q)*n*(bonus||1);
@@ -604,8 +587,7 @@ window.G = (function(){
     let need=o.n; for(const stg of ['dry','cured']){ const ks=Object.keys(st.inv[stg]).filter(k=>unkey(k).id===o.s).sort((a,b)=>'CBA'.indexOf(unkey(a).q)-'CBA'.indexOf(unkey(b).q)); for(const k of ks){ const t=Math.min(need,st.inv[stg][k]); st.inv[stg][k]-=t; need-=t; if(st.inv[stg][k]<=0) delete st.inv[stg][k]; if(!need) break; } if(!need) break; }
     const v=orderValue(o); addCash(v,'order'); addRep(o.rep); addXP(3+strain(o.s).tier*4); st.stats.orders++; st.stats.sold+=o.n;
     st.orders=st.orders.filter(x=>x!==o); st.orderT=Math.min(st.orderT,20); done('order'); emit('order',{o,v}); return true; }
-  function tickOrders(dt){ if(!F.orders){ st.orders=[]; return; } if(st.level<GATE.orders) return; st.orders.forEach(o=>o.T+=dt); const exp=st.orders.filter(o=>o.T>=o.t); if(exp.length){ st.orders=st.orders.filter(o=>o.T<o.t); }
-    if(st.orders.length<orderSlots()){ st.orderT-=dt; if(st.orderT<=0){ const o=newOrder(); if(o){ st.orders.push(o); emit('neworder',o); } st.orderT=45+Math.random()*60; } } }
+  function tickOrders(){ /* Retired. Saved st.orders stays on the file and is not cleared, expired, or refilled. */ }
   // ---------- walk-in customers with preferences ----------
   const PREFS=[
     {k:'type',v:'Indica',t:'Something heavy and relaxing (Indica)'},{k:'type',v:'Sativa',t:'Something uplifting (Sativa)'},{k:'type',v:'Hybrid',t:'A balanced hybrid'},
@@ -613,78 +595,35 @@ window.G = (function(){
     {k:'flavor',v:'Citrus',t:'Something citrusy'},{k:'flavor',v:'Sweet',t:'Something sweet'},{k:'flavor',v:'Earthy',t:'Earthy and classic'},{k:'flavor',v:'Berry',t:'Berry flavors'},{k:'flavor',v:'Pine',t:'Piney and fresh'},{k:'flavor',v:'Grape',t:'Grape all day'},
   ];
   function prefOk(c,s){ const P=c.pref; if(P.k==='type') return s.type===P.v; if(P.k==='island') return s.island; if(P.k==='thc') return (s.thc||s.thcEstimate||0)>=25; if(P.k==='cbd') return (s.cbd||0)>=5; if(P.k==='flavor') return (s.flavors||[]).includes(P.v); return false; }
-  function custMatch(c){ const out=[]; for(const stg of ['cured','dry']) for(const [k,n] of Object.entries(st.inv[stg])){ const u=unkey(k); if(prefOk(c,strain(u.id))) out.push({stg,k,n,v:price(u.id,u.g,stg,u.q)}); } return out.sort((a,b)=>b.v-a.v); }
-  // Farm stand: small, frequent sales at a premium (bonus x1.25-1.5 + tip) vs the Market (instant, any amount, x1) and the
-  // Order Board (big lump sums + reputation, fixed strain). Customers wait ~2.5 min; Malia (farm manager) serves after ~25 s.
-  // regulars: 3 happy visits = regular (tier 1), 9 = tier 2, 18 = tier 3; each tier pays +5% and waits longer
+  function custMatch(c){ return []; }
   function regTier(who){ const n=(st.regs||{})[who]||0; return n>=18?3:n>=9?2:n>=3?1:0; }
-  function serveCust(id,auto){ if(!F.customers) return false; const c=st.cust.find(x=>x.id===id); if(!c) return false; const m=custMatch(c); if(!m.length){ emit('custno',c); return false; } let need=c.n, v=0, cured=false;
-    for(const l of m){ const t=Math.min(need,l.n); v+=sell(l.stg,l.k,t,c.bonus); if(l.stg==='cured') cured=true; need-=t; if(!need) break; }
-    const mood=cured||c.bonus>1.45?'happy':'ok', tip=mood==='happy'?Math.round(v*.15):0; if(tip) addCash(tip,'tip');
-    st.regs=st.regs||{}; if(mood==='happy'){ const r0=regTier(c.who); st.regs[c.who]=(st.regs[c.who]||0)+1; if(regTier(c.who)>r0) emit('regular',{who:c.who,tier:regTier(c.who)}); }
-    // market-day contest: the first grade-A cured bud sold at the stand on a market day wins Best Bud of the Week
-    if(marketDay()&&cured&&st.contestDay!==dayNum()&&m.some(l=>l.stg==='cured'&&unkey(l.k).q==='A')){ st.contestDay=dayNum(); addGems(10); addRep(10); emit('contest',{who:c.who}); }
-    addRep(3+c.n); st.stats.customers++; st.cust=st.cust.filter(x=>x!==c); emit('served',{c,v,tip,mood,auto:!!auto}); return v+tip; }
-  function tickCust(dt){ if(!F.customers){ st.cust=[]; return; } if(st.level<GATE.customers) return; st.cust.forEach(c=>c.T+=dt);
-    st.cust.filter(c=>c.T>=c.t).forEach(c=>{ addRep(-1); emit('custleft',c); }); st.cust=st.cust.filter(c=>c.T<c.t);
-    if(wk('mgrF')>0){ const c=st.cust.find(c=>c.T>25&&custMatch(c).length); if(c) serveCust(c.id,true); }
-    if(st.cust.length<(lv('stand')>=3?4:3)){ st.custT-=dt*(marketDay()?2.5:1)*(season()==='makahiki'?1.5:1)*(lv('stand')>=1?1.25:1); if(st.custT<=0){ st.custT=35+Math.random()*45;
-    const ok=PREFS.filter(P=>S.some(s=>st.discovered[s.id]&&prefOk({pref:P},s))); if(!ok.length) return; const P=ok[Math.floor(Math.random()*ok.length)];
-    const who=NAMES[Math.floor(Math.random()*NAMES.length)], rg=regTier(who); const c={id:Math.random().toString(36).slice(2,8),who,reg:rg,pref:P,n:1+Math.floor(Math.random()*(2+st.level/8)),bonus:1.25+Math.random()*.25+.05*repTier()+(marketDay()?.1:0)+.05*rg+(lv('stand')>=2?.1:0),t:150+15*repTier()+30*Math.min(1,rg),T:0}; st.cust.push(c); emit('customer',c); } } }
+  // Walk-in selling is gone. Stored st.cust / st.upg.stand stay on the save and do nothing.
+  function serveCust(){ if(st) st.cust=[]; return false; }
+  function tickCust(){ if(st&&st.cust&&st.cust.length) st.cust=[]; }
   // ---------- seasons (24-day island year): wet season 10 days, dry season 12 days, Makahiki harvest festival 2 days ----------
   // wet: more rain/storms, mold risk x1.6 outdoors, indicas +10% outdoor yield. dry: more sun, outdoor plants drink 30% faster,
-  // sativas +10% outdoor yield. Makahiki: festival stalls, stand customers 1.5x as often, +25% XP.
+  // Makahiki is the harvest festival: +25% XP. Selling stays on the Market.
   const SEASONS={wet:{name:'Wet season',fav:'Indica',tip:'Rain and storms are more common and mold spreads faster outdoors. Indicas get +10% outdoor yield.'},
     dry:{name:'Dry season',fav:'Sativa',tip:'Long sunny days. Outdoor plants drink 30% faster. Sativas get +10% outdoor yield.'},
-    makahiki:{name:'Makahiki',fav:null,tip:'The harvest festival: stalls on the farm, customers come 1.5x as often and you earn +25% XP.'}};
+    makahiki:{name:'Makahiki',fav:null,tip:'The harvest festival. You earn +25% XP. Sell buds at the Market.'}};
   function season(){ const d=dayNum()%24; return d<10?'wet':d<22?'dry':'makahiki'; }
-  function seasonYield(p){ const z=ZONE[p.zone]; if(!z.outdoor) return 1; const f=SEASONS[season()].fav; return f&&strain(p.strain).type===f?1+.1*z.outdoor:1; }
+  function seasonYield(){ return 1; }
   let lastSeason=null;
-  // Weekly market day (every 7th in-game day): customers arrive 2.5x as often and pay +10%
   function dayNum(){ return Math.floor(st.time/DAY_LEN); }
-  function marketDay(){ return F.customers!==false&&st.level>=GATE.customers&&dayNum()%7===6; }
+  function marketDay(){ return false; }
   let lastDay=-1; function tickDay(){ const d=dayNum(); if(lastDay>=0&&d!==lastDay&&marketDay()) emit('marketday'); lastDay=d; const se=season(); if(lastSeason&&se!==lastSeason) emit('season',SEASONS[se]); lastSeason=se; }
   // ---------- weather ----------
-  function tickWeather(dt){
-    tickDay(); const w=st.weather; w.t+=dt; if(w.rainbow>0) w.rainbow-=dt;
-    if(w.t>=w.dur){
-      const prev=w.type; let r=Math.random(), acc=0, nt='sunny';
-      const se=season(), SW={wet:{sunny:.6,partly:1.1,rain:1.9,storm:1.6,vog:1},dry:{sunny:1.35,partly:1,rain:.45,storm:.4,vog:1.3},makahiki:{sunny:1.2,partly:1,rain:.7,storm:.3,vog:.5}}[se];
-      const tot=Object.entries(WEATHER).reduce((a,[k,v])=>a+v.w*(SW[k]||1),0); r*=tot;
-      for(const [k,v] of Object.entries(WEATHER)){ acc+=v.w*(SW[k]||1); if(r<=acc){nt=k;break;} }
-      if(prev==='storm'&&nt==='storm') nt='rain';
-      w.type=nt; w.t=0; w.dur=nt==='storm'?45+Math.random()*30:70+Math.random()*90;
-      if((prev==='rain'||prev==='storm')&&nt!=='rain'&&nt!=='storm'&&!isNight()) { w.rainbow=60; emit('rainbow'); }
-      if(nt==='storm'&&!lv('shutters')) st.plots.forEach(p=>{ if((p.zone==='field'||p.zone==='gh')&&p.strain&&p.prog>=1) p.q=Math.max(.6,p.q-(p.zone==='gh'?.05:.1)); });
-      emit('weather',nt);
-    }
-  }
+  function tickWeather(){ if(!st.weather) return; st.weather.type='sunny'; st.weather.rainbow=0; st.weather.t=0; }
   // ---------- automation ----------
-  const auto={mgrG:0,mgrF:0,mgrI:0,r:0,m:0,w:0,f:0};
-  const MGR_LOC={mgrG:'garage',mgrF:'farm',mgrI:'indoor',farmhand:'all',mgrX:'all'};
-  function crewSpeed(){ return (1+.25*mana('crew'))*(setDone('classics')?1.2:1); }
-  function manage(k,offline){ for(let i=0;i<3;i++){ const q=manage1(k,offline); if(!q||!(ZONE[q.zone].dens<1)) break; } }
-  function manage1(k,offline){
-    const loc=MGR_LOC[k], P=st.plots.filter(p=>(loc==='all'||p.loc===loc)&&p.owned);
-    const sick=P.find(p=>p.pest&&st.cash>treatCost(p)*3); if(sick){ treat(sick,true); emit('worker',{w:k,p:sick}); return sick; }
-    const rp=P.find(p=>p.strain&&p.prog>=1); if(rp){ harvest(rp); emit('worker',{w:k,p:rp}); return rp; }
-    const e=P.find(p=>!p.strain&&p.last&&st.discovered[p.last]);
-    if(e){ const s=strain(e.last); if(!(st.seeds[e.last]>0)&&st.cash>seedPrice(s)*3){ st.cash-=seedPrice(s); st.seeds[e.last]=(st.seeds[e.last]||0)+1; } if(plant(e,e.last)){ emit('worker',{w:k,p:e}); return e; } }
-    const d=P.find(p=>p.strain&&p.prog<1&&p.water<.3); if(d){ water(d); emit('worker',{w:k,p:d}); return d; }
-    if(k!=='farmhand'){ const tn=P.find(canTrain); if(tn){ train(tn,'lst',true); emit('worker',{w:k,p:tn}); return tn; } const pr=P.find(canPrune); if(pr){ prune(pr,true); emit('worker',{w:k,p:pr}); return pr; } const tr=P.find(p=>canTrellis(p)&&st.cash>trellisCost(p)*5); if(tr&&trellis(tr,true)){ emit('worker',{w:k,p:tr}); return tr; } }
-    const h=P.find(isHungry); if(h){ feed(h,true); emit('worker',{w:k,p:h}); return h; }
-  }
+  const auto={r:0,m:0,w:0,f:0};
   function tickAuto(dt,offline){
     if(lv('water')>=3){ auto.w+=dt; if(auto.w>=20){ auto.w=0; st.plots.forEach(p=>{ if(p.strain&&p.prog<1&&p.water<.4){ p.water=1; if(!offline&&p.loc===st.loc) emit('sprinkle',p);} }); } }
-    if(lv('fert')) st.plots.forEach(p=>{ if(p.zone==='in'&&isHungry(p)) feed(p,true); });
+    if(lv('fert')) st.plots.forEach(p=>{ if(indoorPlots(p.zone)&&isHungry(p)) feed(p,true); });
     if(lv('nutes')>=2){ auto.f+=dt; if(auto.f>=8){ auto.f=0; st.plots.forEach(p=>{ if(isHungry(p)) feed(p,true); }); } }
-    const cs=crewSpeed();
-    if(st.mgrSlot) st.workers.mgrX=2; for(const k of ['farmhand','mgrG','mgrF','mgrI','mgrX']) if(wk(k)){ auto[k]+=dt; const per=6/(wk(k)*cs); let guard=0; while(auto[k]>=per&&guard++<40){ auto[k]-=per; manage(k,offline); } }
-    if(wk('runner')||st.vip){ auto.r+=dt; if(auto.r>=(wk('runner')?5/(wk('runner')*cs):6)){ auto.r=0; if(invCount('wet')&&loadDryer()) emit('worker',{w:'runner'}); } }
-    if(wk('merchant')||st.vip){ auto.m+=dt; if(auto.m>=(wk('merchant')?8/(wk('merchant')*cs):10)){ auto.m=0;
-      const reserved=new Set(st.orders.map(o=>o.s));
-      const v=sellAll((id,stg)=>stg!=='wet'&&!reserved.has(id)&&(st.market.f[id]>=1||st.market.hot===id||(stg==='dry'&&!lv('cure')&&st.market.f[id]>=.9)));
-      let gv=0; for(const k of Object.keys(st.goods)) if(st.market.f[k.split('|')[1]]>=.95) gv+=sellGood(k); if(v+gv>0) emit('worker',{w:'merchant',v:v+gv}); } }
+    if(st.vip){ auto.r+=dt; if(auto.r>=6){ auto.r=0; if(invCount('wet')) loadDryer(); } }
+    if(st.vip){ auto.m+=dt; if(auto.m>=10){ auto.m=0;
+      sellAll((id,stg)=>stg!=='wet'&&(st.market.f[id]>=1||st.market.hot===id||(stg==='dry'&&!lv('cure')&&st.market.f[id]>=.9)));
+      for(const k of Object.keys(st.goods||{})) if(st.market.f[k.split('|')[1]]>=.95) sellGood(k); } }
   }
   // ---------- breeding: pheno hunting mystery ----------
   // Recipes are never shown up front. Players cross any two parents they own; a documented cross reveals the strain.
@@ -709,10 +648,33 @@ window.G = (function(){
   // Legendary recipes only take when the strain parents are stable lines (F4+) in the Breeding Pheno Room; pollen-only legendaries
   // need any two stable lines you own. Seed-shop / store strains are commercial lines and count as stable (F6).
   const LINE={stable:4,max:6};
-  function lineGen(id){ return st.lines&&st.lines[id]?st.lines[id].gen:LINE.max; }
-  function lineName(id){ const g=lineGen(id); return st.lines&&st.lines[id]&&st.lines[id].heir?'Heirloom (F6)':g>=LINE.max?'IBL (F6)':'F'+g+(g>=LINE.stable?' stable':' unstable'); }
-  function lineMult(id){ if(!(st.lines&&st.lines[id])) return 1; const g=lineGen(id); return st.lines[id].heir?HEIR.mult:g>=LINE.max?1.06:g>=LINE.stable?1.03:.86+.04*g; }
-  function stableLines(){ return Object.entries(st.lines||{}).filter(([k,v])=>v.gen>=LINE.stable).map(([k])=>k); }
+  // Old saves stored a generation as a number, as {g:n}, or as null. A missing line is a commercial stable (F6).
+  // A present but unreadable record is an unfinished F1, never a free IBL.
+  function clampGen(n){ n=Math.round(+n); if(!isFinite(n)||n<1) return 1; return Math.min(LINE.max, n); }
+  function lineBag(){ const bag=st&&st.lines; return bag&&typeof bag==='object'&&!Array.isArray(bag)?bag:null; }
+  function lineRecord(v, present){
+    if(typeof v==='number'&&isFinite(v)) return {gen:clampGen(v)};
+    if(v&&typeof v==='object'&&!Array.isArray(v)){
+      const raw=typeof v.gen==='number'&&isFinite(v.gen)?v.gen:(typeof v.g==='number'&&isFinite(v.g)?v.g:1);
+      const rec=Object.assign({},v); rec.gen=clampGen(raw); return rec;
+    }
+    return present?{gen:1}:null;
+  }
+  function linePresent(id){ const bag=lineBag(); return !!(bag&&Object.prototype.hasOwnProperty.call(bag,id)); }
+  function lineOf(id){ return linePresent(id)?lineRecord(lineBag()[id],true):null; }
+  function eachLine(){ const bag=lineBag(); if(!bag) return []; return Object.keys(bag).map(k=>[k,lineRecord(bag[k],true)]); }
+  // Load drops nulls, strings, and arrays. A number or {g}/{gen} object is a real record. A missing key stays commercial F6.
+  function healLines(map){ const src=map&&typeof map==='object'&&!Array.isArray(map)?map:{}; const out={};
+    Object.keys(src).forEach(k=>{ if(typeof k!=='string'||!k) return; const v=src[k];
+      if(typeof v==='number'&&isFinite(v)) out[k]=lineRecord(v,true);
+      else if(v&&typeof v==='object'&&!Array.isArray(v)) out[k]=lineRecord(v,true);
+    }); return out; }
+  function healKeepers(map){ const src=map&&typeof map==='object'&&!Array.isArray(map)?map:{}; const out={}; Object.keys(src).forEach(k=>{ const v=src[k]; if(v&&typeof v==='object'&&!Array.isArray(v)) out[k]=v; }); return out; }
+  function keeperRec(id){ const K=st.keepers&&st.keepers[id]; return K&&typeof K==='object'&&!Array.isArray(K)?K:null; }
+  function lineGen(id){ const rec=lineOf(id); return rec?rec.gen:LINE.max; }
+  function lineName(id){ const rec=lineOf(id), g=rec?rec.gen:LINE.max; return rec&&rec.heir?'Heirloom (F6)':g>=LINE.max?'IBL (F6)':'F'+g+(g>=LINE.stable?' stable':' unstable'); }
+  function lineMult(id){ const rec=lineOf(id); if(!rec) return 1; const g=rec.gen; return rec.heir?HEIR.mult:g>=LINE.max?1.06:g>=LINE.stable?1.03:.86+.04*g; }
+  function stableLines(){ return eachLine().filter(([,v])=>v.gen>=LINE.stable).map(([k])=>k); }
 
   // ---------- F6 end-game tier: heirloom certification + the Seed Vault ----------
   // An F6 (IBL) line can be certified as a Kauai Heirloom: one at a time, 24 real hours in the seed bank (Breeding Pheno Room needed).
@@ -720,12 +682,12 @@ window.G = (function(){
   const HEIR={sec:86400, cost:[25000,0], mult:1.12};
   const VAULT=[{n:1,name:'Seed Keeper',r:{gems:60,legPacks:1}},{n:3,name:'Heirloom Breeder',r:{gems:120,legPacks:1,hints:3}},{n:6,name:'Island Seed Bank',r:{gems:250,legPacks:2}},
     {n:12,name:'Master of Lines',r:{gems:400,legPacks:3}},{n:18,name:'Kauai Legend',r:{gems:800,legPacks:5}}];
-  function heirCount(){ return Object.values(st.lines||{}).filter(v=>v.heir).length; }
+  function heirCount(){ return eachLine().filter(([,v])=>v.heir).length; }
   function heirCost(id){ return Math.round(HEIR.cost[0]*Math.max(1,strain(id).tier)); }
-  function canCertify(id){ const L=st.lines&&st.lines[id]; return !!(L&&L.gen>=LINE.max&&!L.heir&&st.breedLab&&!st.cert); }
-  function startCertify(id){ if(!canCertify(id)){ emit('toast',{t:st.cert?'The seed bank is already certifying a line':'Only F6 (IBL) lines can be certified, in the Breeding Pheno Room',k:'bad'}); return false; }
+  function canCertify(id){ const L=lineOf(id); return !!(L&&L.gen>=LINE.max&&!L.heir&&st.breedLab&&!st.cert); }
+  function startCertify(id){ if(!canCertify(id)){ emit('toast',{t:st.cert?'Seed bank is busy':'F6 lines only',k:'bad'}); return false; }
     if(!spend(heirCost(id))) return false; st.cert={id,t:0,dur:HEIR.sec}; emit('certstart',id); save(); return true; }
-  function tickCert(dt){ const C=st.cert; if(!C) return; C.t+=dt; if(C.t<C.dur) return; st.cert=null; const L=st.lines[C.id]; if(L){ L.heir=Date.now(); } bump('heirlooms'); emit('heirloom',{id:C.id,n:heirCount()}); checkVault(); }
+  function tickCert(dt){ const C=st.cert; if(!C) return; C.t+=dt; if(C.t<C.dur) return; st.cert=null; const L=st.lines&&st.lines[C.id]; if(L&&typeof L==='object'&&!Array.isArray(L)){ L.heir=Date.now(); } bump('heirlooms'); emit('heirloom',{id:C.id,n:heirCount()}); checkVault(); }
   function checkVault(){ st.vault=st.vault||{}; const n=heirCount(); VAULT.forEach((v,i)=>{ if(n>=v.n&&!st.vault[i]){ st.vault[i]=1; emit('vault',v); } }); }
   function claimVault(i){ st.vault=st.vault||{}; if(st.vault[i]!==1) return false; st.vault[i]=2; grantReward(VAULT[i].r,'Seed Vault'); emit('vaultclaim',VAULT[i]); save(); return true; }
   function legendaryGate(s,a,b){ if(!s||s.tier<4) return null; if(!st.breedLab) return 'Legendary recipes need the Breeding Pheno Room';
@@ -740,14 +702,14 @@ window.G = (function(){
   function triedResult(a,b){ return st.tried[pairKey(a,b)]; } // undefined | 'dud' | strain id
   const FAM=[['Hawaiian',/hawai|maui|kona|puna|kauai/i],['Kush',/kush|og\b|ogkb|bubba|hindu/i],['Cookies',/cookie|gsc|gelato|biscotti|mints|cake|sherb|sherbert|runtz|zkittlez|original z|wife|y life/i],['Diesel / Chem',/diesel|chem|gmo|gasoline|dawg/i],['Purple',/purple|grape|granddaddy|purps|punch|uva|ape/i],['Fruit',/apple|banana|cherry|papaya|guava|tropic|clementine|lemon|grapefruit|mimosa|blueberry|berry/i],['Skunk / Haze',/skunk|haze|durban|thai|african|colombian|afghani|durb/i],['Breath',/breath|mendo|dosi|do-si|face off/i]];
   function familyOf(name){ for(const [f,re] of FAM) if(re.test(name)) return f; return 'Heirloom'; }
-  function vagueHint(s){ if(!s.parents.length) return null; const f=s.parents.map(familyOf); return s.parents.length===1?'Parents: a '+f[0]+' line crossed with itself':'Parents: one '+f[0]+', one '+f[1]; }
+  function vagueHint(s){ if(!s||!Array.isArray(s.parents)||!s.parents.length) return null; const f=s.parents.map(familyOf); return s.parents.length===1?'Parents: a '+f[0]+' line crossed with itself':'Parents: one '+f[0]+', one '+f[1]; }
   function hintLevel(s){ // 0 nothing, 1 vague family hint, 2+ exact parents revealed by tokens
-    const r=st.hintRev[s.id]||0; if(r) return 1+r; return st.level>=s.game.unlockLevel-4||st.fails>=4?1:0; }
-  function useHint(id){ const s=strain(id); if(!s||st.discovered[id]||!s.mystery) return false; const r=st.hintRev[id]||0; if(r>=Math.min(2,s.parents.length)) return false; if(st.hints<1){ emit('toast',{t:'No hint tokens. Earn them from quests, events and failed crosses',k:'bad'}); return false; } st.hints--; st.hintRev[id]=r+1; emit('hint',{s,r:r+1}); return true; }
+    const rev=st.hintRev&&typeof st.hintRev==='object'&&!Array.isArray(st.hintRev)?st.hintRev:{}; const r=rev[s.id]||0; if(r) return 1+r; return st.level>=s.game.unlockLevel-4||st.fails>=4?1:0; }
+  function useHint(id){ const s=strain(id); if(!s||st.discovered[id]||!s.mystery) return false; const r=st.hintRev[id]||0; if(r>=Math.min(2,s.parents.length)) return false; if(st.hints<1){ emit('toast',{t:'No hint tokens',k:'bad'}); return false; } st.hints--; st.hintRev[id]=r+1; emit('hint',{s,r:r+1}); return true; }
   function cloneCost(name){ return 300; }
   function buyClone(name){ if(st.clones[name]) return false; if(!spend(cloneCost(name))) return false; st.clones[name]=true; emit('clone',name); return true; }
   function startBreed(a,b){
-    if(st.breed) return false; if(!gate('breed')){ emit('toast',{t:'The Pheno Room opens at level '+GATE.breed,k:'bad'}); return false; }
+    if(st.breed) return false; if(!gate('breed')){ emit('toast',{t:'Pheno Room at level '+GATE.breed,k:'bad'}); return false; }
     const s=recipeFor(a,b); { const why=legendaryGate(s,a,b); if(why){ emit('toast',{t:why,k:'bad long'}); return false; } }
     const c=crossCost(a,b); if(!spend(c)) return false;
     st.breed={a,b,id:s?s.id:null,t:0,dur:crossTime(a,b),key:pairKey(a,b)}; done('breed'); emit('breedstart',{a,b}); return true;
@@ -758,19 +720,20 @@ window.G = (function(){
   function huntSize(){ return st.breedLab?6:4; }
   function huntTime(id){ return Math.round(HUNT_T[Math.min(4,strain(id).tier)]*(st.breedLab?.6:1)*Math.pow(.8,lv('labTissue'))); }
   function canHunt(){ return st.phenoRoom&&gate('breed')&&!st.hunt; }
-  function startHunt(id){ if(!canHunt()||!st.discovered[id]) return false; const n=huntSize(); if((st.seeds[id]||0)<n){ emit('toast',{t:'You need '+n+' seeds of this strain for a pheno hunt',k:'bad'}); return false; }
+  function startHunt(id){ if(!canHunt()||!st.discovered[id]) return false; const n=huntSize(); if((st.seeds[id]||0)<n){ emit('toast',{t:'Need '+n+' seeds',k:'bad'}); return false; }
     st.seeds[id]-=n; st.hunt={id,n,t:0,dur:huntTime(id),phenos:null}; bump('hunts'); emit('hunt',st.hunt); return true; }
   function rollPhenos(H){ const L=(st.breedLab?1:0)+(boostLeft('pheno')>0?1.5:0), r=(a,b)=>a+Math.random()*(b-a), rd=x=>Math.round(x*100)/100; const out=[];
     for(let i=0;i<H.n;i++) out.push({k:'#'+(i+1),y:rd(r(.85,1.18+.06*L)),q:rd(r(-.05,.07+.03*L)),g:rd(r(.9,1.12+.04*L)),terp:TERPS[Math.floor(Math.random()*TERPS.length)],h:r(.75,1.15)});
     return out; }
   function phenoScore(x){ return (x.y-1)+(x.q*2)+(x.g-1); }
-  function keepPheno(i){ const H=st.hunt; if(!H||!H.phenos||!H.phenos[i]) return false; const x=H.phenos[i]; st.keepers[H.id]=Object.assign({at:Date.now()},x); st.hunt=null; if(st.lines&&st.lines[H.id]&&st.lines[H.id].gen<LINE.max){ st.lines[H.id].gen++; emit('linegen',{id:H.id,gen:st.lines[H.id].gen}); } bump('keepers'); emit('keeper',{id:H.id,x}); return true; }
+  function keepPheno(i){ const H=st.hunt; if(!H||!H.phenos||!H.phenos[i]) return false; const x=H.phenos[i]; st.keepers[H.id]=Object.assign({at:Date.now()},x); st.hunt=null;
+    const rec=lineOf(H.id); if(rec&&rec.gen<LINE.max){ const bag=lineBag()||(st.lines={}); bag[H.id]=Object.assign({},rec,{gen:rec.gen+1}); emit('linegen',{id:H.id,gen:bag[H.id].gen}); } bump('keepers'); emit('keeper',{id:H.id,x}); return true; }
   function dropHunt(){ if(!st.hunt||!st.hunt.phenos) return false; st.hunt=null; return true; }
   // cuttings from a mother: snip a few tips, root them in a clone dome (rooting cubes ~$2 each), they come out as rooted clones
   // that plant 10% grown and carry the mother's traits. A mother needs a rest between snips; the Breeding Pheno Room roots faster.
   const CUT={n:4,cost:2,rest:180,root:90};
-  function cutState(id){ const K=st.keepers&&st.keepers[id]; if(!K) return null; const now=Date.now(); return {ready:!(K.next>now), wait:Math.max(0,((K.next||0)-now)/1000)}; }
-  function takeCuttings(id){ const K=st.keepers&&st.keepers[id]; if(!K) return false; const c=cutState(id); if(!c.ready){ emit('toast',{t:'This mother needs to regrow before you snip again',k:'bad'}); return false; }
+  function cutState(id){ const K=keeperRec(id); if(!K) return null; const now=Date.now(); return {ready:!(K.next>now), wait:Math.max(0,((K.next||0)-now)/1000)}; }
+  function takeCuttings(id){ const K=keeperRec(id); if(!K) return false; const c=cutState(id); if(!c.ready){ emit('toast',{t:'Mother is regrowing',k:'bad'}); return false; }
     const n=CUT.n+(st.breedLab?2:0); if(!spend(CUT.cost*n)) return false; K.next=Date.now()+CUT.rest*1000; K.cut=(K.cut||0)+n;
     st.cuts=st.cuts||[]; st.cuts.push({id,n,t:0,dur:Math.round(CUT.root*(st.breedLab?.6:1))}); bump('cuttings',n); emit('cuttings',{id,n}); return true; }
   function tickCuts(dt){ if(!st.cuts||!st.cuts.length) return; for(const c of st.cuts) c.t+=dt; const done_=st.cuts.filter(c=>c.t>=c.dur); if(!done_.length) return;
@@ -788,10 +751,22 @@ window.G = (function(){
     emit('pack',out); return out;
   }
   // ---------- upgrades / workers ----------
-  function upgNeedOk(d){ return !d.need||(d.need==='gh'?st.ghBuilt:d.need==='land'?st.land:d.need==='in'?st.inBuilt:d.need==='lab'?st.breedLab:true); }
-  function buyUpg(k){ const d=UPG[k], l=lv(k); if(l>=maxLv(d)) return false; if(!upgNeedOk(d)){ emit('toast',{t:'Unlock that location first',k:'bad'}); return false; } if(d.lvl&&st.level<d.lvl){ emit('toast',{t:d.name+' unlocks at level '+d.lvl,k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.upg[k]=l+1; if(k==='water'&&l+1>=1) done('hose'); emit('upgrade',k); return true; }
-  function workerOk(k){ const d=WORKERS[k]; return st.level>=d.level&&upgNeedOk(d); }
-  function hire(k){ const d=WORKERS[k], l=wk(k); if(l>=d.max) return false; if(!workerOk(k)){ emit('toast',{t:d.name.split(',')[0]+' needs level '+d.level+(d.need?' and that location':''),k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.workers[k]=l+1; if(k==='mgrG') done('mgr'); emit('hire',k); return true; }
+  // Room gear stays locked until that room is actually built. Owned levels are left alone,
+  // so an old save that already has the greenhouse or the Indoor Facility keeps its gear.
+  function upgBlock(k){
+    const d=UPG[k]; if(!d) return '';
+    if(d.need==='gh'&&!st.ghBuilt) return 'Unlock the Greenhouse first';
+    if((d.loc==='indoor'||d.need==='in')&&!st.land&&!st.inBuilt) return 'Unlock the Indoor Facility first';
+    if(d.need==='in'&&!st.inBuilt) return 'Unlock the sealed benches first';
+    // Indoor sheet gear uses need:'land'. An old save that already built the benches can still buy it.
+    if(d.need==='land'&&!st.land&&!(d.loc==='indoor'&&st.inBuilt)) return 'Unlock the Indoor Facility first';
+    if(d.need==='lab'&&!st.breedLab) return 'Unlock the Breeding Room first';
+    return '';
+  }
+  function upgNeedOk(d){ if(!d) return false; if(d.need==='gh'&&!st.ghBuilt) return false; if((d.loc==='indoor'||d.need==='in')&&!st.land&&!st.inBuilt) return false; if(d.need==='in'&&!st.inBuilt) return false; if(d.need==='land'&&!st.land&&!(d.loc==='indoor'&&st.inBuilt)) return false; if(d.need==='lab'&&!st.breedLab) return false; return true; }
+  function buyUpg(k){ if(k==='stand'||!UPG[k]) return false; const d=UPG[k], l=lv(k); if(l>=maxLv(d)) return false; const block=upgBlock(k); if(block){ emit('toast',{t:block,k:'bad'}); return false; } if(d.lvl&&st.level<d.lvl){ emit('toast',{t:d.name+' unlocks at level '+d.lvl,k:'bad'}); return false; } if(!spend(cost(d,l))) return false; st.upg[k]=l+1; if(k==='water'&&l+1>=1) done('hose'); emit('upgrade',k); return true; }
+  function workerOk(){ return false; }
+  function hire(){ return false; }
   // ---------- rebirth (New Season) ----------
   function rebirthNeed(){ return 2e6*Math.pow(4,st.rebirths); }
   function rebirth(){
@@ -811,21 +786,22 @@ window.G = (function(){
   // players who never tap the card all stay in sync. If the player is more than one goal behind, the already-satisfied
   // goals are claimed automatically (rewards paid, one summary toast) and the card lands on the latest real goal.
   function questSat(q){ if(!q) return false; const t=st.stats||{};
-    const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:st.garage>=2, feed:t.feed>0, hose:lv('water')>=1,
-      order:t.orders>0, tent3:st.garage>=3, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:wk('mgrG')>0||wk('farmhand')>0,
+    const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:capOf('garage')>5, feed:t.feed>0, hose:lv('water')>=1,
+      order:t.orders>0, tent3:capOf('garage')>=9, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:st.plots.some(p=>p.zone==='gh'&&(p.strain||p.last)),
       breed:t.bred>0||!!st.breed, craft:(t.crafted||0)>0, ghfull:capOf('gh')>=INDOOR.ghPlants, permit:st.permit, indoor:st.inBuilt, inharv:t.inHarv>0, pheno:t.phenos>0, earn:st.runEarn>=2e6, season:false};
     if(c[q.id]) return true;
     // a later one-time milestone already reached means the player has clearly passed this step (e.g. bought land but never watered by hand)
     const MS=['gcap','hose','tent3','land','ghbuild','ghfull','permit','indoor']; const i=QUESTS.indexOf(q);
     return QUESTS.some((x,j)=>j>i&&MS.includes(x.id)&&c[x.id]); }
-  function payQuest(q){ if(q.r.cash) addCash(q.r.cash,'quest'); if(q.r.gems) addGems(q.r.gems,'Goal complete'); if(q.r.hints) st.hints+=q.r.hints;
-    if(q.r.mgr&&WORKERS[q.r.mgr]&&!wk(q.r.mgr)) st.workers[q.r.mgr]=1; else if(q.r.mgr&&!WORKERS[q.r.mgr]&&WORKERS.farmhand&&!wk('farmhand')) st.workers.farmhand=1; }
+  function payQuest(q){ if(q.r.cash) addCash(q.r.cash,'quest'); if(q.r.gems) addGems(q.r.gems,'Goal complete'); if(q.r.hints) st.hints+=q.r.hints; }
   function checkQuest(){ let q=curQuest(); if(!q) return;
+    // The order board is gone. Pay this goal once and step past it so the card never points at a missing tab. The quest stays in QUESTS so later indexes do not shift, and st.orders is left alone.
+    if(q.id==='order'){ payQuest(q); st.quest++; st.questDone=false; q=curQuest(); if(!q) return; }
     if(!st.questDone&&questSat(q)) done(q.id);
     let n=0; const R={cash:0,gems:0,hints:0};
     while(st.questDone&&(q=curQuest())&&questSat(QUESTS[st.quest+1])){ payQuest(q); for(const k in R) R[k]+=q.r[k]||0; st.quest++; st.questDone=true; n++; }
-    if(n){ emit('questcatchup',{n,R}); emit('toast',{t:'Caught up on '+n+' story goal'+(n>1?'s':'')+': '+[R.cash?fmt(R.cash):'',R.gems?R.gems+' gems':'',R.hints?R.hints+' hints':''].filter(Boolean).join(', '),k:'good'}); } }
-  function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; const kai=!wk('mgrG')&&q.r.mgr==='mgrG'; payQuest(q); if(kai&&wk('mgrG')) emit('toast',{t:'Kai joined as your garage manager! He keeps harvesting and replanting while you are away. One-time hire, no wages.',k:'gemt'});
+    if(n){ emit('questcatchup',{n,R}); emit('toast',{t:'Caught up: '+n+' goals',k:'good'}); } }
+  function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; payQuest(q);
     if(q.r.hints) emit('toast',{t:'+'+q.r.hints+' hint token'+(q.r.hints>1?'s':''),k:'gemt'});
     st.quest++; st.questDone=false; checkQuest(); emit('questclaim',q); return true; }
   // ---------- login streak, daily / weekly quests, achievements, events ----------
@@ -845,24 +821,25 @@ window.G = (function(){
     {k:'scouted',t:n=>'Wet season: find and remove '+n+' hidden pest nests',n:()=>3,need:()=>season()==='wet'&&st.land},
     {k:'trained',t:n=>'Dry season: top or LST '+n+' plants',n:()=>4,need:()=>season()==='dry'&&st.land},
     {k:'pruned',t:n=>'Prune '+n+' plants',n:()=>5,need:()=>st.land},
-    {k:'customers',t:n=>'Makahiki: serve '+n+' festival guests',n:()=>5,need:()=>season()==='makahiki'&&F.customers},
     {k:'plant',t:n=>'Plant '+n+' seeds',n:L=>6+L},{k:'water',t:n=>'Water '+n+' plants',n:L=>8+Math.floor(L/2)},
     {k:'harvests',t:n=>'Harvest '+n+' plants',n:L=>5+L},{k:'sold',t:n=>'Sell '+n+' buds',n:L=>20+5*L},
     {k:'earned',t:n=>'Earn '+fmt(n),n:L=>Math.max(100,Math.round(60*Math.pow(L,2.6)/50)*50)},{k:'dryLoads',t:n=>'Load the drying racks '+n+' times',n:()=>3},
     {k:'feed',t:n=>'Feed '+n+' plants',n:()=>4},{k:'bred',t:()=>'Try a crossbreed',n:()=>1,need:()=>gate('breed')},
-    {k:'orders',t:n=>'Fill '+n+' orders',n:()=>2,need:()=>F.orders},{k:'customers',t:n=>'Serve '+n+' walk-in customers',n:()=>2,need:()=>F.customers},
     {k:'inHarv',t:n=>'Harvest '+n+' indoor plants',n:()=>4,need:()=>st.inBuilt},{k:'cured',t:n=>'Cure '+n+' buds',n:L=>15+2*L,need:()=>lv('cure')>0},
   ];
   const WQ_POOL=[
     {k:'harvests',t:n=>'Harvest '+n+' plants',n:L=>60+8*L},{k:'earned',t:n=>'Earn '+fmt(n),n:L=>Math.max(1000,Math.round(600*Math.pow(L,2.6)/500)*500)},
-    {k:'sold',t:n=>'Sell '+n+' buds',n:L=>300+40*L},{k:'orders',t:n=>'Fill '+n+' orders',n:()=>12,need:()=>F.orders},
+    {k:'sold',t:n=>'Sell '+n+' buds',n:L=>300+40*L},
     {k:'bred',t:n=>'Try '+n+' crossbreeds',n:()=>5,need:()=>gate('breed')},{k:'mutants',t:n=>'Harvest '+n+' mutant plants',n:()=>2},
   ];
   function rollQuests(pool,count,rew){ const ok=pool.filter(q=>!q.need||q.need()); const out=[]; while(out.length<count&&ok.length){ const q=ok.splice(Math.floor(Math.random()*ok.length),1)[0]; const n=q.n(st.level); out.push({k:q.k,t:q.t(n),goal:n,base:stat(q.k),r:rew(),c:false}); } return out; }
+  function retireCustQuest(q){ if(!q||q.k!=='customers') return; q.k='sold'; q.t='Sell '+(q.goal||1)+' buds at the Market'; q.base=Math.min(q.base||0, stat('sold')); }
+  function retireOrderQuest(q){ if(!q||q.k!=='orders') return; q.k='sold'; q.t='Sell '+(q.goal||1)+' buds at the Market'; q.base=Math.min(q.base||0, stat('sold')); }
   function ensureQuests(){
     const L=st.level;
     if(!st.dq||st.dq.day!==dayKey()) st.dq={day:dayKey(),list:rollQuests(DQ_POOL,3,()=>({gems:5+Math.floor(L/5)*2,cash:Math.round(20*Math.pow(L,2))})),bonus:false};
     if(!st.wq||st.wq.week!==weekKey()) st.wq={week:weekKey(),list:rollQuests(WQ_POOL,3,()=>({gems:30+Math.floor(L/5)*5,cash:Math.round(200*Math.pow(L,2))})),bonus:false};
+    for(const Q of [st.dq,st.wq]) if(Q&&Q.list) Q.list.forEach(q=>{ retireCustQuest(q); retireOrderQuest(q); });
   }
   function qProg(q){ return Math.min(q.goal,stat(q.k)-q.base); }
   function claimQ(which,i){ ensureQuests(); const Q=which==='w'?st.wq:st.dq, q=Q.list[i]; if(!q||q.c||qProg(q)<q.goal) return false; q.c=true; addGems(q.r.gems); addCash(q.r.cash,'quest'); emit('qclaim',q);
@@ -880,7 +857,7 @@ window.G = (function(){
    ['island','Island Roots','All Island Strains',null,null,[3,S.filter(x=>x.island).length]],
    ['rebirths','New Season','Many Moons',null,null,[1,5]],
    ['streakMax','Week-Long Streak','Month-Long Streak',null,null,[7,30]],
-   ['sold','Market Regular','Farm Stand Star',null,null,[500,10000]],
+   ['sold','Market Regular','Market Mogul',null,null,[500,10000]],
    ['orders','Order Up','Contract Grower','Island Supplier',null,[5,50,250]],
    ['customers','Good Listener','Neighborhood Favorite',null,null,[5,50]],
    ['rep','Local Favorite','Island Famous','Pacific Legend',null,[40,1200,5000]],
@@ -890,13 +867,13 @@ window.G = (function(){
    ['geckos','Gecko Spotter','Gecko Whisperer',null,null,[1,25]],
    ['crafted','Hash Maker','Master Crafter',null,null,[5,200]],
    ['level','Rising Grower','Seasoned Grower','Island Elder',null,[10,25,50]],
-  ].filter(([k])=>({orders:F.orders,customers:F.customers,rep:F.repTiers,setsDone:F.sets,mastered:F.mastery})[k]!==false).forEach(([k,a,b,c,d,goals])=>goals.forEach((g,i)=>ACH.push({id:k+i,k,name:[a,b,c,d][i],goal:g,gems:[10,20,35,50][i]})));
+  ].filter(([k])=>({orders:false,customers:F.customers,rep:F.repTiers,setsDone:F.sets,mastered:F.mastery})[k]!==false).forEach(([k,a,b,c,d,goals])=>goals.forEach((g,i)=>ACH.push({id:k+i,k,name:[a,b,c,d][i],goal:g,gems:[10,20,35,50][i]})));
   function achReady(){ return ACH.filter(a=>st.ach[a.id]===1).length; }
   function checkAch(){ ACH.forEach(a=>{ if(!st.ach[a.id]&&stat(a.k)>=a.goal){ st.ach[a.id]=1; emit('ach',a); } }); }
   function claimAch(id){ const a=ACH.find(x=>x.id===id); if(!a||st.ach[id]!==1) return false; st.ach[id]=2; addGems(a.gems); emit('achclaim',a); return true; }
   function bump(k,n){ if(n==null) n=1; if(n) st.stats[k]=(st.stats[k]||0)+n; }
   const EVENTS={ moon:{name:'Lucky Pheno Hunt',desc:'3x mutation chance, +1 hint token',dur:120}, festival:{name:'Island Festival',desc:'2x XP',dur:120}, swell:{name:'Big Swell',desc:'Surfers in town: +25% prices',dur:100} };
-  function mutChance(p){ return (p&&p.zone==='garage'&&garageRole()==='pheno'?2:1)*(st.breedLab?2:1)*.035*(st.weather.type==='vog'?1.5:1)*(evFx('moon')?3:1)*(1+.25*mana('pheno')); }
+  function mutChance(p){ return (p&&p.zone==='garage'&&garageRole()==='pheno'?2:1)*(st.breedLab?2:1)*.035*(evFx('moon')?3:1)*(1+.25*mana('pheno')); }
   function tickEvent(dt){ if(!F.events||st.level<GATE.events) return; const e=st.event; if(e.id){ e.t-=dt; if(e.t<=0){ e.id=null; e.next=240+Math.random()*240; emit('eventend'); } } else { e.next-=dt; if(e.next<=0){ if(Math.random()<.4){ const se=seasonEv(); e.id='season'; e.t=se.dur; if(se.fx==='moon') st.hints++; bump('seasonEv'); emit('event',se); } else { const ks=Object.keys(EVENTS); const id=ks[Math.floor(Math.random()*ks.length)]; e.id=id; e.t=EVENTS[id].dur; if(id==='moon') st.hints++; emit('event',EVENTS[id]); } } } }
   function tierWeight(tier){ return tier>=3?1:tier===2?3:6; }
   // Same filter and weights as pickSeed. packOdds reads this so the shop table cannot drift from the roll.
@@ -956,19 +933,15 @@ window.G = (function(){
   function tick(dt,offline){
     st.playT+=dt; tickBoosts(dt);
     if(!offline){ syncTime(); tickWeather(dt); tickEvent(dt); tickCust(dt); tickGecko(dt); }
-    for(const l of LOCS){ st.upkeepWarn[l]=Math.max(0,(st.upkeepWarn[l]||0)-dt); warnNow[l]=0; }
-    // fixed $/hour costs; skipped (never debt) if cash is short
-    for(const l of ['farm','indoor']){ const f=FIXED[l]()*dt/3600; if(f>0){ if(st.cash>=f){ st.cash-=f; st.upkeepPaid+=f; } else warnNow[l]=1; } }
     for(const p of st.plots) tickPlot(p,dt,offline);
-    for(const l of LOCS) if(warnNow[l]){ if(!st.upkeepWarn[l]) emit('upkeepwarn',l); st.upkeepWarn[l]=3; }
     tickDryer(dt); tickMarket(dt); tickBreed(dt); tickAuto(dt,offline); tickOrders(dt); tickCraft(dt);
     checkQuest(); achT+=dt; if(achT>1){ achT=0; checkAch(); safetyNet(); }
   }
   // Never soft-lock: if broke with nothing growing, nothing to sell and no seeds, Unko Kuli drops off free starter seeds.
   function safetyNet(){
-    if(st.cash>=1) return; if(Object.values(st.seeds).some(n=>n>0)) return; if(st.plots.some(p=>p.strain)) return;
+    if(st.cash>=1) return; const seedBag=st.seeds&&typeof st.seeds==='object'&&!Array.isArray(st.seeds)?st.seeds:{}; if(Object.values(seedBag).some(n=>typeof n==='number'&&n>0)) return; if(st.plots.some(p=>p.strain)) return;
     if(invCount('wet')+invCount('dry')+invCount('cured')>0||st.dryer.length) return;
-    st.seeds['northern-lights']=(st.seeds['northern-lights']||0)+3; st.selSeed='northern-lights'; emit('toast',{t:'Unko Kuli dropped off 3 free Northern Lights seeds. Keep growing!',k:'good'}); emit('seeds',{id:'northern-lights',n:3});
+    st.seeds['northern-lights']=(st.seeds['northern-lights']||0)+3; st.selSeed='northern-lights'; emit('toast',{t:'3 Northern Lights seeds',k:'good'}); emit('seeds',{id:'northern-lights',n:3});
   }
   let achT=0;
   // Fast-forward (offline catch-up and time skips). Step grows for long absences so 3 days stays fast.
@@ -1001,6 +974,18 @@ window.G = (function(){
   if(window.Store&&Store.onWriteFail) Store.onWriteFail((k,r)=>{ if(k===CFG.saveKey) warnSave(r); });
   function save(){
     if(st._holdSave){ warnSave('The save on this device could not be read, so it was not overwritten. Export it from Settings.'); return false; }
+    try{
+      const prev=Store.get(CFG.saveKey);
+      if(prev){
+        let old=null; try{ old=JSON.parse(prev); }catch(e){ old=null; }
+        if(old&&typeof old==='object'&&!Array.isArray(old)&&playerIdOk(old.pid)&&playerIdOk(st.pid)&&old.pid!==st.pid){
+          const ahead=(old.level|0)>(st.level|0)
+            ||((old.level|0)===(st.level|0)&&typeof old.cash==='number'&&old.cash>st.cash+1)
+            ||(Array.isArray(old.plots)&&old.plots.some(p=>p&&p.strain)&&!(Array.isArray(st.plots)&&st.plots.some(p=>p&&p.strain))&&(old.level|0)>=(st.level|0));
+          if(ahead){ warnSave('A further-along farm is already saved on this device, so it was not overwritten.'); return false; }
+        }
+      }
+    }catch(e){}
     st.lastSave=Date.now();
     let json; try{ json=JSON.stringify(st); }catch(e){ warnSave('Could not save the farm. Export a backup from Settings before you leave.'); return false; }
     const r=Store.set(CFG.saveKey,json);
@@ -1074,6 +1059,24 @@ window.G = (function(){
     if(!st.market||typeof st.market!=='object'||Array.isArray(st.market)) st.market={f:{},hist:{},hot:null,hotT:-150,next:0};
     if(!st.market.f||typeof st.market.f!=='object') st.market.f={};
     if(!st.market.hist||typeof st.market.hist!=='object') st.market.hist={};
+    if(st.market.hot!=null&&typeof st.market.hot!=='string') st.market.hot=null;
+    // Old saves sometimes stored lists as objects, nulls, or id arrays. Coerce them so a panel
+    // can open instead of throwing and looking like a dead menu button.
+    const asList=v=>Array.isArray(v)?v.filter(x=>x&&typeof x==='object'):(v&&typeof v==='object'?Object.values(v).filter(x=>x&&typeof x==='object'):[]);
+    const asMap=v=>v&&typeof v==='object'&&!Array.isArray(v)?v:{};
+    ['orders','cust','dryer','cuts','craft'].forEach(k=>{ st[k]=asList(st[k]); });
+    ['goods','clones','keepers','lines','tried','recipes','harv','upkeepWarn','hintRev','cutSeeds','seeds','workers','upg','boosts','fest','lb','sets','manaSpent'].forEach(k=>{ st[k]=asMap(st[k]); });
+    const keepMap=(v,ok)=>{ const src=v&&typeof v==='object'&&!Array.isArray(v)?v:{}; const out={}; Object.keys(src).forEach(k=>{ if(typeof k==='string'&&k&&ok(src[k])) out[k]=src[k]; }); return out; };
+    const numOk=v=>typeof v==='number'&&isFinite(v);
+    ['seeds','harv','cutSeeds','workers','upg','hintRev','boosts','goods','manaSpent'].forEach(k=>{ st[k]=keepMap(st[k], numOk); });
+    ['wet','dry','cured'].forEach(k=>{ st.inv[k]=keepMap(st.inv[k], numOk); });
+    st.tried=keepMap(st.tried, v=>typeof v==='string'&&v);
+    st.recipes=keepMap(st.recipes, v=>typeof v==='string'&&v);
+    st.clones=keepMap(st.clones, v=>v===true||v===1);
+    st.lines=healLines(st.lines);
+    st.keepers=healKeepers(st.keepers);
+    if(Array.isArray(raw.discovered)){ st.discovered={}; raw.discovered.forEach(id=>{ if(typeof id==='string') st.discovered[id]=true; }); }
+    else st.discovered=keepMap(asMap(st.discovered), v=>v!=null&&v!==false);
     if(typeof st.cash!=='number'||!isFinite(st.cash)) st.cash=0;
     if(typeof st.gems!=='number'||!isFinite(st.gems)) st.gems=0;
     if(typeof st.level!=='number'||!isFinite(st.level)||st.level<1) st.level=1;
@@ -1083,7 +1086,28 @@ window.G = (function(){
     S.forEach(s=>{ if(st.market.f[s.id]==null) st.market.f[s.id]=1; if(!st.market.hist[s.id]) st.market.hist[s.id]=[]; });
     return prevV;
   }
-  function migrateGarage(st){ if(st&&!st.garageV){ st.garageV=2; st.garage=Math.max(0,Math.min(7,st.garage|0)); } }   // see GARAGE note
+  // v2 stored a level 0–7 for caps 2,4,6,9,13,17,21,25. v3 is 5 then +3 up to 20.
+  // newState already stamps garageV 3, and adoptSave copies that onto an old file that never had the field,
+  // so the version has to be read from the raw save. Owned pots are kept (a 25-pot save stays at 25).
+  // Buys still stop at 20. Plot ids are not rewritten.
+  function migrateGarage(st, raw){
+    if(!st) return;
+    const OLD=[2,4,6,9,13,17,21,25];
+    if(!raw){ st.garageV=3; if(!(st.garageKeep>0)) st.garageKeep=0; return; }
+    const ver=raw.garageV|0;
+    if(ver>=3){
+      st.garage=Math.max(0,Math.min(GARAGE.length-1,st.garage|0));
+      st.garageKeep=(st.garageKeep|0)>0?(st.garageKeep|0):0;
+      st.garageV=3;
+      return;
+    }
+    const lv=Math.max(0,Math.min(OLD.length-1,raw.garage|0));
+    let owned=OLD[lv];
+    (st.plots||[]).forEach(p=>{ if(p&&p.zone==='garage'&&(p.owned||p.strain)) owned=Math.max(owned,(p.idx|0)+1); });
+    if(owned<5) owned=5;
+    let idx=0; for(let i=0;i<GARAGE.length;i++) if(GARAGE[i].cap<=owned) idx=i;
+    st.garage=idx; st.garageKeep=owned>GARAGE[idx].cap?owned:0; st.garageV=3;
+  }
   // p.food used to drain from 1 to 0. Any leftover food means this grow was already fed, so snap it
   // to 1 and leave it there. Empty or missing food stays 0. A stray nutrient pile on the save
   // (there is no nutrient item in this build) is left untouched so old saves still load.
@@ -1142,9 +1166,9 @@ window.G = (function(){
       // v2 saves from before real-time: keep the same in-game day/hour, then let the wall clock drive it
       if(raw&&(!raw.tv||raw.t0==null)){ const old=raw.time||0, days=old/480; st.t0=(raw.lastSave||Date.now())-days*DAY_LEN*1000; st.tv=2; }
       if(st.land&&!st.phenoRoom) st.phenoRoom=true;
-      migrateGarage(st); if((st.garage|0)<1) st.garage=1;   // everyone gets the 4-bucket start
+      migrateGarage(st, raw); migrateRoom(st, raw); migrateIndoorGear(st);
       if(st.inBuilt) st.found=true;
-      if(st.upg&&st.upg.sign==null&&st.upg.stand){ st.upg.sign=st.upg.stand; st.upg.stand=Math.min(3,st.upg.stand); }
+      // Older saves may store upg.stand. Leave the number on the save. It does not buy anything and does not change prices.
       // pre-real-economy saves: prices changed scale, so convert cash (assets, upgrades, inventory and crew are kept)
       if(raw&&!raw.econ){ st.econ=2; st.cash=Math.min((raw.cash||0)*2,50000+Math.pow(st.level,2)*2500); st.econMigrated=true; }
       // Saves from before the tutorial stay in normal play. A brand-new game keeps the offer.
@@ -1153,7 +1177,7 @@ window.G = (function(){
       syncTime();
       const fp=freshPlots(); fp.forEach(q=>{ if(!st.plots.find(p=>p.id===q.id)) st.plots.push(q); });
       syncPlots(); migrateFeeds(st); applyEntitlements(); refreshUnlocks(); ensureQuests();
-      // crew hired before this update stay hired (including after entitlement grants)
+      // Older saves may list hired helpers. Keep the object and ignore it: nobody is automated from it.
       if(raw&&raw.workers&&typeof raw.workers==='object'&&!Array.isArray(raw.workers)){
         for(const k of Object.keys(raw.workers)) if(raw.workers[k]>0&&!(st.workers[k]>0)) st.workers[k]=raw.workers[k];
       }
@@ -1170,13 +1194,27 @@ window.G = (function(){
     if(raw&&!playerIdOk(raw.pid)&&!st._holdSave) save();
     return {fresh:!raw,off,migrated:false,corrupt:false,kept:schemaKept};
   }
+  // Fresh ?test=lv10 farm. Buildings stay locked behind their level and cost.
+  // Strains with unlockLevel <= 10 show up in the shop. The tutorial does not.
+  function applyTestStart(){
+    st.level=10; st.xp=0; st.cash=100000000;
+    st.land=false; st.ghBuilt=false; st.permit=false; st.found=false; st.inBuilt=false; st.breedLab=false;
+    st.garage=0; st.garageKeep=0; st.garageV=3;
+    st.room='garage'; st.loc='garage';
+    st.tut={v:1,step:0,on:false,done:true,skip:true,bought:0};
+    st.streak={n:0,last:dayKey()};
+    if(st.gecko) st.gecko.next=240;
+    syncPlots();
+    lvlQuiet=true; refreshUnlocks(); lvlQuiet=false;
+    save();
+  }
   function applyEntitlements(){
     const P=window.Payments; if(!P) return;
     if(P.isOwned('pass2x')||P.isOwned('pass2x_g')) st.pass2x=true;
     if(P.isOwned('vip')||P.isOwned('vip_g')) st.vip=true;
     ['neon','plumeria','mauna'].forEach(t=>{ if(P.isOwned('theme_'+t)) st.themes[t]=true; });
     if(P.isOwned('starter')) st.themes.neon=true;
-    st.cos=st.cos||{own:{},eq:{}}; for(const [id,p] of Object.entries(window.PRODUCTS||{})){ if(!P.isOwned(id)) continue; if(p.grants.cos) st.cos.own[p.grants.cos]=true; if(p.grants.mgrSlot){ st.mgrSlot=true; st.workers.mgrX=2; } }
+    st.cos=st.cos||{own:{},eq:{}}; for(const [id,p] of Object.entries(window.PRODUCTS||{})){ if(!P.isOwned(id)) continue; if(p.grants.cos) st.cos.own[p.grants.cos]=true; if(p.grants.mgrSlot) st.mgrSlot=true; }
   }
   function grantProduct(p){
     const g=p.grants;
@@ -1194,7 +1232,7 @@ window.G = (function(){
     if(g.boost){ st.boosts=st.boosts||{}; st.boosts[g.boost]=boostLeft(g.boost)+(g.sec||3600); emit('boost',g.boost); }
     if(g.piggy){ const n=Math.floor(st.piggy.g); st.piggy.g=0; st.piggy.cracked++; addGems(n,'Piggy bank'); emit('piggy',n); }
     if(g.pass){ const P=passState(); P.premium=true; if(g.pass==='plus'&&!P.plus){ P.plus=true; P.xp=Math.max(P.xp,(passTier()+PZ.PRICE.plusSkip)*PZ.XP_PER_TIER); } emit('pass',g.pass); }
-    if(g.mgrSlot){ st.mgrSlot=true; st.workers.mgrX=2; emit('hire','mgrX'); }
+    if(g.mgrSlot) st.mgrSlot=true;
     save(); emit('granted',p);
   }
   function buyWithGems(id){
@@ -1221,8 +1259,11 @@ window.G = (function(){
     if(k==='breed') st.breed.t=st.breed.dur; else if(k==='hunt') st.hunt.t=st.hunt.dur; else if(k==='cert') st.cert.t=st.cert.dur; else if(k==='cut') st.cuts[i].t=st.cuts[i].dur; else if(k==='dry') st.dryer[i].t=st.dryer[i].dur; else if(k==='craft') st.craft[i].T=st.craft[i].dur;
     tickBreed(0); tickCraft(0); tickDryer(0); emit('rushed',t); save(); return true; }
   // breeding completion (strain web tracker) + a rough plan estimate for the pacing report
-  function breedProgress(){ const M=S.filter(s=>s.mystery), d=M.filter(s=>st.discovered[s.id]).length, L=Object.values(st.lines||{}), stab=L.filter(v=>v.gen>=LINE.stable).length, ibl=L.filter(v=>v.gen>=LINE.max).length, heir=L.filter(v=>v.heir).length;
-    return {mystery:M.length, found:d, all:S.length, known:Object.keys(st.discovered).length, lines:L.length, stable:stab, ibl, heir, pct:Math.round(100*(d+stab+heir)/(3*M.length))}; }
+  function breedProgress(){ const M=S.filter(s=>s&&s.mystery), disc=st.discovered&&typeof st.discovered==='object'&&!Array.isArray(st.discovered)?st.discovered:{}, d=M.filter(s=>disc[s.id]).length;
+    const bag=st.lines&&typeof st.lines==='object'&&!Array.isArray(st.lines)?st.lines:{};
+    const L=Object.values(bag).filter(v=>v&&typeof v==='object'&&!Array.isArray(v)).map(v=>lineRecord(v,true)).filter(v=>v&&typeof v==='object'&&typeof v.gen==='number');
+    const stab=L.filter(v=>v.gen>=LINE.stable).length, ibl=L.filter(v=>v.gen>=LINE.max).length, heir=L.filter(v=>v.heir).length;
+    return {mystery:M.length, found:d, all:S.length, known:Object.keys(disc).length, lines:L.length, stable:stab, ibl, heir, pct:M.length?Math.round(100*(d+stab+heir)/(3*M.length)):0}; }
   function breedPlanEstimate(o){ o=Object.assign({sessionsPerDay:4,labLv:1},o||{}); // real days, assuming the Breeding Pheno Room, ~4 check-ins a day and the lab upgrades bought over time
     const lab=.6, pol=Math.pow(.85,2), tis=Math.pow(.8,2), gap=24*3600/o.sessionsPerDay/2; let sec=0, n=0;
     for(const s of S.filter(s=>s.mystery)){ const t=Math.min(4,s.tier); sec+=CROSS_T[t]*lab*pol+gap+s.game.growSec*.5; // cross + grow its seeds (overlapped with other work)
@@ -1299,11 +1340,78 @@ window.G = (function(){
     emit('toast',{t:'Tester: garage, land, greenhouse, indoor, lab, and crafting are open. '+f.name+' is on.',k:'good long'});
     save(); return true;
   }
-  function setLoc(l){ if(!LOCS.includes(l)) return; st.loc=l; emit('loc',l); }
+  // Player-facing rooms. Indoor Facility is the old family land (zone field, 40 plots).
+  // Greenhouse is the outdoor glass house (zone gh). Sealed benches stay the late indoor zone
+  // so an old indoor save is not dropped; they are a chip inside the facility, not a fourth home tab.
+  const ROOM_ZONE={garage:'garage',facility:'field',gh:'gh',benches:'in'};
+  const ROOM_NAME={garage:'Garage',facility:'Indoor Facility',gh:'Greenhouse',benches:'Benches'};
+  function roomZone(r){ return ROOM_ZONE[r]||'garage'; }
+  // Indoor sheet gear was retuned (fewer steps, lower prices, need the facility). Owned levels stay.
+  // A light level past the new 3-step cap, or climate past the new single buy, still applies in full.
+  // Veg, clone, dry room and solar stay on the save and keep their effects.
+  function migrateIndoorGear(s){
+    if(!s) return;
+    if(!s.upg||typeof s.upg!=='object'||Array.isArray(s.upg)) s.upg={};
+    ['led','hvac','co2','fert','air','veg','clone','dryroom','solar'].forEach(k=>{
+      if(s.upg[k]==null) return;
+      const n=s.upg[k]|0;
+      s.upg[k]=n>0?n:0;
+    });
+    s.inGear=1;
+  }
+  function migrateRoom(s, raw){
+    if(!s) return;
+    // newState fills room:'garage' before the save is merged, so an old file with no room
+    // field must follow its loc. A save that already picked a room keeps that pick.
+    const known=raw&&(raw.room==='garage'||raw.room==='gh'||raw.room==='facility'||raw.room==='benches');
+    if(!known){
+      if(s.loc==='indoor'&&s.inBuilt) s.room='benches';
+      else if(s.loc==='farm') s.room='facility';
+      else s.room='garage';
+    }
+    if(s.room==='benches'&&!s.inBuilt) s.room=s.land?'facility':'garage';
+    if(s.room!=='garage'&&s.room!=='gh'&&s.room!=='facility'&&s.room!=='benches') s.room='garage';
+  }
+  function currentRoom(){
+    if(!st) return 'garage';
+    if(st.room==='benches'&&st.inBuilt) return 'benches';
+    if(st.room==='gh') return 'gh';
+    if(st.room==='facility') return 'facility';
+    if(st.room==='garage') return 'garage';
+    if(st.loc==='indoor'&&st.inBuilt) return 'benches';
+    if(st.loc==='farm') return 'facility';
+    return 'garage';
+  }
+  function roomOpen(r){
+    if(r==='garage') return true;
+    if(r==='facility') return !!st.land;
+    if(r==='gh') return !!st.ghBuilt;
+    if(r==='benches') return !!st.inBuilt;
+    return false;
+  }
+  function setRoom(r){
+    if(r!=='garage'&&r!=='gh'&&r!=='facility'&&r!=='benches') return;
+    if(r==='benches'&&!st.inBuilt) return;
+    st.room=r;
+    const l=r==='benches'?'indoor':r==='garage'?'garage':'farm';
+    st.loc=l;
+    emit('loc',l);
+    emit('room',r);
+  }
+  function setLoc(l){
+    if(l==='garage') return setRoom('garage');
+    if(l==='indoor') return setRoom('benches');
+    if(l==='farm') return setRoom('facility');
+  }
+  function plotsHere(){ const z=roomZone(currentRoom()); return st.plots.filter(p=>p.zone===z); }
   function ripeIn(l){ return st.plots.filter(p=>p.loc===l&&p.strain&&p.prog>=1).length; }
+  function roomRipe(r){ const z=roomZone(r); return st.plots.filter(p=>p.zone===z&&p.strain&&p.prog>=1).length; }
+  const crewLog=[];
+  function noteCrew(w){ if(w){ crewLog.push(w); if(crewLog.length>120) crewLog.shift(); } }
+  function drainCrew(){ const a=crewLog.slice(); crewLog.length=0; return a; }
 
   return {
-    get st(){return st}, F, S, BY, strain, UPG, WORKERS, WEATHER, QUESTS, ZONE, UPK_NAME, LOCS, LOC_NAME, TIERN, STAGE_MULT, DAY_LEN, GARAGE, FIELD, GH, GH_BUILD, BENCH, INDOOR, LAND_COST, LAND_LEVEL,
+    get st(){return st}, F, S, BY, strain, UPG, WORKERS, WEATHER, QUESTS, ZONE, UPK_NAME, LOCS, LOC_NAME, TIERN, STAGE_MULT, DAY_LEN, GARAGE, FIELD, GH, GH_BUILD, BENCH, INDOOR, INDOOR_GEAR, LAND_COST, LAND_LEVEL,
     REP, repTier, addRep, MASTERY, mastery, SETS, MANA_UPG, manaCost, manaGain, buyMana, mana,
     passState, passTier, passClaim, passClaimAll, seasonEv, evFx, sqInfo, sqClaim, sqReady, sqWeek, startSeasonEvent:()=>{ const se=seasonEv(); st.event.id='season'; st.event.t=se.dur; emit('event',se); },
     LINE, HEIR, VAULT, heirCount, heirCost, canCertify, startCertify, claimVault, checkVault, lineGen, lineName, lineMult, stableLines, breedProgress, breedPlanEstimate, CROSS_T, HUNT_T,
@@ -1312,10 +1420,10 @@ window.G = (function(){
     on, emit, fmt, num, dur, cost, maxLv, lv, wk, earnMult, xpNeed, key, unkey, invCount, capOf, syncPlots, locOpen, nextStep, buyStep, buyLand, buildGH, buyPermit, indoorChecklist, buildIndoor,
     buySeeds, seedPrice, plant, water, feed, feedCost, harvest, quality, yieldMult, cycleCost, upkeepRates, growRate, timeLeft, isNight, dayPhase, stage, dryerSlots, batchMax, loadDryer,
     price, sell, sellAll, marketDay, dayNum, regTier, orderSlots, orderValue, orderHave, fillOrder, PREFS, prefOk, custMatch, serveCust,
-    recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
+    recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, upgBlock, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
-    tick, simulate, save, load, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, ripeIn, OFFLINE_CAP,
+    tick, simulate, save, load, applyTestStart, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,
     devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll, devGrantCash, devGrantGems,
   };
 })();
