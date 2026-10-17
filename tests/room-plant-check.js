@@ -99,7 +99,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const goal=document.getElementById('goal'); if(goal) goal.classList.remove('open');
         G.st.level=10; G.st.cash=900000;
         window.__draws=0;
-        if(window.Art&&!Art.drawPlant.__wrapped){
+        if(window.Art&&Art.drawPlant&&!Art.drawPlant.__wrapped){
           const o=Art.drawPlant;
           const wrapped=function(){ window.__draws++; return o.apply(this, arguments); };
           wrapped.__wrapped=1;

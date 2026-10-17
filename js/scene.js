@@ -1,7 +1,7 @@
 /* Scene renderer (window.R): painted location art + sprite plants at real-world scale.
    Garage | Farm (greenhouse + terraces in front of the island backdrop) | Indoor facility.
-   Plants: painted art/gs_* growth rows, art/sig_* portraits, and art/mature_*.webp tinted per strain.
-   Rooms use those same pictures (not the procedural stand-in). People are 1.7 m tall; plants 1-2 m. */
+   Room plants, the plant card, and the seed shop use art/plants sprites tinted per strain.
+   People are 1.7 m tall; plants 1-2 m. */
 window.R=(function(){
   const TAU=Math.PI*2;
   let cv,ctx,W=0,H=0,dpr=1,t=0, loc='garage';
@@ -13,7 +13,7 @@ window.R=(function(){
   // Adult people (art-src/npcs.jpg). The teen figure in the source sheet is never exported or used (18+ game).
   const PEOPLE={customer:['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist'],farmhand:['npc_overalls','npc_crate'],walker:['npc_tourist','npc_aloha','npc_sundress','npc_elder','npc_tank']};
   [...new Set(Object.values(SIG))].forEach(n=>NAMES.push('sig_'+n,'sig_'+n+'_pot')); ['npc_sundress','npc_tank','npc_aloha','npc_elder','npc_tourist','npc_overalls','npc_crate'].forEach(n=>NAMES.push(n));
-  function loadImages(){ let left=NAMES.length; NAMES.forEach(n=>{ const im=new Image(); im.onload=()=>{ loaded++; if(--left===0) artSettled(); }; im.onerror=()=>{ im._bad=true; if(/^stage|^mature/.test(n)) imgOK=false; if(--left===0) artSettled(); }; im.src='art/'+n+'.webp'; IM[n]=im; }); }
+  function loadImages(){ let left=NAMES.length; NAMES.forEach(n=>{ const im=new Image(); im.onload=()=>{ loaded++; if(--left===0) artSettled(); }; im.onerror=()=>{ im._bad=true; if(/^stage|^mature/.test(n)) imgOK=false; if(--left===0) artSettled(); }; im.src='art/'+n+'.webp'; IM[n]=im; }); loadPlantArt(); }
   // Sprites finished (or failed). Drop baked thumbs so an open Seeds / Strains sheet upgrades from the stand-in plant.
   function artSettled(){ try{ detailC.clear(); }catch(e){} dropCloseups(); try{ if(window.UI&&UI.artReady) UI.artReady(); }catch(e){} }
   const ok=n=>IM[n]&&IM[n].complete&&IM[n].naturalWidth>0;
@@ -783,47 +783,130 @@ window.R=(function(){
     if(detailC.size>160) detailC.clear();
     detailC.set(key,out); return out;
   }
-  function procSprite(st,prog,destPx){
-    if(!window.Art) return null;
-    const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
-    const light=roomLight();
-    const logical=220;
-    const sc=Math.max(2,Math.min(3,Math.ceil(Math.max(dpr||1,(destPx||0)/logical))));
-    const base=(look(st).base)||'green';
-    const key='proc|'+(st.id||st.type||'p')+'|'+stage+'|'+base+'|'+sc+'|'+light;
-    const hit=detailC.get(key); if(hit) return hit;
-    const LW=480, LH=600, stemY=LH-8;
-    const W=Math.round(LW*sc), H=Math.round(LH*sc);
-    const c=document.createElement('canvas'); c.width=W; c.height=H;
-    const x=c.getContext('2d');
-    x.save(); x.scale(sc,sc);
-    Art.drawPlant(x,st,stage,LW/2,stemY,1,0);
-    x.restore();
-    applyRoomLight(x,W,H,light);
-    let out; try{ out=cropOpaque(c); }catch(e){ out={c,w:W,h:H,base:1}; }
-    out.painted=0;
-    if(detailC.size>160) detailC.clear(); detailC.set(key,out); return out;
+  // Painted growth sprites. Keyed off the original pink plates, pot removed, stem at the foot.
+  const PLANT_SRC={seedling:'art/plants/seedling.png',veg:'art/plants/veg.png',flower:'art/plants/flower.png',indica:'art/plants/indica_ripe.png',sativa:'art/plants/sativa_ripe.png',hybrid:'art/plants/hybrid_ripe.png'};
+  const PLANT_IM={};
+  let plantN=0;
+  const plantTint=new Map();
+  function plantsReady(){ return !!(PLANT_IM.seedling&&PLANT_IM.veg&&PLANT_IM.flower&&PLANT_IM.indica&&PLANT_IM.sativa&&PLANT_IM.hybrid); }
+  function loadPlantArt(){
+    plantN=0;
+    Object.keys(PLANT_SRC).forEach(k=>{
+      const im=new Image();
+      im.onload=()=>{ PLANT_IM[k]=im; plantN++; if(plantsReady()){ try{ detailC.clear(); plantTint.clear(); }catch(e){} dropCloseups(); try{ if(window.UI&&UI.artReady) UI.artReady(); }catch(e){} } };
+      im.onerror=()=>{ plantN++; };
+      im.src=PLANT_SRC[k];
+    });
   }
-  // In-room plant: original painted growth art, one sprite per strain and stage.
-  // The seed shop keeps its own bud portraits. This drawing is the whole plant.
-  function grownSprite(st,prog,variant){
-    if(!st||!st.id||!window.Art) return null;
+  function hsvOf(r,g,b){
+    r/=255; g/=255; b/=255;
+    const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
+    let h=0;
+    if(d>1e-5){
+      if(mx===r) h=((g-b)/d)%6;
+      else if(mx===g) h=(b-r)/d+2;
+      else h=(r-g)/d+4;
+      h/=6; if(h<0) h+=1;
+    }
+    return [h, mx?d/mx:0, mx];
+  }
+  function hsvRgb(h,s,v){
+    h=((h%1)+1)%1; s=Math.max(0,Math.min(1,s)); v=Math.max(0,Math.min(1,v));
+    const i=Math.floor(h*6), f=h*6-i, p=v*(1-s), q=v*(1-f*s), t=v*(1-(1-f)*s);
+    const tab=[[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i]||[v,v,v];
+    return [tab[0]*255, tab[1]*255, tab[2]*255];
+  }
+  function hueToward(r,g,b,tgt,amt){
+    const A=hsvOf(r,g,b), B=hsvOf(tgt[0],tgt[1],tgt[2]);
+    let dh=B[0]-A[0]; if(dh>.5) dh-=1; if(dh<-.5) dh+=1;
+    const s=Math.max(0, Math.min(.94, A[1]*(1-amt*.7)+B[1]*Math.min(1,amt*.9)));
+    const v=Math.max(.05, Math.min(1, A[2]*(1-amt*.4)+B[2]*amt*.4));
+    return hsvRgb(A[0]+dh*amt, s, v);
+  }
+  function mix3(a,b,t){ return [a[0]*(1-t)+b[0]*t, a[1]*(1-t)+b[1]*t, a[2]*(1-t)+b[2]*t]; }
+  // Leaf pixels follow look.leaf. Dense upper growth follows look.bud. Orange hairs follow look.pistil.
+  function tintPlantPixels(data,w,h,L,buddy){
+    const leaf=rgb(L.leaf||'#4f8a32'), bud=rgb(L.bud||'#6a9a3a'), bud2=rgb(L.bud2||L.bud||'#d6f09a'), pist=rgb(L.pistil||'#e8a050');
+    const frost=Math.max(0, Math.min(1, L.frost==null?.5:+L.frost));
+    let y0=h, y1=0;
+    for(let y=0;y<h;y++){
+      const row=y*w*4;
+      for(let x=0;x<w;x+=2){ if(data[row+x*4+3]>20){ if(y<y0) y0=y; y1=y; break; } }
+    }
+    if(y1<=y0) return;
+    const span=y1-y0;
+    for(let p=0, n=w*h; p<n; p++){
+      const i=p*4, a=data[i+3]; if(a<16) continue;
+      const r=data[i], g=data[i+1], b=data[i+2];
+      const up=(y1-(p/w|0))/span;
+      const v=(r*.3+g*.59+b*.11)/255;
+      const hair=r>g+10&&r>b+12&&r>85&&g>36&&b<r*.78;
+      let tgt=leaf, amt=.55;
+      if(hair){ tgt=pist; amt=.9; }
+      else if(buddy&&up>.46){ tgt=mix3(bud,bud2,Math.max(0,Math.min(1,(v-.66)/.34))); amt=.84+Math.min(.1,(up-.46)*.25); }
+      else if(buddy&&up>.26){ tgt=bud; amt=.5; }
+      const sh=hueToward(r,g,b,tgt,amt);
+      data[i]=sh[0]; data[i+1]=sh[1]; data[i+2]=sh[2];
+      if(buddy&&frost>.15&&up>.48&&!hair){
+        const v=(r*.3+g*.59+b*.11)/255;
+        if(v>.55){ const k=Math.min(.7, frost*(v-.48)*.9); data[i]=data[i]*(1-k)+248*k; data[i+1]=data[i+1]*(1-k)+250*k; data[i+2]=data[i+2]*(1-k)+252*k; }
+      }
+    }
+  }
+  function ripeName(st){ return st&&st.type==='Sativa'?'sativa':st&&st.type==='Indica'?'indica':'hybrid'; }
+  function stageArt(st,stage){ if(stage<=1) return 'seedling'; if(stage<=3) return 'veg'; if(stage===4) return 'flower'; return ripeName(st); }
+  function stageNext(st,stage){ if(stage===1) return 'veg'; if(stage===3) return 'flower'; if(stage===4) return ripeName(st); return null; }
+  function stageMix(prog,stage){
+    if(stage===1) return smooth((prog-.08)/.17);
+    if(stage===3) return smooth((prog-.45)/.2);
+    if(stage===4) return smooth((prog-.65)/.35)*.8;
+    return 0;
+  }
+  function tintedPlant(which,st,buddy){
+    const im=PLANT_IM[which]; if(!im||!im.naturalWidth) return null;
+    const key=which+'|'+(st&&st.id||'')+'|'+(buddy?1:0);
+    const hit=plantTint.get(key); if(hit) return hit;
+    const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
+    const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
+    x.drawImage(im,0,0);
+    try{
+      const d=x.getImageData(0,0,c.width,c.height);
+      tintPlantPixels(d.data,c.width,c.height,look(st),!!buddy);
+      x.putImageData(d,0,0);
+    }catch(e){}
+    if(plantTint.size>72){ const k0=plantTint.keys().next().value; plantTint.delete(k0); }
+    plantTint.set(key,c); return c;
+  }
+  function blendFeet(a,b,t){
+    if(!a) return b; if(!b||t<=.02) return a; if(t>=.98) return b;
+    const w=Math.max(a.width,b.width), h=Math.max(a.height,b.height);
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const x=c.getContext('2d'); if(!x) return a;
+    x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+    x.globalAlpha=1-t; x.drawImage(a,(w-a.width)/2,h-a.height);
+    x.globalAlpha=t; x.drawImage(b,(w-b.width)/2,h-b.height);
+    x.globalAlpha=1; return c;
+  }
+  // In-room plant: the painted sprite for this age, tinted to the strain, feet on the soil.
+  function grownSprite(st,prog){
+    if(!st||!st.id||!plantsReady()) return null;
     const stage=prog>=1?5:prog<.08?0:prog<.25?1:prog<.45?2:prog<.65?3:4;
     const light=roomLight();
-    const v=(variant|0)&7;
-    const key='grown|'+(st.id||'')+'|'+stage+'|'+light+'|'+v;
+    const q=Math.round(stageMix(prog,stage)*4)/4;
+    const key='grown|'+(st.id||'')+'|'+stage+'|'+q+'|'+light;
     const hit=detailC.get(key); if(hit) return hit;
-    // Large logical plant, painted at 2x so a zoomed bed stays smooth without caching a 3x copy of every pot.
-    const sc=2, LW=480, LH=600, foot=LH-8;
-    const W=Math.round(LW*sc), H=Math.round(LH*sc);
-    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const buddy=stage>=3;
+    const base=tintedPlant(stageArt(st,stage),st,buddy&&stage!==1);
+    if(!base) return null;
+    const nxt=q>0?stageNext(st,stage):null;
+    const src=nxt?blendFeet(base, tintedPlant(nxt,st,stage>=3), q):base;
+    if(!src) return null;
+    const c=document.createElement('canvas'); c.width=src.width; c.height=src.height;
     const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
-    x.save(); x.scale(sc,sc);
-    Art.drawPlant(x,st,stage,LW/2,foot,1,0,v);
-    x.restore();
-    applyRoomLight(x,W,H,light);
-    let out; try{ out=cropOpaque(c); }catch(e){ out={c,w:W,h:H,base:1}; }
+    x.drawImage(src,0,0);
+    applyRoomLight(x,c.width,c.height,light);
+    let out; try{ out=cropOpaque(c); }catch(e){ out={c,w:c.width,h:c.height,base:1}; }
     out.painted=1; out.grown=1; out.closeup=0; out.stage=stage;
     if(detailC.size>80) detailC.clear();
     detailC.set(key,out); return out;
@@ -861,11 +944,22 @@ window.R=(function(){
         const cap=Math.max(14,(sl.cellW||wpx)-4);
         const aspect=sp.w/Math.max(1,sp.h);
         const maxH=sl.cellTop!=null?Math.max(18, sl.y-sl.cellTop-2):Math.max(18,hpx);
-        // Stage photos are framed on that age, so a sprout stays readable and a cola fills the cell.
-        const grow=Math.max(.42, Math.min(1, .42+.58*Math.pow(Math.min(1,prog/.95),.85)));
-        let hDraw=maxH*grow, wDraw=hDraw*aspect;
+        // Fit the painted sprite in the cell, then scale by age. A sprout stays shorter than a ripe plant.
+        const grow=sl.cellTop!=null?Math.max(.42, Math.min(1, .42+.58*Math.pow(Math.min(1,prog/.95),.85))):1;
+        let hDraw=maxH, wDraw=hDraw*aspect;
         if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; }
         if(hDraw>maxH){ hDraw=maxH; wDraw=hDraw*aspect; if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; } }
+        hDraw*=grow; wDraw*=grow;
+        // Narrow bench cells still need a readable sprout. Wide cells keep the age curve.
+        if(sl.cellTop!=null){
+          const span=sl.y-sl.cellTop, minH=span>=48?18:10, minW=span>=48?14:8;
+          if(hDraw<minH||wDraw<minW){
+            const s=Math.max(minH/Math.max(.01,hDraw), minW/Math.max(.01,wDraw));
+            hDraw*=s; wDraw*=s;
+            if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; }
+            if(hDraw>maxH){ hDraw=maxH; wDraw=hDraw*aspect; if(wDraw>cap){ wDraw=cap; hDraw=cap/aspect; } }
+          }
+        }
         ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
         const base=sp.base==null?1:sp.base;
         const prev=ctx.globalAlpha;
@@ -875,15 +969,14 @@ window.R=(function(){
         ctx.globalAlpha=prev;
         return {h:hDraw,w:wDraw};
       };
-      const spA=grownSprite(st,prog,seed&7);
+      const spA=grownSprite(st,prog);
       let box=null;
       if(spA) box=drawSp(spA,1);
-      else if(window.Art){ const sp=procSprite(st,prog,dest); box=drawSp(sp,1); }
       if(box) bedSprites.push({id:p.id,painted:!!(spA&&spA.painted),closeup:!!(spA&&spA.closeup),grown:!!(spA&&spA.grown),stage:spA?spA.stage:-1,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
-    else if(window.Art){ const stg=G.stage(p); const sp=Art.plantSprite(st,Math.min(stg,4),1); const k=hpx/(sp.h*.9); ctx.drawImage(sp.c,-sp.ox*k,-sp.oy*k,sp.c.width*k,sp.c.height*k); }
+    else if(window.Art&&Art.plantSprite){ const stg=G.stage(p); const sp=Art.plantSprite(st,Math.min(stg,4),1); const k=hpx/(sp.h*.9); ctx.drawImage(sp.c,-sp.ox*k,-sp.oy*k,sp.c.width*k,sp.c.height*k); }
     ctx.restore();
     return hpx*(1-foot);
   }
@@ -1636,7 +1729,7 @@ window.R=(function(){
     if(role==='storage'){ for(let i=0;i<3;i++){ const p=GP(6.7+i*.55,.7); ctx.fillStyle='#a07a4a'; ctx.fillRect(p.x-14,p.y-22-i%2*4,28,22); ctx.strokeStyle='#5a3a1a'; ctx.strokeRect(p.x-14,p.y-22-i%2*4,28,22); } } }
   // draw a real strain plant (same sprites, growth crossfade, health + training visuals as the farm) into any 2D context:
   // used by the Breed sheet room scene, pheno compare cards, mothers and clone domes. h = px height of a mature plant.
-  function plantCard(cx2,o){ if(!o||!o.id||!G.strain(o.id)) return 0; const keep=ctx, s=G.strain(o.id), sl={x:o.x,y:o.y,cls:'in',sp:.9,ppm:1};
+  function plantCard(cx2,o){ if(!o||!o.id||!G.strain(o.id)) return 0; const keep=ctx, s=G.strain(o.id), sl={x:o.x,y:o.y,cls:'in',sp:.9,ppm:1,bed:true,cellW:o.w||o.h||140};
     const full=plantSize(s.type,1,sl).h; sl.ppm=o.h/Math.max(.1,full);
     const p={id:o.seed!=null?'pc'+o.seed:'pc'+o.id,strain:o.id,prog:o.prog==null?1:o.prog,zone:o.zone||'garage',water:o.water==null?1:o.water,food:o.food==null?1:o.food,pest:o.pest||null,trellis:!!o.trellis,pruned:!!o.pruned,train:o.train||null,q:1,_dv:1};
     ctx=cx2; cx2.save(); cx2.imageSmoothingEnabled=true; cx2.imageSmoothingQuality='high'; let r=0; try{ r=drawPlantAt(p,null,sl,o.now==null?performance.now()/1000:o.now); }catch(e){} cx2.restore(); ctx=keep; return r; }
@@ -1734,16 +1827,16 @@ window.R=(function(){
       if(!s||!s.id) return null;
       size=Math.max(16,Math.min(512,+size||220));
       const key=s.id+'|'+size; const hit=plantC.get(key); if(hit) return hit;
-      const L=look(s); const sg=imgOK&&sigOf(s,true);
-      const base='mature_'+(L.base||'green');
-      const photo=sg||(!SIG[s.id]&&imgOK&&ok(base)?{c:IM[base],w:IM[base].naturalWidth,h:IM[base].naturalHeight}:null);
-      if(!photo) return null; // sprite not decoded yet: caller draws a stand-in and does not cache it
-      const sw=sg?photo.w:photo.w*.62, sh=sg?photo.h*.62:photo.h*.55, sx=(photo.w-sw)/2, sy=sg?0:photo.h*.05, k=size/Math.max(sw,sh)*1.05;
-      const dw=sw*k, dh=sh*k, dx=(size-dw)/2, dy=(size-dh)/2;
-      const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d',{willReadFrequently:true}); if(!y) return null;
-      y.drawImage(photo.c,sx,sy,sw,sh,dx,dy,dw,dh);
-      if(!sg){ try{ const d=y.getImageData(0,0,size,size); tintPixels(d.data,L,s.id,true); y.putImageData(d,0,0); }catch(e){ if(isTaint(e)) armCors(); } }
-      const out={c:t,w:size,h:size,sig:!!sg,L}; plantC.set(key,out); return out;
+      const L=look(s);
+      const src=tintedPlant(ripeName(s),s,true);
+      if(!src) return null; // painted sprite not decoded yet: caller draws a stand-in and does not cache it
+      const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d'); if(!y) return null;
+      const aspect=src.width/Math.max(1,src.height);
+      let dh=size*.92, dw=dh*aspect;
+      if(dw>size*.94){ dw=size*.94; dh=dw/aspect; }
+      y.imageSmoothingEnabled=true; y.imageSmoothingQuality='high';
+      y.drawImage(src,(size-dw)/2,size*.98-dh,dw,dh);
+      const out={c:t,w:size,h:size,sig:false,painted:1,L}; plantC.set(key,out); return out;
     }catch(e){ if(isTaint(e)) armCors(); return null; }
   }
   function frostDots(x,s,L,size){
@@ -1761,7 +1854,7 @@ window.R=(function(){
       const c=document.createElement('canvas'); c.width=size; c.height=size; const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
       const grd=x.createRadialGradient(size/2,size*.45,6,size/2,size/2,size*.75); grd.addColorStop(0,hidden?'#2a2a34':'#26402a'); grd.addColorStop(1,hidden?'#101016':'#0c1a10'); x.fillStyle=grd; x.fillRect(0,0,size,size);
       if(hidden){ const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d'); y.drawImage(plant.c,0,0); y.globalCompositeOperation='source-in'; y.fillStyle='#05050a'; y.fillRect(0,0,size,size); x.drawImage(t,0,0); x.fillStyle='rgba(255,255,255,.85)'; x.font='800 '+Math.round(size*.22)+'px system-ui'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('???',size/2,size/2); }
-      else { x.drawImage(plant.c,0,0); if(!plant.sig) frostDots(x,s,plant.L,size); }
+      else { x.drawImage(plant.c,0,0); }
       cupC[key]=c; return c;
     }catch(e){ if(isTaint(e)) armCors(); return null; }
   }
