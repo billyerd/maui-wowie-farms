@@ -28,18 +28,18 @@
   let feedQ=null; const flushFeed=()=>{ const q=feedQ; feedQ=null; if(!q) return; const p=q.ps[Math.floor(q.ps.length/2)]; R.floater(p,q.ps.length>1?q.ps.length+' fed':'Fed','#c8ffb0',40); };
   G.on('feed',fx(p=>{ R.burst(p,'feed',10,30); if(!feedQ){ Sound.play('feed'); feedQ={ps:[]}; setTimeout(flushFeed,500); } feedQ.ps.push(p); }));
   G.on('harvest',fx(({p,n,s,golden,mutant,lucky,grade})=>{ Sound.play('harvest'); buzz(12); p._pop=.5; R.pluck(p,n,golden); R.burst(p,'leaf',18,50); R.burst(p,'gold',10,60);
-    R.floater(p,'+'+n+' '+s.name.split(' ')[0]+' · Grade '+grade,grade==='A'?'#ffe27a':grade==='C'?'#e8b48a':'#c8ff7a',80);
-    if(mutant){ Sound.play('discover'); buzz([20,40,20]); Shake.add(.45); R.burst(p,'purple',26,90); R.floater(p,'MUTANT PHENO! x2.5','#e3a8ff',120); UI.toast('Mutation! A rare '+s.name+' phenotype (sells x2.5)','gemt'); }
-    if(golden){ R.burst(p,'gem',14,70); R.coinsTo(p,'gemPill',5); UI.toast('Golden bud! Bonus gems','gemt'); }
-    if(lucky){ R.floater(p,'Lucky seed!','#9fe8ff',140); UI.toast('Lucky seed drop: '+lucky.name+' ('+lucky.rarity+')','good'); } }));
+    R.floater(p,'+'+n+' '+s.name.split(' ')[0],grade==='A'?'#ffe27a':grade==='C'?'#e8b48a':'#c8ff7a',80);
+    if(mutant){ Sound.play('discover'); buzz([20,40,20]); Shake.add(.45); R.burst(p,'purple',26,90); R.floater(p,'Mutant x2.5','#e3a8ff',120); UI.toast('Mutation! '+s.name.split(' ')[0]+' x2.5','gemt'); }
+    if(golden){ R.burst(p,'gem',14,70); R.coinsTo(p,'gemPill',5); UI.toast('Golden bud!','gemt'); }
+    if(lucky){ R.floater(p,'Lucky seed!','#9fe8ff',140); UI.toast('Lucky seed: '+lucky.name.split(' ')[0],'good'); } }));
   let pestT=0;
-  G.on('pest',fx(p=>{ R.burst(p,p.pest==='mold'?'mold':'bug',10,40); const n=performance.now(); if(n-pestT>6000&&p.loc===G.st.loc){ pestT=n; Sound.play('error'); UI.toast((p.pest==='mold'?'Mold spotted':'Pests spotted')+' on '+G.strain(p.strain).name+'! Tap it to treat','bad','pest'); } }));
-  G.on('phenoroom',()=>UI.toast("Grandpa's garage is now your Pheno Room: double mutation odds here, and crossbreeding happens here. The farm is your main grow now.",'good long'));
-  G.on('breedlab',()=>UI.toast('Indoor Breeding Pheno Room open! Crosses are 60% faster. The garage is now storage and a bonus grow.','good long'));
-  G.on('huntdone',H=>{ Sound.play('gem'); UI.toast('Pheno hunt done: '+H.n+' '+G.strain(H.id).name+' phenos to compare. Open Breed to pick a mother.','good long'); });
-  G.on('rooted',c=>UI.toast(c.n+' '+G.strain(c.id).name+' clones rooted. They plant 10% grown.','good'));
-  G.on('linegen',o=>UI.toast(G.strain(o.id).name+' line is now '+G.lineName(o.id),'good'));
-  G.on('passtier',t=>UI.toast('Grower Pass tier '+t+' reached! Rewards ready in the Shop','gemt'));
+  G.on('pest',fx(p=>{ R.burst(p,p.pest==='mold'?'mold':'bug',10,40); const n=performance.now(); if(n-pestT>6000&&p.loc===G.st.loc){ pestT=n; Sound.play('error'); UI.toast((p.pest==='mold'?'Mold on ':'Pests on ')+G.strain(p.strain).name.split(' ')[0],'bad','pest'); } }));
+  G.on('phenoroom',()=>UI.toast('Pheno Room open','good'));
+  G.on('breedlab',()=>UI.toast('Breeding room open','good'));
+  G.on('huntdone',H=>{ Sound.play('gem'); UI.toast('Pheno hunt done','good'); });
+  G.on('rooted',c=>UI.toast(c.n+' clones rooted','good'));
+  G.on('linegen',o=>UI.toast(G.strain(o.id).name.split(' ')[0]+' line updated','good'));
+  G.on('passtier',t=>UI.toast('Pass tier '+t+'!','gemt'));
   G.on('pass',k=>UI.toast(k==='plus'?'Premium+ unlocked: 10 tiers skipped!':'Grower Pass Premium unlocked!','gemt'));
   G.on('boost',k=>UI.toast(G.BOOSTS[k].name+' active for 1 hour','good'));
   G.on('piggy',n=>UI.toast('Piggy bank cracked: +'+n+' gems!','gemt'));
@@ -65,22 +65,22 @@
   G.on('login',fx(o=>{ Sound.play('gem'); UI.loginCel(o); }));
   G.on('ach',fx(a=>{ Sound.play('discover'); UI.toast(a.name,'gemt','ach'); }));
   G.on('qclaim',fx(q=>{ UI.toast('Quest complete: +'+q.r.gems+' gems','gemt'); }));
-  G.on('qbonus',fx(w=>{ Sound.play('discover'); UI.confetti(60); UI.toast(w==='w'?'All weekly quests done! Legendary Seed Pack added':'All daily quests done! Rare Seed Pack added','gemt'); }));
-  G.on('regular',fx(r=>UI.toast(r.who+(r.tier===1?' is a regular buyer now':' is a loyal buyer now (tier '+r.tier+')'),'good')));
-  G.on('contest',fx(r=>{ Sound.play('level'); UI.toast('Best Bud of the Week! '+r.who+' judged your grade-A cured bud the best on the island: +10 gems, +10 reputation','gemt'); }));
-  G.on('certstart',fx(id=>UI.toast(G.strain(id).name+' is in the seed bank for certification (24 h)','good')));
-  G.on('heirloom',fx(e=>{ Sound.play('discover'); UI.toast('🏅 '+G.strain(e.id).name+' is now a certified Heirloom! ('+e.n+' in the Seed Vault)','gemt'); }));
-  G.on('vault',fx(v=>UI.toast('Seed Vault milestone: '+v.name+'. Claim it in the Pheno Room','gemt')));
+  G.on('qbonus',fx(w=>{ Sound.play('discover'); UI.confetti(60); UI.toast(w==='w'?'Weekly quests done!':'Daily quests done!','gemt'); }));
+  G.on('regular',fx(r=>UI.toast(r.who+' is a regular','good')));
+  G.on('contest',fx(r=>{ Sound.play('level'); UI.toast('Best Bud! +10 gems','gemt'); }));
+  G.on('certstart',fx(id=>UI.toast(G.strain(id).name.split(' ')[0]+' certifying','good')));
+  G.on('heirloom',fx(e=>{ Sound.play('discover'); UI.toast(G.strain(e.id).name.split(' ')[0]+' is an Heirloom','gemt'); }));
+  G.on('vault',fx(v=>UI.toast('Vault: '+v.name,'gemt')));
   // Festivals, timed events, tourist rush, rainbow sales, and market day do not announce themselves.
   G.on('gems',fx(({n,why})=>{ if(n>0&&why) UI.toast('+'+n+' gems · '+why,'gemt'); }));
   G.on('nocash',fx(()=>{ Sound.play('error'); UI.toast('Not enough cash','bad'); }));
-  G.on('nogems',fx(()=>{ Sound.play('error'); UI.toast('Not enough gems. Earn more by leveling up!','bad'); }));
+  G.on('nogems',fx(()=>{ Sound.play('error'); UI.toast('Not enough gems','bad'); }));
   G.on('toast',fx(({t,k})=>UI.toast(t,k)));
   G.on('discover',fx(({s,quiet,how})=>{ if(quiet==='lvl') return; if(how==='bred'&&s.mystery) return; Sound.play('discover'); UI.toast((quiet?'Unlocked: ':'New strain: ')+s.name+'!','good'); }));
-  G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.toast((fresh?'New strain bred: ':'Cross complete: ')+s.name+' ('+s.rarity+'). +3 seeds','good long'); }));
-  G.on('dud',fx(({hint,back})=>{ Sound.play('tap'); UI.toast('No stable pheno from that cross.'+(back?' You saved a '+back.name+' seed.':'')+(hint?' +1 hint token for your persistence!':''),hint?'gemt':''); }));
-  G.on('hint',fx(({s})=>{ Sound.play('gem'); UI.toast('Hint used: a parent of a '+s.rarity+' mystery revealed','gemt'); }));
-  G.on('weather',fx(w=>{ if(!G.st.land) return; if(w==='storm') UI.toast('Trade-wind storm rolling in!'+(G.lv('shutters')?'':' Ripe farm plants may get hurt'),'bad'); else if(w==='rain') UI.toast('Rain showers: free water for the terraces'); else if(w==='vog') UI.toast('Vog haze from the volcano: outdoor growth -10%, odd phenotypes more likely'); }));
+  G.on('bred',fx(({s,fresh})=>{ if(s.mystery&&fresh){ UI.reveal(s); return; } Sound.play('discover'); UI.toast((fresh?'Bred: ':'Cross: ')+s.name.split(' ')[0],'good'); }));
+  G.on('dud',fx(({hint,back})=>{ Sound.play('tap'); UI.toast(hint?'No pheno +1 hint':(back?'Saved a '+back.name.split(' ')[0]+' seed':'No stable pheno'),hint?'gemt':''); }));
+  G.on('hint',fx(({s})=>{ Sound.play('gem'); UI.toast('Hint: '+s.rarity+' parent','gemt'); }));
+  G.on('weather',fx(w=>{ if(!G.st.land) return; if(w==='storm') UI.toast(G.lv('shutters')?'Storm incoming':'Storm! Farm plants at risk','bad'); else if(w==='rain') UI.toast('Rain: free water'); else if(w==='vog') UI.toast('Vog: growth -10%'); }));
   G.on('questclaim',fx(()=>{ UI.toast('Goal reward claimed!','good'); const q=G.curQuest(); if(q) setTimeout(()=>UI.storyLine(q),400); }));
   G.on('worker',()=>{ /* helpers stay off the map; jobs are grouped into one portrait */ });
   G.on('expand',fx(({kind,n})=>{ Sound.play('level'); buzz(15); UI.confetti(50); UI.toast(n.name+'!','good'); R.rebuild(); if(kind==='garage'&&G.st.loc==='garage') R.fit(); }));
@@ -93,7 +93,7 @@
   G.on('rep',fx(({r})=>{ Sound.play('level'); UI.confetti(80); UI.toast('Reputation up: '+r.n+'! Market prices are higher','gemt'); }));
   G.on('mastery',fx(({s,m})=>{ Sound.play('discover'); UI.toast(s.name+' mastery! Now sells x'+m.m,'gemt'); }));
   G.on('set',fx(({d})=>{ Sound.play('level'); UI.confetti(90); UI.toast('Set complete: '+d.name+' · '+d.bonus,'gemt'); }));
-  G.on('order',fx(({o,v})=>{ Sound.play('cash'); R.coinsTo(null,'cashPill',8); UI.toast('Order filled for '+o.who+': +'+G.fmt(v),'good'); }));
+  G.on('order',fx(({o,v})=>{ Sound.play('cash'); R.coinsTo(null,'cashPill',8); UI.toast(o.who+' +'+G.fmt(v),'good'); }));
   G.on('neworder',fx(o=>{ if(G.st.orders.length===1) UI.toast('New order on the board from '+o.who); }));
   G.on('customer',fx(()=>{}));
   G.on('served',fx(({c,v,tip,mood,auto})=>{ saleFx(v+(tip||0)); buzz(10); R.custReact(c.id,'served',{v,tip,mood});
@@ -104,7 +104,7 @@
   G.on('geckotap',fx(({b,extra})=>{ Sound.play('discover'); buzz([10,30,10]); UI.confetti(40); UI.toast('Golden gecko: '+b.name+(extra?' '+extra:' · '+b.desc),'gemt'); }));
   G.on('crafted',fx(j=>{ Sound.play('gem'); UI.toast(G.CRAFT[j.t].name+' ×'+j.n+' ready to sell','good'); }));
   G.on('festclaim',fx(({f,s})=>{ UI.reveal(s); }));
-  G.on('skip',r=>{ UI.toast('Time skipped: the farm worked '+G.dur(r.seconds)+' · '+(r.cash>=0?'+':'')+G.fmt(r.cash)+' · '+r.harvests+' harvests · '+r.sold+' sold','good long'); });
+  G.on('skip',r=>{ UI.toast('Skipped '+G.dur(r.seconds),'good'); });
 
   // ---------- input ----------
   // Press-and-hold (~0.45s) on the room shows the magnifier under the finger.

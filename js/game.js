@@ -258,7 +258,7 @@ window.G = (function(){
   const PREMIUM=['menehune-mint','lilikoi-pop','honu-blue'];
   const DROP={packPremium:.04, packSeason:.02, huntPremium:.03, huntSeason:.02};
   PREMIUM.forEach(id=>{ if(S.some(s=>s.id===id)) EVENT_ONLY[id]='premium'; }); S.forEach(s=>{ if(s.passExclusive) EVENT_ONLY[s.id]='pass'; });
-  function premiumDrop(chance,how){ if(Math.random()>=chance) return null; const live=PREMIUM.filter(id=>strain(id)); if(!live.length) return null; const id=live[Math.floor(Math.random()*live.length)]; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare find! A '+strain(id).name+' seed ('+how+')',k:'good'}); return id; }
+  function premiumDrop(chance,how){ if(Math.random()>=chance) return null; const live=PREMIUM.filter(id=>strain(id)); if(!live.length) return null; const id=live[Math.floor(Math.random()*live.length)]; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare seed: '+strain(id).name.split(' ')[0],k:'good'}); return id; }
   // Timed gem boosts (1 hour each, stack by adding time): 2x growth, 2x sale price, better pheno odds
   const BOOSTS={grow:{name:'2x growth',icon:'🌱'},price:{name:'2x sale price',icon:'💰'},pheno:{name:'Better pheno odds',icon:'🧬'}};
   function boostLeft(k){ return Math.max(0,(st.boosts&&st.boosts[k])||0); }
@@ -296,7 +296,7 @@ window.G = (function(){
   function passClaim(tier,track){ const P=passState(), row=PZ.track(PZ.seasonNow())[tier-1]; if(!row) return false; if(tier>passTier()) return false; const key=track==='p'?'cp':'cf';
     if(P[key][tier]) return false; if(track==='p'&&!P.premium) return false; const r=track==='p'?row.p:row.f; if(!r) return false; P[key][tier]=1; grantReward(r,'Grower Pass'); save(); emit('passclaim',{tier,track,r}); return true; }
   function passClaimAll(){ let n=0; for(let t=1;t<=passTier();t++){ if(passClaim(t,'f')) n++; if(passClaim(t,'p')) n++; } return n; }
-  function seasonDrop(chance,how){ if(Math.random()>=chance) return null; const id=PZ.seasonNow().strain; if(!strain(id)) return null; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Rare season find! A '+strain(id).name+' seed ('+how+')',k:'good'}); return id; }
+  function seasonDrop(chance,how){ if(Math.random()>=chance) return null; const id=PZ.seasonNow().strain; if(!strain(id)) return null; st.seeds[id]=(st.seeds[id]||0)+1; discover(id,true); emit('premiumdrop',{id,how}); emit('toast',{t:'Season seed: '+strain(id).name.split(' ')[0],k:'good'}); return id; }
   // Piggy bank: fills with gems as you play (0.25 per harvest, 3 per goal / quest / achievement claim) up to PIGGY.cap; one purchase cracks it
   const PIGGY={cap:400,min:40};
   function piggyHook(n){ passHook(n); if(!st||!st.piggy) return; const add=n==='harvest'?.25:(n==='qclaim'||n==='questclaim'||n==='achclaim')?3:0; if(add) st.piggy.g=Math.min(PIGGY.cap,st.piggy.g+add); }
@@ -387,14 +387,14 @@ window.G = (function(){
     if(kind==='bench') st.bench++;
     syncPlots(); emit('expand',{kind,n}); return true;
   }
-  function buyLand(){ if(st.land) return false; if(!gate('land')){ emit('toast',{t:'The Indoor Facility goes on sale at level '+LAND_LEVEL,k:'bad'}); return false; } if(!spend(LAND_COST)) return false; st.land=true; st.phenoRoom=true; syncPlots(); done('land'); emit('land'); emit('phenoroom'); return true; }
+  function buyLand(){ if(st.land) return false; if(!gate('land')){ emit('toast',{t:'Indoor at level '+LAND_LEVEL,k:'bad'}); return false; } if(!spend(LAND_COST)) return false; st.land=true; st.phenoRoom=true; syncPlots(); done('land'); emit('land'); emit('phenoroom'); return true; }
   // Indoor Breeding Pheno Room: takes over pheno work from the garage (crosses 60% faster, double mutation odds, +1 hint per discovery). The garage becomes storage (+4 drying slots) and a bonus grow.
   const LAB={cost:600000,level:INDOOR_LAB_LEVEL()};
   function INDOOR_LAB_LEVEL(){ return 14; }
   function buyLab(){ if(st.breedLab||!st.inBuilt) return false; if(!spend(LAB.cost)) return false; st.breedLab=true; emit('breedlab'); return true; }
   function garageRole(){ return !st.phenoRoom?'grow':st.breedLab?'storage':'pheno'; }
-  function buildGH(){ if(st.ghBuilt) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse needs level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; const n=st.plots.filter(p=>p.zone==='garage'&&p.owned).length; st.ghBuilt=true; st.gh=0; st.ghMatch=n; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
-  function buyPermit(){ if(st.permit) return false; if(st.level<INDOOR.permitLevel){ emit('toast',{t:'Permit office opens at level '+INDOOR.permitLevel,k:'bad'}); return false; } if(!spend(INDOOR.permitCost)) return false; st.permit=true; done('permit'); emit('permit'); return true; }
+  function buildGH(){ if(st.ghBuilt) return false; if(!gate('gh')){ emit('toast',{t:'Greenhouse at level '+GH_BUILD.level,k:'bad'}); return false; } if(!spend(GH_BUILD.cost)) return false; const n=st.plots.filter(p=>p.zone==='garage'&&p.owned).length; st.ghBuilt=true; st.gh=0; st.ghMatch=n; syncPlots(); done('ghbuild'); emit('ghbuilt'); return true; }
+  function buyPermit(){ if(st.permit) return false; if(st.level<INDOOR.permitLevel){ emit('toast',{t:'Permit at level '+INDOOR.permitLevel,k:'bad'}); return false; } if(!spend(INDOOR.permitCost)) return false; st.permit=true; done('permit'); emit('permit'); return true; }
   function indoorChecklist(){
     return [
       {k:'land',  t:'Own the Indoor Facility (level '+LAND_LEVEL+')', ok:st.land},
@@ -405,8 +405,8 @@ window.G = (function(){
       {k:'cash',  t:'Build cost '+fmt(INDOOR.build), ok:st.cash>=INDOOR.build, p:Math.min(1,st.cash/INDOOR.build), v:fmt(st.cash)},
     ];
   }
-  function buyFoundation(){ if(st.found) return false; if(!st.permit||st.level<INDOOR.foundLevel){ emit('toast',{t:'Foundation needs the permit and level '+INDOOR.foundLevel,k:'bad'}); return false; } if(!spend(INDOOR.foundCost)) return false; st.found=true; emit('toast',{t:'Foundation poured! The indoor build is next.',k:'good'}); return true; }
-  function buildIndoor(){ if(st.inBuilt) return false; const ck=indoorChecklist(); if(!ck.slice(0,5).every(c=>c.ok)){ emit('toast',{t:'Finish the indoor checklist first',k:'bad'}); return false; } if(!spend(INDOOR.build)) return false;
+  function buyFoundation(){ if(st.found) return false; if(!st.permit||st.level<INDOOR.foundLevel){ emit('toast',{t:'Foundation at level '+INDOOR.foundLevel,k:'bad'}); return false; } if(!spend(INDOOR.foundCost)) return false; st.found=true; emit('toast',{t:'Foundation poured',k:'good'}); return true; }
+  function buildIndoor(){ if(st.inBuilt) return false; const ck=indoorChecklist(); if(!ck.slice(0,5).every(c=>c.ok)){ emit('toast',{t:'Finish the checklist',k:'bad'}); return false; } if(!spend(INDOOR.build)) return false;
     st.inBuilt=true; syncPlots(); done('indoor'); emit('indoor'); return true; }
   function seedPrice(s){ return Math.max(1,Math.round(s.game.seedCost*(1-.15*mana('vault'))*(lv('clone')?.6:1)*100)/100); }
   function buySeeds(id,n){ const s=strain(id); if(!st.discovered[id]) return false; if(!spend(seedPrice(s)*n)) return false; st.seeds[id]=(st.seeds[id]||0)+n; if(!(st.seeds[st.selSeed]>0)) st.selSeed=id; if(st.tut&&typeof st.tut==='object') st.tut.bought=(st.tut.bought|0)+n; emit('seeds',{id,n}); return true; }
@@ -685,7 +685,7 @@ window.G = (function(){
   function heirCount(){ return eachLine().filter(([,v])=>v.heir).length; }
   function heirCost(id){ return Math.round(HEIR.cost[0]*Math.max(1,strain(id).tier)); }
   function canCertify(id){ const L=lineOf(id); return !!(L&&L.gen>=LINE.max&&!L.heir&&st.breedLab&&!st.cert); }
-  function startCertify(id){ if(!canCertify(id)){ emit('toast',{t:st.cert?'The seed bank is already certifying a line':'Only F6 (IBL) lines can be certified, in the Breeding Pheno Room',k:'bad'}); return false; }
+  function startCertify(id){ if(!canCertify(id)){ emit('toast',{t:st.cert?'Seed bank is busy':'F6 lines only',k:'bad'}); return false; }
     if(!spend(heirCost(id))) return false; st.cert={id,t:0,dur:HEIR.sec}; emit('certstart',id); save(); return true; }
   function tickCert(dt){ const C=st.cert; if(!C) return; C.t+=dt; if(C.t<C.dur) return; st.cert=null; const L=st.lines&&st.lines[C.id]; if(L&&typeof L==='object'&&!Array.isArray(L)){ L.heir=Date.now(); } bump('heirlooms'); emit('heirloom',{id:C.id,n:heirCount()}); checkVault(); }
   function checkVault(){ st.vault=st.vault||{}; const n=heirCount(); VAULT.forEach((v,i)=>{ if(n>=v.n&&!st.vault[i]){ st.vault[i]=1; emit('vault',v); } }); }
@@ -705,11 +705,11 @@ window.G = (function(){
   function vagueHint(s){ if(!s||!Array.isArray(s.parents)||!s.parents.length) return null; const f=s.parents.map(familyOf); return s.parents.length===1?'Parents: a '+f[0]+' line crossed with itself':'Parents: one '+f[0]+', one '+f[1]; }
   function hintLevel(s){ // 0 nothing, 1 vague family hint, 2+ exact parents revealed by tokens
     const rev=st.hintRev&&typeof st.hintRev==='object'&&!Array.isArray(st.hintRev)?st.hintRev:{}; const r=rev[s.id]||0; if(r) return 1+r; return st.level>=s.game.unlockLevel-4||st.fails>=4?1:0; }
-  function useHint(id){ const s=strain(id); if(!s||st.discovered[id]||!s.mystery) return false; const r=st.hintRev[id]||0; if(r>=Math.min(2,s.parents.length)) return false; if(st.hints<1){ emit('toast',{t:'No hint tokens. Earn them from quests, events and failed crosses',k:'bad'}); return false; } st.hints--; st.hintRev[id]=r+1; emit('hint',{s,r:r+1}); return true; }
+  function useHint(id){ const s=strain(id); if(!s||st.discovered[id]||!s.mystery) return false; const r=st.hintRev[id]||0; if(r>=Math.min(2,s.parents.length)) return false; if(st.hints<1){ emit('toast',{t:'No hint tokens',k:'bad'}); return false; } st.hints--; st.hintRev[id]=r+1; emit('hint',{s,r:r+1}); return true; }
   function cloneCost(name){ return 300; }
   function buyClone(name){ if(st.clones[name]) return false; if(!spend(cloneCost(name))) return false; st.clones[name]=true; emit('clone',name); return true; }
   function startBreed(a,b){
-    if(st.breed) return false; if(!gate('breed')){ emit('toast',{t:'The Pheno Room opens at level '+GATE.breed,k:'bad'}); return false; }
+    if(st.breed) return false; if(!gate('breed')){ emit('toast',{t:'Pheno Room at level '+GATE.breed,k:'bad'}); return false; }
     const s=recipeFor(a,b); { const why=legendaryGate(s,a,b); if(why){ emit('toast',{t:why,k:'bad long'}); return false; } }
     const c=crossCost(a,b); if(!spend(c)) return false;
     st.breed={a,b,id:s?s.id:null,t:0,dur:crossTime(a,b),key:pairKey(a,b)}; done('breed'); emit('breedstart',{a,b}); return true;
@@ -720,7 +720,7 @@ window.G = (function(){
   function huntSize(){ return st.breedLab?6:4; }
   function huntTime(id){ return Math.round(HUNT_T[Math.min(4,strain(id).tier)]*(st.breedLab?.6:1)*Math.pow(.8,lv('labTissue'))); }
   function canHunt(){ return st.phenoRoom&&gate('breed')&&!st.hunt; }
-  function startHunt(id){ if(!canHunt()||!st.discovered[id]) return false; const n=huntSize(); if((st.seeds[id]||0)<n){ emit('toast',{t:'You need '+n+' seeds of this strain for a pheno hunt',k:'bad'}); return false; }
+  function startHunt(id){ if(!canHunt()||!st.discovered[id]) return false; const n=huntSize(); if((st.seeds[id]||0)<n){ emit('toast',{t:'Need '+n+' seeds',k:'bad'}); return false; }
     st.seeds[id]-=n; st.hunt={id,n,t:0,dur:huntTime(id),phenos:null}; bump('hunts'); emit('hunt',st.hunt); return true; }
   function rollPhenos(H){ const L=(st.breedLab?1:0)+(boostLeft('pheno')>0?1.5:0), r=(a,b)=>a+Math.random()*(b-a), rd=x=>Math.round(x*100)/100; const out=[];
     for(let i=0;i<H.n;i++) out.push({k:'#'+(i+1),y:rd(r(.85,1.18+.06*L)),q:rd(r(-.05,.07+.03*L)),g:rd(r(.9,1.12+.04*L)),terp:TERPS[Math.floor(Math.random()*TERPS.length)],h:r(.75,1.15)});
@@ -733,7 +733,7 @@ window.G = (function(){
   // that plant 10% grown and carry the mother's traits. A mother needs a rest between snips; the Breeding Pheno Room roots faster.
   const CUT={n:4,cost:2,rest:180,root:90};
   function cutState(id){ const K=keeperRec(id); if(!K) return null; const now=Date.now(); return {ready:!(K.next>now), wait:Math.max(0,((K.next||0)-now)/1000)}; }
-  function takeCuttings(id){ const K=keeperRec(id); if(!K) return false; const c=cutState(id); if(!c.ready){ emit('toast',{t:'This mother needs to regrow before you snip again',k:'bad'}); return false; }
+  function takeCuttings(id){ const K=keeperRec(id); if(!K) return false; const c=cutState(id); if(!c.ready){ emit('toast',{t:'Mother is regrowing',k:'bad'}); return false; }
     const n=CUT.n+(st.breedLab?2:0); if(!spend(CUT.cost*n)) return false; K.next=Date.now()+CUT.rest*1000; K.cut=(K.cut||0)+n;
     st.cuts=st.cuts||[]; st.cuts.push({id,n,t:0,dur:Math.round(CUT.root*(st.breedLab?.6:1))}); bump('cuttings',n); emit('cuttings',{id,n}); return true; }
   function tickCuts(dt){ if(!st.cuts||!st.cuts.length) return; for(const c of st.cuts) c.t+=dt; const done_=st.cuts.filter(c=>c.t>=c.dur); if(!done_.length) return;
@@ -800,7 +800,7 @@ window.G = (function(){
     if(!st.questDone&&questSat(q)) done(q.id);
     let n=0; const R={cash:0,gems:0,hints:0};
     while(st.questDone&&(q=curQuest())&&questSat(QUESTS[st.quest+1])){ payQuest(q); for(const k in R) R[k]+=q.r[k]||0; st.quest++; st.questDone=true; n++; }
-    if(n){ emit('questcatchup',{n,R}); emit('toast',{t:'Caught up on '+n+' story goal'+(n>1?'s':'')+': '+[R.cash?fmt(R.cash):'',R.gems?R.gems+' gems':'',R.hints?R.hints+' hints':''].filter(Boolean).join(', '),k:'good'}); } }
+    if(n){ emit('questcatchup',{n,R}); emit('toast',{t:'Caught up: '+n+' goals',k:'good'}); } }
   function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; payQuest(q);
     if(q.r.hints) emit('toast',{t:'+'+q.r.hints+' hint token'+(q.r.hints>1?'s':''),k:'gemt'});
     st.quest++; st.questDone=false; checkQuest(); emit('questclaim',q); return true; }
@@ -941,7 +941,7 @@ window.G = (function(){
   function safetyNet(){
     if(st.cash>=1) return; const seedBag=st.seeds&&typeof st.seeds==='object'&&!Array.isArray(st.seeds)?st.seeds:{}; if(Object.values(seedBag).some(n=>typeof n==='number'&&n>0)) return; if(st.plots.some(p=>p.strain)) return;
     if(invCount('wet')+invCount('dry')+invCount('cured')>0||st.dryer.length) return;
-    st.seeds['northern-lights']=(st.seeds['northern-lights']||0)+3; st.selSeed='northern-lights'; emit('toast',{t:'Unko Kuli dropped off 3 free Northern Lights seeds. Keep growing!',k:'good'}); emit('seeds',{id:'northern-lights',n:3});
+    st.seeds['northern-lights']=(st.seeds['northern-lights']||0)+3; st.selSeed='northern-lights'; emit('toast',{t:'3 Northern Lights seeds',k:'good'}); emit('seeds',{id:'northern-lights',n:3});
   }
   let achT=0;
   // Fast-forward (offline catch-up and time skips). Step grows for long absences so 3 days stays fast.

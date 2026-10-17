@@ -18,7 +18,7 @@ window.UI = (function(){
   // OK cards are reserved for a choice or something the player must read: save problems, the away
   // rescue, big unlocks and prestige confirms, strain reveals the player opened, and pest/mold.
   const nq=[]; let noticeLive=null;
-  const GROUP_TXT={ach:(n,first)=>n>1?n+' achievements unlocked! Claim in Quests':'Achievement: '+first+'! Claim in Quests', pest:(n,first)=>first};
+  const GROUP_TXT={ach:(n,first)=>n>1?n+' achievements!':first, pest:(n,first)=>first};
   function toast(text,kind='',group){
     if(group==='pest'){
       const same=it=>it.group==='pest';
@@ -33,6 +33,14 @@ window.UI = (function(){
   function toastTop(){
     let y=56;
     const H=window.innerHeight||800;
+    if(sheetOpen()){
+      const bar=document.getElementById('toolbar');
+      const foot=document.getElementById('sheetFoot');
+      const fr=foot&&foot.getClientRects&&foot.getClientRects().length?foot.getBoundingClientRect():null;
+      const br=bar&&bar.getBoundingClientRect?bar.getBoundingClientRect():null;
+      const anchor=(fr&&fr.height>8&&fr.top>120)?fr.top:(br&&br.top>120?br.top:H-80);
+      return Math.max(64, Math.round(anchor-44));
+    }
     const hud=document.getElementById('hud');
     if(hud&&hud.getBoundingClientRect){
       const r=hud.getBoundingClientRect();
@@ -41,8 +49,8 @@ window.UI = (function(){
     const goal=document.getElementById('goal');
     if(goal&&goal.classList&&goal.classList.contains('open')){
       const tx=goal.querySelector?goal.querySelector('.gtx'):null;
-      const r=(tx||goal).getBoundingClientRect();
-      if(r.height>8 && r.bottom<H*0.55) y=Math.max(y, Math.round(r.bottom+6));
+      const r=(tx&&tx.getClientRects&&tx.getClientRects().length?tx:goal).getBoundingClientRect();
+      if(r.height>8 && r.bottom<H*0.7) y=Math.max(y, Math.round(r.bottom+8));
     }
     return Math.max(56, y);
   }
@@ -50,26 +58,24 @@ window.UI = (function(){
     const top=toastTop()+'px';
     const root=document.documentElement.style;
     if(root.getPropertyValue('--dock-top')!==top) root.setProperty('--dock-top', top);
-    const box=document.getElementById('toasts');
-    if(box){
+    [document.getElementById('toasts'), document.getElementById('achToasts')].forEach(box=>{
+      if(!box) return;
       box.style.top=top; box.style.bottom='auto';
       box.style.setProperty('--dock-top', top);
-      box.style.setProperty('--dock-bot','auto');
-    }
+      box.style.zIndex='60';
+    });
   }
   function sheetOpen(){ return !!(document.body&&document.body.classList&&document.body.classList.contains('sheet-open')); }
-  function capToasts(box){
-    const max=sheetOpen()?1:2;
-    const live=box&&box.querySelectorAll?[...box.querySelectorAll('.toast')]:[];
-    while(live.length>max){ const old=live.shift(); if(old&&old.remove) old.remove(); }
+  function capToasts(){
+    const live=[];
+    ['toasts','achToasts'].forEach(id=>{
+      const box=document.getElementById(id);
+      if(box&&box.querySelectorAll) box.querySelectorAll('.toast').forEach(el=>live.push(el));
+    });
+    while(live.length>1){ const old=live.shift(); if(old&&old.remove) old.remove(); }
   }
   function clipToast(text){
-    const s=String(text||'').replace(/\s+/g,' ').trim();
-    if(s.length<=36) return s;
-    let cut=s.slice(0,35).trimEnd();
-    const sp=cut.lastIndexOf(' ');
-    if(sp>=18) cut=cut.slice(0,sp);
-    return cut+'…';
+    return String(text||'').replace(/\s+/g,' ').trim();
   }
   function achHost(){
     let box=document.getElementById('achToasts');
@@ -97,7 +103,7 @@ window.UI = (function(){
     if(group) el.dataset.group=group;
     el.textContent=clipToast(group&&GROUP_TXT[group]?GROUP_TXT[group](1,text):String(text||''));
     if(box.appendChild) box.appendChild(el);
-    capToasts(box);
+    capToasts();
     armPill(el, long);
   }
   function armPill(el, long){
@@ -112,8 +118,8 @@ window.UI = (function(){
     if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
     if(box.classList) box.classList.remove('dock');
     placeToasts();
-    const el=document.createElement('div'); el.className='toast'; el.dataset.ms='2500'; el.textContent=clipToast(text); box.appendChild(el);
-    capToasts(box);
+    const el=document.createElement('div'); el.className='toast';     el.dataset.ms='2500'; el.textContent=clipToast(text); box.appendChild(el);
+    capToasts();
     setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); },240); },2500);
   }
   // A tiny note. No OK button, and it does not open a sheet.
@@ -175,11 +181,7 @@ window.UI = (function(){
   const celWait=[];
   function loginCel(o){ if(G.st.quest<=4&&!window.__giftForce){ setTimeout(()=>loginCel(o),3000); return; } window.__giftForce=0;
     if(document.getElementById('splash')){ setTimeout(()=>loginCel(o),400); return; }
-    const bits=['+'+o.r.gems+' gems'];
-    if(o.r.cash) bits.push('+'+fmt(o.r.cash*100*G.st.level));
-    if(o.r.rarePacks) bits.push('Rare Seed Pack');
-    if(o.r.legPacks) bits.push('Legendary Seed Pack');
-    toast((window.__streakSaved?'Streak saved. ':'')+'Day '+o.n+' gift: '+bits.join(', '),'gemt long'); }
+    toast('Daily gift ready!','gemt'); }
   // ---------- big milestone celebrations ----------
   function bigCel(kind){
     const C={land:['art/island-bg.webp','The Indoor Facility is yours!','Uncle Ikaika hands you the keys. The terraces are ready, and Grandpa\'s garage is now your Pheno Room.'],
@@ -295,6 +297,7 @@ window.UI = (function(){
     // water/feed all gating
     const wa=$('#waterAll'), fa=$('#feedAll'); if(wa){ wa.classList.toggle('locked',G.lv('water')<1); const sm=wa.querySelector('small'); if(sm) sm.textContent=G.lv('water')<1?'Needs garden hose':'Water all'; } if(fa) fa.classList.remove('locked');
     locTabs(); seedBag();
+    placeToasts();
   }
   // ---------- location tabs ----------
   function tapRoom(r){ Sound.play('tap'); hidePop();
@@ -955,9 +958,9 @@ window.UI = (function(){
       case 'sel': st.selSeed=d.id; setTool('seed'); toast('Tap empty buckets or beds to plant '+G.strain(d.id).name); break;
       case 'plantall': { if(!(st.seeds[st.selSeed]>0)){ pip('No seeds'); break; } st.plots.forEach(p=>{ if(p.loc===st.loc&&p.owned&&!p.strain) G.plant(p); }); break; }
       case 'load': G.loadDryer(); break;
-      case 'sell': G.sell(d.stg,d.k); break;
+      case 'sell': { const have=(st.inv[d.stg]&&st.inv[d.stg][d.k])||0; const id=String(d.k||'').split('|')[0]; const v=G.sell(d.stg,d.k); if(v){ const s=G.strain(id); toast((s?s.name.split(' ')[0]:'Buds')+' x'+have+' +'+fmt(v),'good'); } break; }
       case 'sellgood': G.sellGood(d.k); break;
-      case 'sellall': { let v=G.sellAll(); for(const k of Object.keys(st.goods)) v+=G.sellGood(k); if(v) toast('Sold for '+fmt(v),'good'); break; }
+      case 'sellall': { let v=G.sellAll(); for(const k of Object.keys(st.goods)) v+=G.sellGood(k); if(v) toast('Sold +'+fmt(v),'good'); break; }
       case 'craft': if(G.startCraft(d.t,d.stg,d.k)){ Sound.play('plant'); toast(G.CRAFT[d.t].name+' started','good'); } break;
       case 'order': G.fillOrder(d.id); break;
       case 'serve': G.serveCust(d.id); break;

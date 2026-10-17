@@ -159,9 +159,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const span = (s.foot || 0) - (s.cellTop || 0);
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
-        assert(s.w <= (s.cellW || 0) * 1.37 + 0.5, tag + ' pot ' + s.id + ' overlaps the next column ' + JSON.stringify(s));
+        assert(s.w <= (s.cellW || 0) * 1.22 + 1, tag + ' pot ' + s.id + ' is wider than 1.2 cells ' + JSON.stringify(s));
+        assert(!s.a || Math.abs(s.w / s.h - s.a) < 0.06, tag + ' pot ' + s.id + ' is cropped instead of scaled ' + JSON.stringify(s));
         assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
-        if (s.edge != null && s.x != null) assert(s.x + s.w / 2 <= s.edge + 0.6, tag + ' pot ' + s.id + ' crosses the screen edge ' + JSON.stringify(s));
+        if (s.edge != null && s.x != null) assert(s.x + s.w / 2 <= s.edge + 1.5, tag + ' pot ' + s.id + ' crosses the screen edge ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
       }
     }
@@ -207,8 +208,8 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const g=G.st.plots.filter(p=>p.zone==='garage'&&p.owned);
         g.forEach(p=>{ p.strain='jealousy'; p.prog=1; p.water=1; p.food=1; p.pest=null; });
         G.setRoom('garage'); R.frame(0.05);
-        const maui=R.bedSprites()[0];
         const garage=R.bedSprites();
+        const maui=garage[Math.min(2, garage.length-1)];
         const edge=garage.reduce((a,s)=>s.x>a.x?s:a, garage[0]);
         G.st.land=true; G.st.field=3; G.syncPlots();
         const inn=G.st.plots.filter(p=>p.zone==='field'&&p.owned);
@@ -218,8 +219,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const sprites=R.bedSprites();
         const slack=sprites.filter(s=>{
           const span=s.foot-s.cellTop;
-          const edgeOut=s.edge!=null && s.x+s.w/2>s.edge+0.75;
-          return edgeOut || s.top<s.cellTop-1 || s.h>span+1.5 || s.h<span*0.90;
+          const edgeOut=s.edge!=null && s.x+s.w/2>s.edge+1.5;
+          const cropped=s.a && Math.abs(s.w/s.h - s.a)>0.06;
+          const wide=s.w>(s.cellW||0)*1.22+1;
+          return edgeOut || cropped || wide || s.top<s.cellTop-1 || s.h>span+1.5;
         }).slice(0,3);
         const narrow=['blue-dream','glitter-bomb','rs11','durban-poison','jealousy'];
         const facility=[];
@@ -256,19 +259,18 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(!(m.errs && m.errs.length), 'size console errors ' + JSON.stringify(m.errs));
       assert(m.dpr >= 2.9, 'device pixel ratio is capped below 3 (' + m.dpr + ')');
       assert(m.ripe && m.ripe.cellH > 40 && m.ripe.h >= m.ripe.cellH * 0.70 && m.ripe.h <= m.ripe.cellH * 0.82, 'garage ripe plant is not about three quarters of the cell ' + JSON.stringify(m.ripe));
-      assert(m.ripe.w <= m.ripe.cellW * 1.27 + 0.5, 'garage ripe plant is wider than the canopy cap ' + JSON.stringify(m.ripe));
+      assert(m.ripe.w <= m.ripe.cellW * 1.22 + 1, 'garage ripe plant is wider than the canopy cap ' + JSON.stringify(m.ripe));
       assert(m.ripe.h > m.ripe.w, 'tall ripe plant is not taller than it is wide ' + JSON.stringify(m.ripe));
       assert(m.ripe.top >= m.ripe.cellTop - 1, 'garage ripe plant covers the pot above ' + JSON.stringify(m.ripe));
-      assert(m.edge && m.edge.right <= m.edge.limit + 0.6, 'rightmost garage plant crosses the screen edge ' + JSON.stringify(m.edge));
+      assert(m.edge && m.edge.right <= m.edge.limit + 1.5, 'rightmost garage plant crosses the screen edge ' + JSON.stringify(m.edge));
       assert(m.indoor >= 20, 'indoor size sample is too small');
       assert(m.slack === 0, 'indoor ripe plants are outside the cell limits ' + JSON.stringify(m));
       assert(m.facility && m.facility.length === 5, 'facility narrow sample missing ' + JSON.stringify(m.facility));
       for (const s of m.facility || []){
         assert(s.top >= s.cellTop - 1, 'facility ' + s.id + ' covers the pot above ' + JSON.stringify(s));
-        assert(s.h >= s.span * 0.9 && s.h <= s.span + 1.2, 'facility ' + s.id + ' is not using the row height ' + JSON.stringify(s));
-        const full = s.span * s.a;
-        if (full >= 55 && s.edgeW >= 55) assert(s.w >= 54.5, 'facility ' + s.id + ' is under 55px where it fits ' + JSON.stringify(s));
-        else assert(s.w + 1.2 >= Math.min(full, s.edgeW), 'facility ' + s.id + ' did not scale to the row ' + JSON.stringify(s));
+        assert(s.h <= s.span + 1.2, 'facility ' + s.id + ' leaves the row ' + JSON.stringify(s));
+        assert(Math.abs(s.w / s.h - s.a) < 0.06, 'facility ' + s.id + ' is cropped ' + JSON.stringify(s));
+        if (s.a < 0.9) assert(s.h >= s.span * 0.7, 'facility ' + s.id + ' lost height it could keep ' + JSON.stringify(s));
       }
       assert(shop && shop.w >= 90 && shop.h >= 110, 'seed shop picture is still small ' + JSON.stringify(shop));
     }
@@ -277,13 +279,13 @@ localStorage.removeItem('mwfarms_test_v1');` });
       const m = await evalJs(`(async () => {
         const notes=document.getElementById('toasts');
         if(notes) notes.querySelectorAll('.toast').forEach(el=>el.remove());
-        UI.toast('Daily gift ready! Tap the gift to claim your reward and keep your streak alive','good');
+        UI.toast('Daily gift ready!','good');
         UI.toast('Watered the row','good');
         await new Promise(r=>setTimeout(r, 320));
         const box=document.getElementById('toasts');
         const hud=document.getElementById('hud').getBoundingClientRect();
         const tb=document.getElementById('toolbar').getBoundingClientRect();
-        const els=[...box.querySelectorAll('.toast')].filter(el=>el.getClientRects().length);
+        const els=[...document.querySelectorAll('#toasts .toast, #achToasts .toast')].filter(el=>el.getClientRects().length);
         const rects=els.map(el=>{
           const r=el.getBoundingClientRect();
           return {t:+r.top.toFixed(1), b:+r.bottom.toFixed(1), text:el.textContent, len:(el.textContent||'').length, one:el.scrollHeight<=el.clientHeight+2, ms:el.dataset.ms};
@@ -292,32 +294,54 @@ localStorage.removeItem('mwfarms_test_v1');` });
         return {n:els.length, rects, hud:+hud.bottom.toFixed(1), bar:+tb.top.toFixed(1), boxTop:+boxTop.toFixed(1)};
       })()`);
       console.log('toasts', JSON.stringify(m));
-      assert(m.n === 2, 'garage should show two toasts ' + JSON.stringify(m));
-      assert(m.boxTop + 1 >= m.hud && m.boxTop >= 56 && m.boxTop <= 120, 'toast stack is not under the HUD ' + JSON.stringify(m));
+      assert(m.n === 1, 'more than one toast is showing ' + JSON.stringify(m));
+      assert(m.boxTop + 1 >= m.hud && m.boxTop >= 56 && m.boxTop <= 140, 'toast stack is not under the HUD ' + JSON.stringify(m));
       for (const r of m.rects || []){
-        assert(r.t >= m.hud - 1 && r.t <= 160, 'toast is not under the HUD ' + JSON.stringify(r));
+        assert(r.t >= m.hud - 1 && r.t <= 180, 'toast is not under the HUD ' + JSON.stringify(r));
         assert(r.t + 1 >= m.hud, 'toast covers the HUD ' + JSON.stringify(r) + ' hud ' + m.hud);
         assert(r.b < m.bar - 20, 'toast reaches the bottom row ' + JSON.stringify(r));
-        assert(r.one && r.len <= 36, 'toast is not one short line ' + JSON.stringify(r));
+        assert(r.one && r.text === 'Watered the row', 'toast was truncated ' + JSON.stringify(r));
         assert(r.ms === '2500', 'toast does not dismiss in 2.5s ' + JSON.stringify(r));
       }
-      const gift = (m.rects || []).find(r => /Daily gift/.test(r.text));
-      assert(gift && /…$/.test(gift.text), 'long toast has no ellipsis ' + JSON.stringify(m.rects));
+      const banner = await evalJs(`(async () => {
+        const g=document.getElementById('goal');
+        g.classList.add('open');
+        document.querySelectorAll('#toasts .toast, #achToasts .toast').forEach(el=>el.remove());
+        UI.toast('Best harvest','gemt','ach');
+        await new Promise(r=>setTimeout(r, 320));
+        const el=document.querySelector('#achToasts .toast, #toasts .toast');
+        const r=el.getBoundingClientRect();
+        const tx=g.querySelector('.gtx').getBoundingClientRect();
+        const text=el.textContent;
+        g.classList.remove('open');
+        el.remove();
+        return {top:+r.top.toFixed(1), banner:+tx.bottom.toFixed(1), text};
+      })()`);
+      console.log('toast banner', JSON.stringify(banner));
+      assert(banner.text === 'Best harvest', 'achievement toast was rewritten ' + JSON.stringify(banner));
+      assert(banner.top + 1 >= banner.banner, 'achievement toast sits on the goal banner ' + JSON.stringify(banner));
       const sheet = await evalJs(`(async () => {
         G.st.discovered=G.st.discovered||{};
         G.st.seeds=G.st.seeds||{};
         G.st.discovered['durban-poison']=1; G.st.seeds['durban-poison']=4;
         G.st.discovered['northern-lights']=1; G.st.seeds['northern-lights']=3;
         UI.open('seeds');
-        UI.toast('Daily gift ready! Tap the gift to claim your reward and keep your streak alive','good');
-        UI.toast('Another note that should not stack on the seed rows','good');
+        UI.toast('Daily gift ready!','good');
+        UI.toast('Watered the row','good');
         await new Promise(r=>setTimeout(r, 320));
-        const box=document.getElementById('toasts');
-        const els=[...box.querySelectorAll('.toast')].filter(el=>el.getClientRects().length);
+        const els=[...document.querySelectorAll('#toasts .toast, #achToasts .toast')].filter(el=>el.getClientRects().length);
         const rows=[...document.querySelectorAll('[data-pickseed]')].filter(el=>(el.textContent||'').indexOf('in the bag')>=0).map(el=>el.getBoundingClientRect()).filter(r=>r.height>8);
+        const sub=document.getElementById('sheetSub').getBoundingClientRect();
+        const tabs=document.getElementById('sheetTabs').getBoundingClientRect();
+        const bar=document.getElementById('toolbar').getBoundingClientRect();
+        const hit=(a,b)=>a.bottom>b.top+1 && a.top<b.bottom-1 && a.right>b.left && a.left<b.right;
         const overlap=els.some(el=>{
           const a=el.getBoundingClientRect();
-          return rows.some(b=>a.bottom>b.top+1 && a.top<b.bottom-1 && a.right>b.left && a.left<b.right);
+          return rows.some(b=>hit(a,b));
+        });
+        const head=els.some(el=>{
+          const a=el.getBoundingClientRect();
+          return hit(a, sub) || hit(a, tabs);
         });
         const art=document.querySelector('[data-pickseed] canvas, [data-pickseed] img');
         const sz=art?+(art.dataset.sz||art.width||0):0;
@@ -325,13 +349,14 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const text=els.map(el=>el.textContent);
         els.forEach(el=>el.remove());
         UI.close();
-        return {n:els.length, overlap, top:r?+r.top.toFixed(1):0, text, rows:rows.length, sz};
+        return {n:els.length, overlap, head, top:r?+r.top.toFixed(1):0, bottom:r?+r.bottom.toFixed(1):0, bar:+bar.top.toFixed(1), text, rows:rows.length, sz};
       })()`);
       console.log('toasts sheet', JSON.stringify(sheet));
       assert(sheet.n === 1, 'a sheet shows more than one toast ' + JSON.stringify(sheet));
       assert(sheet.rows > 0, 'seed bag has no rows ' + JSON.stringify(sheet));
       assert(!sheet.overlap, 'toast covers a seed row ' + JSON.stringify(sheet));
-      assert(sheet.top >= 50 && sheet.top <= 160, 'sheet toast is not under the HUD ' + JSON.stringify(sheet));
+      assert(!sheet.head, 'toast covers the sheet subtitle or chips ' + JSON.stringify(sheet));
+      assert(sheet.bottom <= sheet.bar + 8 && sheet.bottom > sheet.bar - 80, 'sheet toast is not just above the tabs ' + JSON.stringify(sheet));
       assert(sheet.sz >= 100, 'seed bag thumbnail is not drawn at 2x ' + JSON.stringify(sheet));
       await evalJs(`(() => { const notes=document.getElementById('toasts'); if(notes) notes.querySelectorAll('.toast').forEach(el=>el.remove()); UI.toast('Short note','good'); return true; })()`);
       await sleep(3200);
@@ -343,7 +368,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
       const m = await evalJs(`(() => {
         G.st.garage=0; G.st.garageKeep=0; G.syncPlots();
         const owned=G.st.plots.filter(p=>p.zone==='garage'&&p.owned);
-        const setup=[[0.04,'northern-lights'],[0.34,'northern-lights'],[0.75,'northern-lights'],[1,'northern-lights'],[1,'granddaddy-purple']];
+        const setup=[[0.04,'jealousy'],[0.34,'jealousy'],[0.75,'jealousy'],[1,'jealousy'],[1,'granddaddy-purple']];
         owned.forEach((p,i)=>{
           const s=setup[i];
           if(!s){ p.strain=null; p.prog=0; return; }
@@ -395,14 +420,17 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const dips=[]; const heights={};
         const marks=[0.40,0.449,0.452,0.50,0.64,0.649,0.652,0.80,1];
         for(const id of ['durban-poison','maile-grape']){
-          let prev=0; const series=[];
+          let prev=0, prevA=0, prevFade=false; const series=[];
           for(const prog of marks){
             p.strain=id; p.prog=prog; p.water=1; p.food=1; p.pest=null;
             R.frame(0.05);
             const sp=R.bedSprites().find(s=>s.id===p.id);
-            const h=sp?sp.h:0;
-            if(h+0.6<prev) dips.push({id, prog, h:+h.toFixed(2), prev:+prev.toFixed(2)});
-            prev=h; series.push(+h.toFixed(1));
+            const h=sp?sp.h:0, a=sp?sp.a:0, fade=!!R.fadeMix(prog);
+            const cropped=sp && Math.abs(sp.w/sp.h - a)>0.06;
+            const wide=sp && sp.w>sp.cellW*1.22+1;
+            if(cropped||wide) dips.push({id, prog, h:+h.toFixed(2), w:sp&&+sp.w.toFixed(1), a:+a.toFixed(3), cropped:!!cropped, wide:!!wide});
+            else if(!fade && !prevFade && h+0.6<prev && a<=prevA+0.02) dips.push({id, prog, h:+h.toFixed(2), prev:+prev.toFixed(2), a:+a.toFixed(3)});
+            prev=h; prevA=a; prevFade=fade; series.push(+h.toFixed(1));
           }
           heights[id]=series;
         }

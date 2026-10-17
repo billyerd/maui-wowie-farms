@@ -318,7 +318,7 @@ G.st.plots.forEach(p => { p.strain = null; });
 const beforeRescue = toasts.length;
 G.tick(1.2);
 assert((G.st.seeds['northern-lights'] || 0) >= 3, 'the broke-farm rescue did not grant starter seeds');
-assert(toasts.slice(beforeRescue).some(t => /Unko Kuli dropped off 3 free Northern Lights seeds/.test(t || '')), 'the rescue notice was dropped: ' + toasts.slice(beforeRescue).join(' | '));
+assert(toasts.slice(beforeRescue).some(t => /3 Northern Lights seeds/.test(t || '')), 'the rescue notice was dropped: ' + toasts.slice(beforeRescue).join(' | '));
 assert(!toasts.some(t => /Open your seed bag|Out of those seeds|No seeds left|not enough cash for upkeep/i.test(t || '')), 'an out-of-seeds warning toast was emitted');
 assert(!errors.length, 'a panel threw\n' + errors.join('\n'));
 

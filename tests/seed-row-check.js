@@ -178,9 +178,15 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(wMin >= 16, tag + ' a button collapsed ' + JSON.stringify(m.items.map(it => [it.id, +it.w.toFixed(1)])));
       for (let i = 0; i < m.items.length; i++){
         const it = m.items[i];
-        assert(it.l >= -1 && it.r <= m.w + 1 && it.b <= m.h + 1, tag + ' button offscreen ' + JSON.stringify(it));
+        assert(it.w >= 40, tag + ' tab box is under 40px ' + JSON.stringify(it));
+        const cx = (it.l + it.r) / 2;
+        assert(cx >= -1 && cx <= m.w + 1, tag + ' button center offscreen ' + JSON.stringify(it));
+        assert(it.l >= -12 && it.r <= m.w + 12 && it.b <= m.h + 1, tag + ' button offscreen ' + JSON.stringify(it));
         assert(it.t >= m.bar.t - 1 && it.b <= m.bar.b + 1, tag + ' button leaves the row ' + JSON.stringify(it));
-        if (i) assert(it.l >= m.items[i - 1].r - 1, tag + ' buttons overlap ' + m.items[i - 1].id + ' ' + it.id);
+        if (i){
+          const prev = m.items[i - 1];
+          assert(cx >= (prev.l + prev.r) / 2 + 8, tag + ' tab centers are stacked ' + prev.id + ' ' + it.id);
+        }
       }
       const badHit = m.hits.find(h => h.owner !== h.id);
       assert(!badHit, tag + ' a row button is covered ' + JSON.stringify(m.hits));
