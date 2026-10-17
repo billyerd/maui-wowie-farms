@@ -1,6 +1,7 @@
 /* Scene renderer (window.R): painted location art + sprite plants at real-world scale.
    Garage | Farm (greenhouse + terraces in front of the island backdrop) | Indoor facility.
    Room plants, the plant card, and the seed shop use art/plants sprites tinted per strain.
+   Bud formation (data/bud-formation.json) warps those sprites so each strain keeps its own cola shape.
    People are 1.7 m tall; plants 1-2 m. */
 window.R=(function(){
   const TAU=Math.PI*2;
@@ -824,10 +825,116 @@ window.R=(function(){
     return hsvRgb(A[0]+dh*amt, s, v);
   }
   function mix3(a,b,t){ return [a[0]*(1-t)+b[0]*t, a[1]*(1-t)+b[1]*t, a[2]*(1-t)+b[2]*t]; }
-  // Leaf pixels follow look.leaf. Dense upper growth follows look.bud. Orange hairs follow look.pistil.
-  function tintPlantPixels(data,w,h,L,buddy){
-    const leaf=rgb(L.leaf||'#4f8a32'), bud=rgb(L.bud||'#6a9a3a'), bud2=rgb(L.bud2||L.bud||'#d6f09a'), pist=rgb(L.pistil||'#e8a050');
-    const frost=Math.max(0, Math.min(1, L.frost==null?.5:+L.frost));
+  function budRow(st){
+    const id=st&&st.id, table=window.BUD_FORMATION, row=table&&table.byId&&id&&table.byId[id];
+    if(row) return row;
+    const sativa=st&&st.type==='Sativa', indica=st&&st.type==='Indica';
+    return {id:id||'', formation:sativa?'spear':indica?'chunky':'popcorn', plate:sativa?'sativa':indica?'indica':'hybrid',
+      colas:sativa?1:3, spacing:sativa?'spaced':'stacked', leaf:sativa?'narrow':indica?'broad':'mid',
+      pistil:'#b08058', pistilAmt:.5, pistilSat:.4, frost:.5, height:sativa?'tall':indica?'short':'medium', branching:indica?'bushy':'moderate'};
+  }
+  // Formation presets. The foot stays put. Upper growth stretches, pinches, or gains extra colas cut from the painted bud.
+  function warpOf(row){
+    const base={
+      chunky:{power:1.34,stretch:.92,width:1.1,pinch:.22,lobes:2,lobe:.05,mode:'side'},
+      spear:{power:.72,stretch:1.14,width:.82,pinch:-.42,lobes:1,lobe:0,mode:'side'},
+      foxtail:{power:.56,stretch:1.2,width:.7,pinch:-.18,lobes:5,lobe:.15,mode:'stack'},
+      popcorn:{power:1.02,stretch:.98,width:.86,pinch:0,lobes:3,lobe:.05,mode:'balls'},
+      airy:{power:.68,stretch:1.16,width:.76,pinch:-.06,lobes:3,lobe:.12,mode:'spaced'}
+    }[row.formation]||{power:1,stretch:1,width:1,pinch:0,lobes:1,lobe:0,mode:'none'};
+    const h=hash(row.id||'x'), j=n=>((h>>>n)&255)/255;
+    const leaf=row.leaf==='broad'?1.1:row.leaf==='narrow'?.84:.98;
+    const tall=row.height==='tall'?1.05:row.height==='short'?.95:1;
+    return {power:base.power*(.97+.06*j(1)), stretch:base.stretch*tall*(.98+.04*j(4)), width:base.width*(.97+.06*j(7)),
+      pinch:base.pinch, leaf:leaf, lobes:base.lobes, lobe:base.lobe*(row.spacing==='spaced'?1.2:1), lean:(j(10)-.5)*.1,
+      mode:base.mode, colas:row.colas||2, spaced:row.spacing==='spaced', apical:row.branching==='apical'};
+  }
+  function srcFrac(u, power){
+    u=Math.max(0, Math.min(1, u));
+    const stem=.2; if(u<=stem) return u;
+    const t=(u-stem)/(1-stem), p=Math.max(.42, Math.min(1.85, power));
+    return stem+(1-stem)*Math.pow(t, p);
+  }
+  function blitOval(ctx, src, sx,sy,sw,sh, dx,dy, dw,dh, rot){
+    const c=document.createElement('canvas');
+    c.width=Math.max(2, Math.round(Math.abs(dw))); c.height=Math.max(2, Math.round(Math.abs(dh)));
+    const g=c.getContext('2d'); if(!g) return;
+    g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+    g.drawImage(src, sx,sy,sw,sh, 0,0,c.width,c.height);
+    g.globalCompositeOperation='destination-in';
+    const rg=g.createRadialGradient(c.width*.5,c.height*.46,c.width*.08,c.width*.5,c.height*.5,Math.max(c.width,c.height)*.52);
+    rg.addColorStop(0,'rgba(0,0,0,1)'); rg.addColorStop(.72,'rgba(0,0,0,.88)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=rg; g.fillRect(0,0,c.width,c.height);
+    ctx.save(); ctx.translate(dx,dy); ctx.rotate(rot||0); ctx.drawImage(c,-c.width/2,-c.height/2); ctx.restore();
+  }
+  function layColas(ctx, dest, src, spec){
+    const mode=spec.mode; if(!mode||mode==='none') return;
+    const sw=src.width, sh=src.height, w=dest.width, h=dest.height;
+    const cw=Math.round(sw*.46), ch=Math.round(sh*.36), sx=Math.round((sw-cw)/2), sy=Math.round(sh*.03);
+    const spots=mode==='balls'
+      ?[[-.18,.13,.78,-.1],[.19,.16,.72,.12],[0,.03,.68,.02],[-.04,.28,.52,.16]]
+      :mode==='stack'?[[0,.015,.58,-.03],[.02,.1,.48,.05]]
+      :mode==='spaced'?[[-.17,.32,.46,-.12],[.17,.44,.38,.12]]
+      :[[-.15,.2,.7,-.08],[.16,.24,.64,.1],[0,.34,.48,.03]];
+    let n=mode==='balls'?Math.min(spots.length, Math.max(2,(spec.colas||3)-1))
+      :mode==='stack'?2
+      :mode==='spaced'?2
+      :Math.min(spots.length, Math.max(0,(spec.colas||2)-1));
+    if(spec.apical&&mode==='side') n=Math.min(n,1);
+    if(mode==='balls'){
+      ctx.save(); ctx.globalCompositeOperation='destination-out'; ctx.fillStyle='rgba(0,0,0,.42)';
+      ctx.beginPath(); ctx.ellipse(w*.5,h*.13,w*.1,h*.11,0,0,TAU); ctx.fill(); ctx.restore();
+    }
+    const spread=spec.spaced?1.12:1;
+    for(let i=0;i<n;i++){
+      const s=spots[i], sc=s[2];
+      const dw=w*.32*sc, dh=h*(mode==='stack'?.34:.26)*sc;
+      blitOval(ctx, src, sx,sy,cw,ch, w*.5+s[0]*w*spread, s[1]*h, dw, dh, s[3]);
+    }
+  }
+  function shapePlant(src, spec){
+    if(!src||!spec) return src;
+    const sw=src.width, sh=src.height;
+    const outH=Math.max(16, Math.round(sh*spec.stretch));
+    const outW=Math.max(16, Math.round(sw*Math.max(spec.width,1)*1.26+8));
+    const c=document.createElement('canvas'); c.width=outW; c.height=outH;
+    const x=c.getContext('2d'); if(!x) return src;
+    x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+    const strips=Math.max(28, Math.round(outH/3));
+    for(let i=0;i<strips;i++){
+      const y0=Math.round(i*outH/strips), y1=Math.round((i+1)*outH/strips);
+      if(y1<=y0) continue;
+      const uTop=1-y0/Math.max(1,outH-1), uBot=1-(y1-1)/Math.max(1,outH-1), u=(uTop+uBot)/2;
+      let sy0=(1-srcFrac(uTop, spec.power))*(sh-1), sy1=(1-srcFrac(uBot, spec.power))*(sh-1);
+      if(sy1<sy0){ const t=sy0; sy0=sy1; sy1=t; }
+      const srcY=Math.max(0, Math.min(sh-1, sy0)), srcH=Math.max(1, Math.min(sh-srcY, sy1-sy0+1));
+      let sx=spec.width;
+      if(u>.12&&u<.68) sx*=spec.leaf;
+      let wave=0;
+      if(u>.4){
+        const bt=(u-.4)/.6;
+        sx*=(1+spec.pinch*bt*bt);
+        if(spec.lobes>1&&spec.lobe){
+          const seg=Math.sin(bt*Math.PI*spec.lobes);
+          sx*=(1-spec.lobe*Math.abs(seg));
+          wave=seg*spec.lobe*sw*.18;
+        }
+      }
+      sx=Math.max(.32, sx);
+      const dw=sw*sx, dx=(outW-dw)/2+spec.lean*u*sw+wave;
+      x.drawImage(src, 0, srcY, sw, srcH, dx, y0, dw, y1-y0);
+    }
+    layColas(x, c, src, spec);
+    return c;
+  }
+  // Leaf pixels follow look.leaf. Dense upper growth follows look.bud.
+  // Hairs take the strain's muted pistil (apricot, rust, dusty rose), never the neon orange of the plate.
+  function tintPlantPixels(data,w,h,L,buddy,form){
+    const leaf=rgb(L.leaf||'#4f8a32'), bud=rgb(L.bud||'#6a9a3a'), bud2=rgb(L.bud2||L.bud||'#d6f09a');
+    const pist=rgb((form&&form.pistil)||'#b08058');
+    const pistilAmt=Math.max(0, Math.min(1, form&&form.pistilAmt!=null?+form.pistilAmt:.5));
+    const pistilSat=Math.max(.12, Math.min(.55, form&&form.pistilSat!=null?+form.pistilSat:.4));
+    const frost=Math.max(0, Math.min(1, form&&form.frost!=null?+form.frost:(L.frost==null?.5:+L.frost)));
     let y0=h, y1=0;
     for(let y=0;y<h;y++){
       const row=y*w*4;
@@ -835,25 +942,40 @@ window.R=(function(){
     }
     if(y1<=y0) return;
     const span=y1-y0;
+    const Bp=hsvOf(pist[0],pist[1],pist[2]);
     for(let p=0, n=w*h; p<n; p++){
       const i=p*4, a=data[i+3]; if(a<16) continue;
       const r=data[i], g=data[i+1], b=data[i+2];
       const up=(y1-(p/w|0))/span;
       const v=(r*.3+g*.59+b*.11)/255;
-      const hair=r>g+10&&r>b+12&&r>85&&g>36&&b<r*.78;
+      const hair=(r>g+8&&r>b+10&&r>90&&g>40&&b<r*.72)||(r>150&&g>70&&g<r*.85&&b<r*.55&&r>b+30);
+      if(hair){
+        const A=hsvOf(r,g,b);
+        let dh=Bp[0]-A[0]; if(dh>.5) dh-=1; if(dh<-.5) dh+=1;
+        const ss=Math.min(pistilSat, A[1]*.28+Bp[1]*.45);
+        const vv=Math.min(.8, A[2]*.5+Bp[2]*.4);
+        let sh=hsvRgb(A[0]+dh*.8, ss, vv);
+        const keep=.2+.8*pistilAmt;
+        sh=mix3(mix3(bud, leaf, .4), sh, keep);
+        data[i]=sh[0]; data[i+1]=sh[1]; data[i+2]=sh[2];
+        continue;
+      }
       let tgt=leaf, amt=.55;
-      if(hair){ tgt=pist; amt=.9; }
-      else if(buddy&&up>.46){ tgt=mix3(bud,bud2,Math.max(0,Math.min(1,(v-.66)/.34))); amt=.84+Math.min(.1,(up-.46)*.25); }
+      if(buddy&&up>.46){ tgt=mix3(bud,bud2,Math.max(0,Math.min(1,(v-.66)/.34))); amt=.84+Math.min(.1,(up-.46)*.25); }
       else if(buddy&&up>.26){ tgt=bud; amt=.5; }
       const sh=hueToward(r,g,b,tgt,amt);
       data[i]=sh[0]; data[i+1]=sh[1]; data[i+2]=sh[2];
-      if(buddy&&frost>.15&&up>.48&&!hair){
-        const v=(r*.3+g*.59+b*.11)/255;
-        if(v>.55){ const k=Math.min(.7, frost*(v-.48)*.9); data[i]=data[i]*(1-k)+248*k; data[i+1]=data[i+1]*(1-k)+250*k; data[i+2]=data[i+2]*(1-k)+252*k; }
+      if(buddy&&frost>.12&&up>.5&&v>.52){
+        const k=Math.min(.58, frost*frost*(v-.42)*1.2);
+        data[i]=data[i]*(1-k)+248*k; data[i+1]=data[i+1]*(1-k)+250*k; data[i+2]=data[i+2]*(1-k)+252*k;
       }
     }
   }
-  function ripeName(st){ return st&&st.type==='Sativa'?'sativa':st&&st.type==='Indica'?'indica':'hybrid'; }
+  function ripeName(st){
+    const f=budRow(st);
+    if(f&&(f.plate==='indica'||f.plate==='sativa'||f.plate==='hybrid')) return f.plate;
+    return st&&st.type==='Sativa'?'sativa':st&&st.type==='Indica'?'indica':'hybrid';
+  }
   function stageArt(st,stage){ if(stage<=1) return 'seedling'; if(stage<=3) return 'veg'; if(stage===4) return 'flower'; return ripeName(st); }
   function stageNext(st,stage){ if(stage===1) return 'veg'; if(stage===3) return 'flower'; if(stage===4) return ripeName(st); return null; }
   function stageMix(prog,stage){
@@ -869,13 +991,23 @@ window.R=(function(){
     const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight;
     const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return null;
     x.drawImage(im,0,0);
+    const form=budRow(st);
     try{
       const d=x.getImageData(0,0,c.width,c.height);
-      tintPlantPixels(d.data,c.width,c.height,look(st),!!buddy);
+      tintPlantPixels(d.data,c.width,c.height,look(st),!!buddy,form);
       x.putImageData(d,0,0);
     }catch(e){}
+    let out=c;
+    try{
+      const ripe=which==='flower'||which==='indica'||which==='sativa'||which==='hybrid';
+      if(ripe) out=shapePlant(c, warpOf(form));
+      else if(which==='veg'){
+        const leaf=form.leaf==='broad'?1.05:form.leaf==='narrow'?.93:1;
+        if(Math.abs(leaf-1)>.02) out=shapePlant(c, {power:1,stretch:1,width:1,pinch:0,leaf:leaf,lobes:1,lobe:0,lean:0,mode:'none',colas:1});
+      }
+    }catch(e){}
     if(plantTint.size>72){ const k0=plantTint.keys().next().value; plantTint.delete(k0); }
-    plantTint.set(key,c); return c;
+    plantTint.set(key,out); return out;
   }
   function blendFeet(a,b,t){
     if(!a) return b; if(!b||t<=.02) return a; if(t>=.98) return b;
