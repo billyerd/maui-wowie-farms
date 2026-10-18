@@ -160,7 +160,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         assert(!s.a || Math.abs(s.w / s.h - s.a) < 0.06, tag + ' pot ' + s.id + ' is cropped instead of scaled ' + JSON.stringify(s));
-        if (s.cellW) assert(s.w <= s.cellW * 1.12 + 1, tag + ' pot ' + s.id + ' is wider than 1.1 cells ' + JSON.stringify(s));
+        if (s.cellW && s.w > s.cellW * 1.2 + 1) assert(s.feather > 0.4, tag + ' pot ' + s.id + ' overhangs with a hard edge ' + JSON.stringify(s));
         assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
         if (s.edge != null && s.x != null && s.x + s.w / 2 > s.edge + 0.6) assert(s.feather > 0.4, tag + ' pot ' + s.id + ' is hard-clipped at the margin ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
@@ -312,23 +312,25 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const closed=document.querySelector('#achToasts .toast, #toasts .toast').getBoundingClientRect().top;
         g.classList.add('open');
         UI.update();
-        await new Promise(r=>setTimeout(r, 40));
+        await new Promise(r=>setTimeout(r, 320));
         const el=document.querySelector('#achToasts .toast, #toasts .toast');
         const open=el.getBoundingClientRect().top;
         const tx=g.querySelector('.gtx').getBoundingClientRect();
         const text=el.textContent;
+        const transition=getComputedStyle(el.parentElement).transitionProperty||'';
         g.classList.remove('open');
         UI.update();
-        await new Promise(r=>setTimeout(r, 40));
+        await new Promise(r=>setTimeout(r, 320));
         const back=document.querySelector('#achToasts .toast, #toasts .toast').getBoundingClientRect().top;
         el.remove();
-        return {closed:+closed.toFixed(1), open:+open.toFixed(1), back:+back.toFixed(1), banner:+tx.bottom.toFixed(1), hud:+hud.toFixed(1), text};
+        return {closed:+closed.toFixed(1), open:+open.toFixed(1), back:+back.toFixed(1), banner:+tx.bottom.toFixed(1), hud:+hud.toFixed(1), text, transition};
       })()`);
       console.log('toast banner', JSON.stringify(banner));
       assert(banner.text === 'Legendary Harvest', 'achievement toast was rewritten ' + JSON.stringify(banner));
-      assert(banner.closed >= banner.hud + 4, 'achievement toast sits on the HUD ' + JSON.stringify(banner));
-      assert(Math.abs(banner.back - banner.closed) < 3, 'toast jumps when the goal banner closes ' + JSON.stringify(banner));
-      assert(Math.abs(banner.open - banner.closed) < 16, 'toast jumps when the goal banner opens ' + JSON.stringify(banner));
+      assert(banner.closed >= banner.hud + 4 && banner.closed <= 72, 'achievement toast is not under the HUD ' + JSON.stringify(banner));
+      assert(banner.open >= 100 && banner.open <= 140 && banner.open + 1 >= banner.banner, 'toast covers the goal banner ' + JSON.stringify(banner));
+      assert(Math.abs(banner.back - banner.closed) < 3, 'toast does not return when the goal banner closes ' + JSON.stringify(banner));
+      assert(/top/.test(banner.transition), 'toast does not move smoothly ' + JSON.stringify(banner));
       const clearance = await evalJs(`(() => {
         const rooms=[
           {room:'gh', prep:()=>{ G.st.ghBuilt=true; G.st.gh=3; G.st.ghMatch=9; }},
@@ -394,6 +396,35 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(!sheet.head, 'toast covers the sheet subtitle or chips ' + JSON.stringify(sheet));
       assert(sheet.bottom <= sheet.bar + 8 && sheet.bottom > sheet.bar - 80, 'sheet toast is not just above the tabs ' + JSON.stringify(sheet));
       assert(sheet.sz >= 100, 'seed bag thumbnail is not drawn at 2x ' + JSON.stringify(sheet));
+      const longNotice = await evalJs(`(async () => {
+        G.st.discovered=G.st.discovered||{};
+        G.st.seeds=G.st.seeds||{};
+        (window.STRAINS||[]).slice(0, 16).forEach(s=>{ G.st.discovered[s.id]=1; G.st.seeds[s.id]=2; });
+        UI.open('seeds');
+        UI.toast('Harvested Northern Lights x12, Cherry Wine x8, Trop Cherry x6 and Gelato x4','good long');
+        await new Promise(r=>setTimeout(r, 360));
+        UI.update();
+        const el=document.querySelector('#toasts .toast, #achToasts .toast');
+        const body=document.getElementById('sheetBody').getBoundingClientRect();
+        const rows=[...document.querySelectorAll('[data-pickseed]')].filter(n=>(n.textContent||'').indexOf('in the bag')>=0).map(n=>{
+          const r=n.getBoundingClientRect();
+          return {top:r.top, bottom:r.bottom, h:r.height, vis:r.height>8 && r.bottom>body.top+2 && r.top<body.bottom-2};
+        }).filter(r=>r.vis);
+        const last=rows.reduce((a,b)=>!a||b.bottom>a.bottom?b:a, null);
+        const tr=el.getBoundingClientRect();
+        const vis=last?{top:Math.max(last.top, body.top), bottom:Math.min(last.bottom, body.bottom)}:null;
+        const hit=!!(vis && tr.bottom>vis.top+1 && tr.top<vis.bottom-1);
+        const sub=document.getElementById('sheetSub').getBoundingClientRect();
+        const head=tr.bottom>sub.top+1 && tr.top<sub.bottom-1;
+        const text=el.textContent;
+        el.remove();
+        UI.close();
+        return {hit, head, n:rows.length, top:+tr.top.toFixed(1), bottom:+tr.bottom.toFixed(1), last:last&&{top:+last.top.toFixed(1), bottom:+last.bottom.toFixed(1)}, body:+body.bottom.toFixed(1), text};
+      })()`);
+      console.log('long harvest notice', JSON.stringify(longNotice));
+      assert(longNotice.n > 2, 'seed bag did not fill ' + JSON.stringify(longNotice));
+      assert(!longNotice.hit, 'long harvest notice covers the last seed row ' + JSON.stringify(longNotice));
+      assert(!longNotice.head, 'long harvest notice covers the sheet subtitle ' + JSON.stringify(longNotice));
       await evalJs(`(() => { const notes=document.getElementById('toasts'); if(notes) notes.querySelectorAll('.toast').forEach(el=>el.remove()); UI.toast('Short note','good'); return true; })()`);
       await sleep(3200);
       const left = await evalJs(`(() => document.querySelectorAll('#toasts .toast').length)()`);
@@ -506,7 +537,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
             prev=h; prevW=w;
           }
           const sp=R.bedSprites().find(s=>s.id===p.id);
-          ends[id]={h:sp?+sp.h.toFixed(1):0, w:sp?+sp.w.toFixed(1):0, cellW:sp?+sp.cellW.toFixed(1):0, cellH:sp?+sp.cellH.toFixed(1):0, span:sp?+(sp.foot-sp.cellTop).toFixed(1):0};
+          ends[id]={h:sp?+sp.h.toFixed(1):0, w:sp?+sp.w.toFixed(1):0, a:sp?+((sp.w&&sp.h)?sp.w/sp.h:0).toFixed(3):0, nat:sp?+(sp.nat||0).toFixed(3):0, cellW:sp?+sp.cellW.toFixed(1):0, cellH:sp?+sp.cellH.toFixed(1):0, span:sp?+(sp.foot-sp.cellTop).toFixed(1):0, feather:sp?sp.feather||0:0};
         });
         const wideIds=['cherry-wine','gary-payton','northern-lights','menehune-mint','do-si-dos'];
         owned.forEach((q,i)=>{ q.strain=wideIds[i%wideIds.length]; q.prog=i%2?1:0.55; q.water=1; q.food=1; q.pest=null; });
@@ -515,7 +546,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
         let badTap=0, wideOver=0;
         const samples=[];
         row.forEach(s=>{
-          if(s.w>s.cellW*1.12+1) wideOver++;
+          const chopped=s.a && Math.abs(s.w/s.h - s.a)>0.06;
+          const hard=s.w>s.cellW*1.2+1 && !(s.feather>0.4);
+          if(chopped||hard) wideOver++;
           const tip=R.pick(s.x+s.w/2-1, s.top+Math.min(12, s.h*0.2));
           const hit=tip&&tip.p&&tip.p.id===s.id;
           if(!hit) badTap++;
@@ -532,7 +565,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(!(grow.errs && grow.errs.length), 'growth sweep errors ' + JSON.stringify(grow.errs));
       assert(!(grow.jumps && grow.jumps.length), 'height is not a smooth climb ' + JSON.stringify(grow.jumps));
       assert(!(grow.widths && grow.widths.length), 'width pops at a stage edge ' + JSON.stringify(grow.widths));
-      assert(!grow.wideOver, 'a wide plant is over 1.1 cells ' + JSON.stringify(grow.samples));
+      assert(!grow.wideOver, 'a wide plant is cropped or hard-edged ' + JSON.stringify(grow.samples));
       assert(!grow.badTap, 'a leaf tip hit the neighbour ' + grow.badTap + ' ' + JSON.stringify(grow.samples));
       for (const id of ['durban-poison','jealousy']){
         const e=grow.ends[id];
@@ -540,8 +573,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
       }
       for (const id of ['northern-lights','maile-grape']){
         const e=grow.ends[id];
-        assert(e && e.h+0.5 >= e.span*0.58, id + ' wide ripe plant lost the height floor ' + JSON.stringify(e));
-        assert(e && e.w <= e.cellW*1.12+1, id + ' wide ripe plant is over 1.1 cells ' + JSON.stringify(e));
+        const floor=e&&e.span>=90?Math.min(e.span, 100):e&&e.span*0.58;
+        assert(e && e.h+0.5 >= floor-1, id + ' wide ripe plant lost the height floor ' + JSON.stringify(e));
+        assert(e && Math.abs(e.w/e.h - e.nat) < 0.06, id + ' wide ripe plant is masked instead of scaled ' + JSON.stringify(e));
       }
       for (const row of grow.wash || []){
         for (const sample of [row.a, row.b]){

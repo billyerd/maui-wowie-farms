@@ -42,36 +42,92 @@ window.UI = (function(){
       return top<1e8?top:0;
     }catch(e){ return 0; }
   }
+  function livePill(){
+    const el=document.querySelector('#toasts .toast, #achToasts .toast');
+    if(!el||!el.getClientRects||!el.getClientRects().length) return null;
+    return el;
+  }
+  function setSheetGap(px){
+    const body=document.getElementById('sheetBody');
+    if(!body) return;
+    const next=px>0?Math.ceil(px)+'px':'';
+    if(body.style.marginBottom!==next) body.style.marginBottom=next;
+  }
+  function goalBannerBottom(){
+    const g=document.getElementById('goal');
+    if(!g||!g.classList||!g.classList.contains('open')) return 0;
+    const tx=g.querySelector('.gtx');
+    if(!tx||!tx.getBoundingClientRect) return 0;
+    const r=tx.getBoundingClientRect();
+    return r.height>8?r.bottom:0;
+  }
+  let sheetGapOn=false, dockY=0;
+  function bagRows(body){
+    if(!body) return [];
+    const view=body.getBoundingClientRect();
+    const out=[];
+    body.querySelectorAll('[data-pickseed]').forEach(el=>{
+      if((el.textContent||'').indexOf('in the bag')<0) return;
+      const r=el.getBoundingClientRect();
+      const top=Math.max(r.top, view.top), bottom=Math.min(r.bottom, view.bottom);
+      if(bottom-top>4) out.push({top, bottom});
+    });
+    return out;
+  }
+  function pillHits(y, ph, rows){
+    return rows.some(r=>y<r.bottom-1 && y+ph>r.top+1);
+  }
   function toastTop(){
     const H=window.innerHeight||800;
     if(sheetOpen()){
       const bar=document.getElementById('toolbar');
       const foot=document.getElementById('sheetFoot');
+      const body=document.getElementById('sheetBody');
       const fr=foot&&foot.getClientRects&&foot.getClientRects().length?foot.getBoundingClientRect():null;
       const br=bar&&bar.getBoundingClientRect?bar.getBoundingClientRect():null;
       const anchor=(fr&&fr.height>8&&fr.top>120)?fr.top:(br&&br.top>120?br.top:H-80);
-      return Math.max(64, Math.round(anchor-44));
+      const pill=livePill();
+      const ph=pill?Math.max(22, pill.getBoundingClientRect().height):0;
+      if(!ph){ sheetGapOn=false; setSheetGap(0); return Math.max(64, Math.round(anchor-44)); }
+      // Just above the sheet foot. A long notice that would cover the last
+      // visible seed row keeps a gap under those rows until the notice is gone.
+      const yLow=Math.max(64, Math.round(anchor-Math.max(44, ph+12)));
+      if(!sheetGapOn && pillHits(yLow, ph, bagRows(body))) sheetGapOn=true;
+      setSheetGap(sheetGapOn?ph+14:0);
+      if(sheetGapOn && body){
+        const bb=body.getBoundingClientRect();
+        if(bb.height>40) return Math.max(64, Math.round(bb.bottom+4));
+      }
+      return yLow;
     }
-    // A short pill just under the HUD. The same slot stays whether the goal
-    // card is open, because dropping under that card lands on the first row.
-    let y=64, hudB=0;
+    sheetGapOn=false;
+    setSheetGap(0);
+    // Under the HUD when the goal card is closed. Below the card when it is open,
+    // so the pill does not cover "Tap to claim".
+    let y=56, hudB=0;
     const hud=document.getElementById('hud');
     if(hud&&hud.getBoundingClientRect){
       const r=hud.getBoundingClientRect();
-      if(r.height>8 && r.bottom<H*0.55){ hudB=r.bottom; y=Math.round(r.bottom+6); }
+      if(r.height>8 && r.bottom<H*0.55){ hudB=r.bottom; y=Math.max(56, Math.round(r.bottom+6)); }
     }
+    const banner=goalBannerBottom();
+    if(banner>40) return Math.max(108, Math.round(banner+6));
     const leaf=canopyTop(), slim=22;
-    if(leaf>72 && y+slim+4>leaf) y=Math.max(hudB+4, Math.round(leaf-slim-6));
+    if(leaf>72 && y+slim+4>leaf) y=Math.max(56, hudB+4, Math.round(leaf-slim-6));
     return Math.max(56, Math.round(y));
   }
   function placeToasts(){
-    const top=toastTop()+'px';
+    let y=toastTop();
+    // Ignore a 1px layout wobble so the slide does not restart every frame.
+    if(dockY && Math.abs(y-dockY)<3) y=dockY; else dockY=y;
+    const top=y+'px';
     const root=document.documentElement.style;
     if(root.getPropertyValue('--dock-top')!==top) root.setProperty('--dock-top', top);
     [document.getElementById('toasts'), document.getElementById('achToasts')].forEach(box=>{
       if(!box) return;
-      box.style.top=top; box.style.bottom='auto';
-      box.style.setProperty('--dock-top', top);
+      if(box.style.top!==top) box.style.top=top;
+      box.style.bottom='auto';
+      if(box.style.getPropertyValue('--dock-top')!==top) box.style.setProperty('--dock-top', top);
       box.style.zIndex='60';
     });
   }
@@ -115,6 +171,7 @@ window.UI = (function(){
     if(box.appendChild) box.appendChild(el);
     capToasts();
     armPill(el, long);
+    placeToasts();
   }
   function armPill(el, long){
     if(!el) return;

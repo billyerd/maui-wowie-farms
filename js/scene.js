@@ -947,9 +947,12 @@ window.R=(function(){
   function hintColorOf(st){
     const L=look(st);
     const bud=L&&L.bud;
+    const bud2=L&&L.bud2;
     const alt=st&&st.game&&st.game.budColor;
+    // Cherry Wine keeps its red in the second bud swatch, Trop Cherry in budColor.
     if(huePunch(bud)) return bud;
     if(huePunch(alt)) return alt;
+    if(huePunch(bud2)) return bud2;
     return bud||alt||'#6a9a3a';
   }
   function washKeyed(src, color, amt, stem){
@@ -964,7 +967,7 @@ window.R=(function(){
     if(punch){
       // A light wash. Stem and leaves stay green; the bud colour sits on the
       // new growth and the outer edges. The mask below keeps empty pixels empty.
-      x.globalCompositeOperation='source-atop'; x.globalAlpha=0.30; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
+      x.globalCompositeOperation='source-atop'; x.globalAlpha=0.40; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
       const top=x.createLinearGradient(0,0,0,src.h*0.38);
       top.addColorStop(0, hexA(color,1)); top.addColorStop(1, hexA(color,0));
       x.globalAlpha=0.42; x.fillStyle=top; x.fillRect(0,0,src.w,src.h*0.4);
@@ -1043,8 +1046,8 @@ window.R=(function(){
     return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor, stem:stage<=3&&L&&L.leaf?L.leaf:'', painted:1, grown:1, closeup:0};
   }
   // One height curve per strain, from the shared sprout to that strain's ripe height.
-  // Width follows the sprite. A plate wider than about 1.2 cells may scale down,
-  // but not below 0.6 of the row, and never below the curve.
+  // Width is the same uniform scale. A wide ripe plate stays at least about 100px
+  // tall in a row that can hold it, and may overhang the cell a little.
   function curveT(prog){
     const p=Math.max(0, Math.min(1, +prog||0));
     if(p>=1) return 1;
@@ -1059,7 +1062,12 @@ window.R=(function(){
     const cap=cellW*1.2;
     if(want*a>cap+0.2){
       const fitted=cap/a;
-      const floor=span!=null?span*0.6:fitted;
+      let floor=fitted;
+      if(span!=null){
+        floor=span*0.6;
+        // About 100px when the row can hold it. Shorter rows stay inside the span.
+        if(span>=90) floor=Math.max(floor, Math.min(span, 100));
+      }
       want=Math.max(fitted, floor);
       if(span!=null) want=Math.min(span, want);
     }
@@ -1093,58 +1101,58 @@ window.R=(function(){
     const t=(prog>=1||stage>=5)?1:curveT(prog);
     let h=sprout+(ripeH-sprout)*t;
     if(span!=null && h>span) h=span;
-    const fullW=h*use;
-    // Wide strains stop near 1.1 cells. Height stays on the curve, including
-    // the 0.6-span floor already chosen for a wide ripe plate.
-    const cap=cellW*1.1;
-    let w=fullW>cap+0.2?cap:fullW;
+    // Uniform scale. Never slice the sprite down to the cell: a plate that is
+    // still wider than about 1.2 cells keeps its height and overhangs a little.
+    const w=h*use;
+    const cap=cellW*1.2;
     let feather=0;
+    if(w>cap+0.2) feather=14;
     if(sl.x!=null){
-      const half=Math.max(w, fullW)/2;
-      const overL=Math.max(0, 8-(sl.x-half));
+      const half=w/2;
+      const overL=Math.max(0, 14-(sl.x-half));
       const overR=sl.edgeR!=null?Math.max(0, (sl.x+half)-sl.edgeR):0;
-      if(overL>0.4||overR>0.4) feather=12;
+      if(overL>0.4||overR>0.4) feather=14;
     }
-    return {h,w,fullW,a:w/Math.max(1,h),nat:use,feather,crop:0};
+    return {h,w,fullW:w,a:use,nat:use,feather,crop:0};
   }
   let featherC=null;
   function paintSprite(painted, box, sl, flip){
     const tuck=Math.min(3, box.h*0.025);
-    const full=box.fullW>box.w+0.5?box.fullW:box.w;
-    if(!(box.feather>0.4)&&full<=box.w+0.5){
+    if(!(box.feather>0.4)){
       ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h);
       return;
     }
+    // Soft 14px fade on both sides, and again at either screen edge. Never a hard rect.
+    const fade=14;
     const pad=2;
-    const dw=Math.max(1, Math.ceil(full+pad*2)), dh=Math.max(1, Math.ceil(box.h+pad*2));
+    const dw=Math.max(1, Math.ceil(box.w+pad*2)), dh=Math.max(1, Math.ceil(box.h+pad*2));
     if(!featherC) featherC=document.createElement('canvas');
     if(featherC.width!==dw||featherC.height!==dh){ featherC.width=dw; featherC.height=dh; }
     const x=featherC.getContext('2d');
     x.setTransform(1,0,0,1,0,0);
     x.clearRect(0,0,dw,dh);
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
-    x.drawImage(painted, pad, pad, full, box.h);
+    x.drawImage(painted, pad, pad, box.w, box.h);
     x.globalCompositeOperation='destination-in';
-    const side=Math.max(0, (full-box.w)/2);
-    x.fillStyle='#000';
-    x.fillRect(pad+side, 0, Math.max(1, box.w), dh);
-    if(box.feather>0.4 && sl){
-      const g=x.createLinearGradient(0,0,dw,0);
-      const fdir=flip||1;
-      const steps=12;
-      for(let i=0;i<=steps;i++){
-        const u=i/steps;
-        const local=(u*dw)-pad-full/2;
+    const g=x.createLinearGradient(0,0,dw,0);
+    const fdir=flip||1;
+    const steps=16;
+    for(let i=0;i<=steps;i++){
+      const u=i/steps;
+      const local=(u*dw)-pad-box.w/2;
+      let al=1;
+      const inset=box.w/2-Math.abs(local);
+      if(inset<fade) al=Math.max(0, inset/fade);
+      if(sl&&sl.x!=null){
         const sx=sl.x+fdir*local;
-        let al=1;
-        if(sx<12) al=Math.max(0, sx/12);
-        else if(sx>W-12) al=Math.max(0, (W-sx)/12);
-        g.addColorStop(u,'rgba(0,0,0,'+al+')');
+        if(sx<fade) al=Math.min(al, Math.max(0, sx/fade));
+        else if(sx>W-fade) al=Math.min(al, Math.max(0, (W-sx)/fade));
       }
-      x.fillStyle=g; x.fillRect(0,0,dw,dh);
+      g.addColorStop(u,'rgba(0,0,0,'+al+')');
     }
+    x.fillStyle=g; x.fillRect(0,0,dw,dh);
     x.globalCompositeOperation='source-over';
-    ctx.drawImage(featherC,-full/2-pad,-box.h+tuck-pad,dw,dh);
+    ctx.drawImage(featherC,-box.w/2-pad,-box.h+tuck-pad,dw,dh);
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;

@@ -1017,11 +1017,10 @@ body:not(.sheet-open) #toasts{
   align-items:center;
   justify-content:flex-start;
   z-index:60;
+  transition:top .22s ease;
 }
 #toasts .toast,
-#toasts .toast.long,
-#achToasts .toast,
-.toast.long{
+#achToasts .toast{
   white-space:nowrap !important;
   overflow:visible !important;
   text-overflow:clip !important;
@@ -1040,6 +1039,14 @@ body:not(.sheet-open) #toasts{
 #achToasts{
   top:var(--dock-top, 107px) !important;
   bottom:auto !important;
+  transition:top .22s ease;
+}
+#toasts .toast.long,
+#achToasts .toast.long,
+.toast.long{
+  white-space:normal !important;
+  max-width:min(34ch, 88vw) !important;
+  text-align:center;
 }
 #achToasts .toast{
   white-space:nowrap;overflow:visible;text-overflow:clip;max-width:none;display:block;-webkit-line-clamp:unset;
