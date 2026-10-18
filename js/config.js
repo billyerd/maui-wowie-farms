@@ -28,6 +28,13 @@ window.GAME_CONFIG = {
     window.GAME_CONFIG.saveKey='mwfarms_test_v1';
     if(q.get('reset')==='1') localStorage.removeItem('mwfarms_test_v1');
   }
+  // ?test=fresh100m is a different farm: level 1, normal unlocks, $100M cash.
+  // Its own key, so it never reads mwfarms_save_v1 or the level-10 test farm.
+  if(q.get('test')==='fresh100m'){
+    window.TEST_FRESH100M=true;
+    window.GAME_CONFIG.saveKey='mwfarms_test_fresh_v1';
+    if(q.get('reset')==='1') localStorage.removeItem('mwfarms_test_fresh_v1');
+  }
 }catch(e){} })();
 /* Hidden tester panel (?dev=1) and the ?test=1 jump menu. Off unless this tab opted in
    on a build that allows them. Store builds set GAME_CONFIG.allowDevTools to false

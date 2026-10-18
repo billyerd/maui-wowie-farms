@@ -1208,6 +1208,12 @@ window.G = (function(){
     lvlQuiet=true; refreshUnlocks(); lvlQuiet=false;
     save();
   }
+  // Fresh ?test=fresh100m farm. Same as a brand-new game, plus $100M.
+  // Level, tutorial, discoveries, and buildings stay exactly as load() left them.
+  function applyFreshCash(){
+    st.cash=100000000;
+    save();
+  }
   function applyEntitlements(){
     const P=window.Payments; if(!P) return;
     if(P.isOwned('pass2x')||P.isOwned('pass2x_g')) st.pass2x=true;
@@ -1423,7 +1429,7 @@ window.G = (function(){
     recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, upgBlock, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
-    tick, simulate, save, load, applyTestStart, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,
+    tick, simulate, save, load, applyTestStart, applyFreshCash, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,
     devSetLevel, devGrantSeeds, devSetSpeed, devSkip, devUnlockAll, devGrantCash, devGrantGems,
   };
 })();
