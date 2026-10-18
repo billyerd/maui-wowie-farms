@@ -374,16 +374,18 @@ localStorage.removeItem('mwfarms_test_v1');` });
       ['Pass','Garage','Gear','Dry','Market','Breed','Strains','Story'].forEach(name => {
         assert(words.indexOf(name) >= 0, tag + ' missing bottom label ' + name + ' ' + words.join('|'));
       });
-      if (m.w <= 400){
-        assert((m.labels || []).length >= 8, tag + ' toolbar labels were removed');
-      } else {
-        (m.labels || []).forEach(l => {
-          assert(l.hb <= m.h - m.sab + 0.8, tag + ' ' + l.t + ' is under the home indicator ' + JSON.stringify(l) + ' sab ' + m.sab);
-          assert(l.b <= l.hb + 1 && l.y >= l.hy - 1, tag + ' ' + l.t + ' is clipped by its button ' + JSON.stringify(l));
+      (m.labels || []).forEach(l => {
+        assert(l.hb <= m.h - m.sab + 0.8, tag + ' ' + l.t + ' is under the home indicator ' + JSON.stringify(l) + ' sab ' + m.sab);
+        assert(l.b <= l.hb + 1 && l.y >= l.hy - 1, tag + ' ' + l.t + ' is clipped by its button ' + JSON.stringify(l));
+        assert((l.b - l.y) >= 6 && (l.hr - l.hx) >= 20, tag + ' ' + l.t + ' label is clipped away ' + JSON.stringify(l));
+        if (m.w <= 400){
+          assert(l.fs >= 7 && l.fs <= 9.5, tag + ' ' + l.t + ' label is not 7-9px ' + JSON.stringify(l));
+          if (!l.bag) assert(l.lines <= 1, tag + ' ' + l.t + ' wraps ' + JSON.stringify(l));
+        } else {
           assert(l.fs >= 10, tag + ' ' + l.t + ' label is under 10px ' + JSON.stringify(l));
           if (!l.bag) assert(l.lines <= 1 && l.sw <= l.cw + 1, tag + ' ' + l.t + ' wraps or overflows ' + JSON.stringify(l));
-        });
-      }
+        }
+      });
     }
 
     async function shot(name, m, opt){

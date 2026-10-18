@@ -1031,6 +1031,10 @@ body:not(.sheet-open) #toasts{
   -webkit-line-clamp:unset !important;
   -webkit-box-orient:unset !important;
   animation:toastin .18s ease-out !important;
+  padding:3px 10px !important;
+  font-size:12px !important;
+  line-height:1.15 !important;
+  border-radius:999px !important;
 }
 @keyframes toastin{from{opacity:0}to{opacity:1}}
 #achToasts{
@@ -1041,35 +1045,15 @@ body:not(.sheet-open) #toasts{
   white-space:nowrap;overflow:visible;text-overflow:clip;max-width:none;display:block;-webkit-line-clamp:unset;
 }
 
-/* Bottom tabs keep their look. The invisible pad makes each one at least 40px wide to tap. */
-#toolbar #locBtn,
-#toolbar #menu button,
-#toolbar #upgBtn.sidebtn,
-#toolbar #qaFab,
-#toolbar #seedBag{overflow:visible}
-#toolbar #locBtn::before,
-#toolbar #menu button::before,
-#toolbar #upgBtn.sidebtn::before,
-#toolbar #qaFab::before,
-#toolbar #seedBag::before{
-  content:'';
-  position:absolute;
-  left:50%;
-  top:0;
-  bottom:0;
-  width:max(100%, 40px);
-  transform:translateX(-50%);
-}
-/* Each bottom tab is its own 40px box. The row scrolls instead of squeezing them together. */
+/* All ten tabs share the row. Labels stay visible; nothing scrolls off. */
 #toolbar{
   display:flex !important;
   flex-wrap:nowrap !important;
-  justify-content:flex-start !important;
+  justify-content:stretch !important;
   align-items:stretch;
   gap:0 !important;
   column-gap:0 !important;
-  overflow-x:auto;
-  overflow-y:hidden;
+  overflow:visible !important;
   scrollbar-width:none;
   pointer-events:auto;
   padding-left:var(--sal, 0px) !important;
@@ -1082,39 +1066,71 @@ body:not(.sheet-open) #toasts{
 #toolbar #seedBag,
 #toolbar #menu button,
 #toolbar #locBtn{
-  width:40px !important;
-  min-width:40px !important;
-  max-width:40px !important;
-  flex:0 0 40px !important;
+  flex:1 1 0 !important;
+  width:auto !important;
+  min-width:0 !important;
+  max-width:none !important;
+  min-height:48px !important;
+  margin:0 !important;
+  border:0 !important;
+  box-sizing:border-box !important;
   overflow:hidden;
 }
 #toolbar #qaFab{overflow:visible !important}
 #toolbar #locSlot{display:flex;align-items:stretch;justify-content:center;overflow:visible}
-#toolbar #qaFab{width:40px !important;min-width:40px !important;max-width:40px !important}
-#toolbar .qa-main{width:32px !important;min-width:0 !important;max-width:32px}
+#toolbar #locSlot #locBtn{flex:1 1 auto !important;width:100% !important;max-width:none !important}
+#toolbar .qa-main{width:min(28px, 80%) !important;min-width:0 !important;max-width:28px}
+#toolbar #menu button .ico,
+#toolbar #upgBtn .sb-up,
+#toolbar #upgBtn .sb-up .ico,
+#toolbar #seedBag .sb-bag,
+#toolbar #seedBag .sb-bag img{width:14px !important;height:14px !important}
+#toolbar #menu button .badge{
+  top:0;right:0;min-width:12px;height:12px;padding:0 2px;
+  font-size:8px;line-height:12px;border-radius:6px;
+}
 #toolbar #locBtn small,
 #toolbar #menu button small,
 #toolbar #upgBtn b,
 #toolbar #seedBag b,
 #toolbar #seedBag small{
-  width:max-content;
-  max-width:none;
-  overflow:visible;
-  text-overflow:clip;
+  position:static !important;
+  width:auto !important;
+  height:auto !important;
+  margin:0 !important;
+  padding:0 1px !important;
+  overflow:hidden !important;
+  clip:auto !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+  font-size:8px !important;
+  line-height:1.05 !important;
+  letter-spacing:-.05em !important;
+  display:block !important;
+  max-width:100% !important;
 }
-@media (max-width:400px){
+#toolbar #seedBag b,
+#toolbar #seedBag small{font-size:7px !important;letter-spacing:-.06em !important}
+@media (min-width:360px){
+  #toolbar #seedBag b,
+  #toolbar #seedBag small{font-size:8px !important}
+}
+@media (min-width:401px){
   #toolbar #locBtn small,
   #toolbar #menu button small,
   #toolbar #upgBtn b,
   #toolbar #seedBag b,
-  #toolbar #seedBag small{
-    position:absolute !important;
-    width:1px !important;
-    height:1px !important;
-    margin:-1px !important;
-    padding:0 !important;
-    overflow:hidden !important;
-    clip:rect(0,0,0,0) !important;
-    white-space:nowrap !important;
-  }
+  #toolbar #seedBag small{font-size:10px !important}
+  #toolbar #menu button .ico,
+  #toolbar #upgBtn .sb-up,
+  #toolbar #upgBtn .sb-up .ico,
+  #toolbar #seedBag .sb-bag,
+  #toolbar #seedBag .sb-bag img{width:16px !important;height:16px !important}
+}
+@media (min-width:480px){
+  #toolbar #locBtn small,
+  #toolbar #menu button small,
+  #toolbar #upgBtn b,
+  #toolbar #seedBag b,
+  #toolbar #seedBag small{font-size:11px !important}
 }

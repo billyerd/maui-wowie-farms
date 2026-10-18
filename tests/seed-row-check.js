@@ -119,9 +119,25 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const r = el.getBoundingClientRect();
         return { id: el.id || el.getAttribute('data-panel') || 'btn', l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
       }).filter(it => it.w > 1 && it.h > 1).sort((a,b) => a.l - b.l);
-      const pads = [...document.querySelectorAll('#toolbar #menu button, #locBtn, #qaFab, #upgBtn, #seedBag')].map(el => {
-        const w = parseFloat(getComputedStyle(el, '::before').width) || 0;
-        return { id: el.id || el.getAttribute('data-panel') || 'btn', w: +w.toFixed(1) };
+      const qBadge = document.getElementById('qBadge');
+      if (qBadge) qBadge.textContent = '3';
+      const badgeEl = document.getElementById('qBadge');
+      const badgeR = badgeEl && badgeEl.getClientRects().length ? badgeEl.getBoundingClientRect() : null;
+      const story = document.querySelector('#toolbar [data-panel="quests"]');
+      const storyR = story ? story.getBoundingClientRect() : null;
+      const nameEl = document.getElementById('sbName');
+      const countEl = document.getElementById('sbCount');
+      const nameR = nameEl ? nameEl.getBoundingClientRect() : null;
+      const countR = countEl ? countEl.getBoundingClientRect() : null;
+      const labels = [...document.querySelectorAll('#toolbar #menu button small, #toolbar #locBtn small, #toolbar #upgBtn b, #toolbar #seedBag b, #toolbar #seedBag small')].map(el => {
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return {
+          t: (el.textContent || '').replace(/\\s+/g, ' ').trim(),
+          w: +r.width.toFixed(1), h: +r.height.toFixed(1),
+          fs: parseFloat(s.fontSize) || 0,
+          clip: s.clip, pos: s.position
+        };
       });
       const hits = items.map(it => {
         const stack = document.elementsFromPoint((it.l+it.r)/2, (it.t+it.b)/2);
@@ -150,7 +166,13 @@ localStorage.removeItem('mwfarms_test_v1');` });
         bar: { l: bar.left, t: bar.top, r: bar.right, b: bar.bottom, h: bar.height },
         hudB: hud.bottom,
         goalB: goalR ? goalR.bottom : 0,
-        items, hits, pads,
+        items, hits, labels,
+        bagName: nameEl ? nameEl.textContent : '',
+        bagCount: countEl ? countEl.textContent : '',
+        nameBox: nameR ? { w: +nameR.width.toFixed(1), h: +nameR.height.toFixed(1), l: +nameR.left.toFixed(1), r: +nameR.right.toFixed(1) } : null,
+        countBox: countR ? { w: +countR.width.toFixed(1), h: +countR.height.toFixed(1) } : null,
+        badge: badgeR ? { l: +badgeR.left.toFixed(1), t: +badgeR.top.toFixed(1), r: +badgeR.right.toFixed(1), b: +badgeR.bottom.toFixed(1), w: +badgeR.width.toFixed(1), h: +badgeR.height.toFixed(1) } : null,
+        story: storyR ? { l: +storyR.left.toFixed(1), t: +storyR.top.toFixed(1), r: +storyR.right.toFixed(1), b: +storyR.bottom.toFixed(1) } : null,
         cellH: lay && lay.cell ? lay.cell.h : 0,
         expectH,
         n: lay ? lay.n : 0,
@@ -175,16 +197,20 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(m.items.length === 10, tag + ' bottom row count ' + m.items.length + ' ' + m.items.map(it => it.id).join(','));
       const widths = m.items.map(it => it.w);
       const wMin = Math.min.apply(null, widths);
-      assert(wMin >= 16, tag + ' a button collapsed ' + JSON.stringify(m.items.map(it => [it.id, +it.w.toFixed(1)])));
+      const slot = (m.bar.r - m.bar.l) / 10;
+      assert(wMin >= slot - 3, tag + ' a button collapsed ' + JSON.stringify(m.items.map(it => [it.id, +it.w.toFixed(1)])) + ' slot ' + slot.toFixed(1));
       for (let i = 0; i < m.items.length; i++){
         const it = m.items[i];
-        assert(it.w >= 40, tag + ' tab box is under 40px ' + JSON.stringify(it));
+        assert(it.h >= 40, tag + ' tab hit box is under 40px tall ' + JSON.stringify(it));
+        assert(it.w >= slot - 3 && it.w <= slot + 4, tag + ' tab is not an equal share of the row ' + JSON.stringify(it) + ' slot ' + slot.toFixed(1));
+        assert(it.l >= -1 && it.r <= m.w + 1, tag + ' tab leaves the screen ' + JSON.stringify(it));
         const cx = (it.l + it.r) / 2;
+        assert(cx >= 8 && cx <= m.w - 8, tag + ' tab center is off screen ' + JSON.stringify(it));
         assert(it.t >= m.bar.t - 1 && it.b <= m.bar.b + 1, tag + ' button leaves the row ' + JSON.stringify(it));
         if (i){
           const prev = m.items[i - 1];
           assert(it.l >= prev.r - 1, tag + ' tab boxes overlap ' + prev.id + ' ' + it.id);
-          assert(cx >= (prev.l + prev.r) / 2 + 39, tag + ' tab centers are stacked ' + prev.id + ' ' + it.id);
+          assert(cx >= (prev.l + prev.r) / 2 + slot * 0.7, tag + ' tab centers are stacked ' + prev.id + ' ' + it.id);
         }
       }
       const badHit = m.hits.find((h, i) => {
@@ -194,8 +220,22 @@ localStorage.removeItem('mwfarms_test_v1');` });
         return h.owner !== h.id;
       });
       assert(!badHit, tag + ' a row button is covered ' + JSON.stringify(m.hits));
-      const padMin = Math.min.apply(null, (m.pads || []).map(p => p.w));
-      assert(m.pads && m.pads.length === 10 && padMin >= 40, tag + ' tab hit area is under 40px ' + JSON.stringify(m.pads));
+      const words = ['Pass','Garage','Gear','Dry','Market','Breed','Strains','Story'];
+      words.forEach(name => {
+        const lab = (m.labels || []).find(l => l.t === name);
+        assert(lab, tag + ' missing label ' + name);
+        assert(lab.h >= 6 && lab.w >= 8, tag + ' ' + name + ' label is clipped away ' + JSON.stringify(lab));
+        assert(lab.fs >= 7 && lab.fs <= 9.5, tag + ' ' + name + ' label is not 7-9px ' + JSON.stringify(lab));
+        assert(lab.pos !== 'absolute', tag + ' ' + name + ' label is taken out of the button');
+      });
+      assert(m.bagName && m.bagName.length > 0, tag + ' seed bag lost its strain name');
+      assert(m.bagCount && /\d/.test(m.bagCount), tag + ' seed bag lost its seed count ' + m.bagCount);
+      assert(m.nameBox && m.nameBox.h >= 6 && m.nameBox.w >= 8, tag + ' seed name is clipped ' + JSON.stringify(m.nameBox));
+      assert(m.countBox && m.countBox.h >= 6 && m.countBox.w >= 6, tag + ' seed count is clipped ' + JSON.stringify(m.countBox));
+      assert(m.badge && m.story, tag + ' story badge missing ' + JSON.stringify({ badge: m.badge, story: m.story }));
+      assert(m.badge.w >= 8 && m.badge.h >= 8, tag + ' story badge is clipped ' + JSON.stringify(m.badge));
+      assert(m.badge.l >= m.story.l - 1 && m.badge.r <= m.story.r + 1 && m.badge.t >= m.story.t - 1 && m.badge.b <= m.story.b + 1, tag + ' story badge leaves its tab ' + JSON.stringify(m.badge) + ' ' + JSON.stringify(m.story));
+      assert(m.badge.r <= m.w + 0.5 && m.badge.l >= -0.5, tag + ' story badge leaves the screen ' + JSON.stringify(m.badge));
       assert(m.above !== 'seedBag' && m.cellH > 0, tag + ' plants did not lay out ' + m.above);
       assert(Math.abs(m.cellH - m.expectH) < 3, tag + ' plant grid is not using the toolbar floor ' + m.cellH + ' vs ' + m.expectH);
       assert(m.pickHidden, tag + ' the old seed popup is open');

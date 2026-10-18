@@ -962,12 +962,23 @@ window.R=(function(){
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
     x.drawImage(src.c,0,0,src.w,src.h);
     if(punch){
-      // Hue shift stays inside the plant. 'color' would paint the empty rect opaque.
-      x.globalCompositeOperation='color'; x.globalAlpha=0.92; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
-      x.globalCompositeOperation='source-atop'; x.globalAlpha=0.5; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
-      const g=x.createLinearGradient(0,src.h,0,src.h*0.4);
-      g.addColorStop(0, hexA(color,1)); g.addColorStop(1, hexA(color,0));
-      x.globalAlpha=0.62; x.fillStyle=g; x.fillRect(0,0,src.w,src.h);
+      // A light wash. Stem and leaves stay green; the bud colour sits on the
+      // new growth and the outer edges. The mask below keeps empty pixels empty.
+      x.globalCompositeOperation='source-atop'; x.globalAlpha=0.30; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
+      const top=x.createLinearGradient(0,0,0,src.h*0.38);
+      top.addColorStop(0, hexA(color,1)); top.addColorStop(1, hexA(color,0));
+      x.globalAlpha=0.42; x.fillStyle=top; x.fillRect(0,0,src.w,src.h*0.4);
+      const left=x.createLinearGradient(0,0,src.w*0.22,0);
+      left.addColorStop(0, hexA(color,1)); left.addColorStop(1, hexA(color,0));
+      x.globalAlpha=0.38; x.fillStyle=left; x.fillRect(0,0,src.w*0.24,src.h);
+      const right=x.createLinearGradient(src.w,0,src.w*0.78,0);
+      right.addColorStop(0, hexA(color,1)); right.addColorStop(1, hexA(color,0));
+      x.globalAlpha=0.38; x.fillStyle=right; x.fillRect(src.w*0.76,0,src.w*0.24,src.h);
+      if(stem){
+        const g=x.createLinearGradient(0,src.h,0,src.h*0.45);
+        g.addColorStop(0, hexA(stem,1)); g.addColorStop(1, hexA(stem,0));
+        x.globalAlpha=0.78; x.fillStyle=g; x.fillRect(0,0,src.w,src.h);
+      }
     } else {
       x.globalCompositeOperation='source-atop'; x.globalAlpha=amt; x.fillStyle=color; x.fillRect(0,0,src.w,src.h);
       if(stem){
@@ -1029,7 +1040,7 @@ window.R=(function(){
     const hint=stage>=5?0:(HINT[stage]||0);
     const L=look(st);
     const hintColor=hintColorOf(st);
-    return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor, stem:stage<=3&&L&&L.leaf&&!huePunch(hintColor)?L.leaf:'', painted:1, grown:1, closeup:0};
+    return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor, stem:stage<=3&&L&&L.leaf?L.leaf:'', painted:1, grown:1, closeup:0};
   }
   // One height curve per strain, from the shared sprout to that strain's ripe height.
   // Width follows the sprite. A plate wider than about 1.2 cells may scale down,
@@ -1054,66 +1065,86 @@ window.R=(function(){
     }
     return want;
   }
-  function fitBox(aspect, sl, stage, prog, ripeAspect){
+  function stageAspectAt(stage, st){
+    const im=stage>=5?(st&&STRAIN_IM[st.id]):stageIm(stage, st);
+    const w=im&&(im.naturalWidth||im.width), h=im&&(im.naturalHeight||im.height);
+    return w&&h?w/Math.max(1,h):0;
+  }
+  // Width eases across the last slice of a stage, so the plate change is not a pop.
+  function easedAspect(prog, stage, st, fallback){
+    const a0=stageAspectAt(stage, st)||fallback||1;
+    if(!(prog>=0)||prog>=1||stage>=5) return stage>=5?(stageAspectAt(5, st)||fallback||a0):a0;
+    const edges=[0,.08,.25,.45,.65,1], WINDOW=0.08, nxt=edges[stage+1];
+    if(nxt==null||prog<=nxt-WINDOW) return a0;
+    const a1=stageAspectAt(Math.min(5, stage+1), st)||a0;
+    const u=Math.max(0, Math.min(1, (prog-(nxt-WINDOW))/WINDOW));
+    const e=u*u*(3-2*u);
+    return a0+(a1-a0)*e;
+  }
+  function fitBox(aspect, sl, stage, prog, ripeAspect, st){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
     const cellW=sl.cellW||48;
     const cellH=sl.cellH||(span!=null?span:cellW);
-    const a=Math.max(.05, aspect||ripeAspect||1);
-    const ripeH=targetRipeH(sl, ripeAspect);
+    const raw=Math.max(.05, aspect||ripeAspect||1);
+    const use=st?easedAspect(prog, stage, st, raw):raw;
+    const ripeH=targetRipeH(sl, ripeAspect||use);
     const base=span!=null?Math.min(span, cellH*0.78):ripeH;
     const sprout=Math.min(ripeH, Math.max(span!=null&&span<48?10:18, base*0.40));
     const t=(prog>=1||stage>=5)?1:curveT(prog);
     let h=sprout+(ripeH-sprout)*t;
     if(span!=null && h>span) h=span;
-    let w=h*a;
-    const cap=cellW*1.2;
-    if(w>cap+0.2){
-      const floor=span!=null?Math.min(h, span*0.6):h;
-      const scaled=Math.max(floor, h*cap/w);
-      // The curve already climbs to the ripe height. Do not drop back to the wide plate.
-      if(scaled+0.4>=h){ h=scaled; w=h*a; }
-    }
+    const fullW=h*use;
+    // Wide strains stop near 1.1 cells. Height stays on the curve, including
+    // the 0.6-span floor already chosen for a wide ripe plate.
+    const cap=cellW*1.1;
+    let w=fullW>cap+0.2?cap:fullW;
     let feather=0;
     if(sl.x!=null){
-      const half=w/2;
+      const half=Math.max(w, fullW)/2;
       const overL=Math.max(0, 8-(sl.x-half));
       const overR=sl.edgeR!=null?Math.max(0, (sl.x+half)-sl.edgeR):0;
       if(overL>0.4||overR>0.4) feather=12;
     }
-    return {h,w,a,feather,crop:0};
+    return {h,w,fullW,a:w/Math.max(1,h),nat:use,feather,crop:0};
   }
   let featherC=null;
   function paintSprite(painted, box, sl, flip){
     const tuck=Math.min(3, box.h*0.025);
-    if(!(box.feather>0.4)||!sl){
+    const full=box.fullW>box.w+0.5?box.fullW:box.w;
+    if(!(box.feather>0.4)&&full<=box.w+0.5){
       ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h);
       return;
     }
     const pad=2;
-    const dw=Math.max(1, Math.ceil(box.w+pad*2)), dh=Math.max(1, Math.ceil(box.h+pad*2));
+    const dw=Math.max(1, Math.ceil(full+pad*2)), dh=Math.max(1, Math.ceil(box.h+pad*2));
     if(!featherC) featherC=document.createElement('canvas');
     if(featherC.width!==dw||featherC.height!==dh){ featherC.width=dw; featherC.height=dh; }
     const x=featherC.getContext('2d');
     x.setTransform(1,0,0,1,0,0);
     x.clearRect(0,0,dw,dh);
     x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
-    x.drawImage(painted, pad, pad, box.w, box.h);
+    x.drawImage(painted, pad, pad, full, box.h);
     x.globalCompositeOperation='destination-in';
-    const g=x.createLinearGradient(0,0,dw,0);
-    const fdir=flip||1;
-    const steps=8;
-    for(let i=0;i<=steps;i++){
-      const u=i/steps;
-      const local=(u*dw)-pad-box.w/2;
-      const sx=sl.x+fdir*local;
-      let al=1;
-      if(sx<12) al=Math.max(0, sx/12);
-      else if(sx>W-12) al=Math.max(0, (W-sx)/12);
-      g.addColorStop(u,'rgba(0,0,0,'+al+')');
+    const side=Math.max(0, (full-box.w)/2);
+    x.fillStyle='#000';
+    x.fillRect(pad+side, 0, Math.max(1, box.w), dh);
+    if(box.feather>0.4 && sl){
+      const g=x.createLinearGradient(0,0,dw,0);
+      const fdir=flip||1;
+      const steps=12;
+      for(let i=0;i<=steps;i++){
+        const u=i/steps;
+        const local=(u*dw)-pad-full/2;
+        const sx=sl.x+fdir*local;
+        let al=1;
+        if(sx<12) al=Math.max(0, sx/12);
+        else if(sx>W-12) al=Math.max(0, (W-sx)/12);
+        g.addColorStop(u,'rgba(0,0,0,'+al+')');
+      }
+      x.fillStyle=g; x.fillRect(0,0,dw,dh);
     }
-    x.fillStyle=g; x.fillRect(0,0,dw,dh);
     x.globalCompositeOperation='source-over';
-    ctx.drawImage(featherC,-box.w/2-pad,-box.h+tuck-pad,dw,dh);
+    ctx.drawImage(featherC,-full/2-pad,-box.h+tuck-pad,dw,dh);
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -1137,10 +1168,10 @@ window.R=(function(){
     let foot=0;
     if(sl.bed){
       sl._hpx=hpx;
-      const drawSp=(sp, alpha, shadow)=>{
+      const drawSp=(sp, alpha, shadow, forced)=>{
         if(!sp) return null;
         const aspect=sp.w/Math.max(1,sp.h);
-        const box=fitBox(aspect, sl, sp.stage, prog, strainAspect(st));
+        const box=forced||fitBox(aspect, sl, sp.stage, prog, strainAspect(st), st);
         const tr=ctx.getTransform?ctx.getTransform():null;
         const dev=Math.max(Math.abs(tr&&tr.a||dpr||1), Math.abs(tr&&tr.d||dpr||1));
         let src=bitmapFor(sp.im, Math.max(box.h, box.w), dev);
@@ -1161,13 +1192,14 @@ window.R=(function(){
       let box=null, hitW=0, hitH=0;
       const take=b=>{ if(!b) return; hitW=Math.max(hitW,b.w); hitH=Math.max(hitH,b.h); };
       if(fade && primary){
+        const shared=fitBox(primary.w/Math.max(1,primary.h), sl, stage, prog, strainAspect(st), st);
         const a=describe(st, fade.from), b=describe(st, fade.to);
-        if(a) take(drawSp(a, 1-fade.t, fade.t<.5));
-        if(b) take(drawSp(b, fade.t, fade.t>=.5));
-        box=fitBox(primary.w/Math.max(1,primary.h), sl, stage, prog, strainAspect(st));
+        if(a) take(drawSp(a, 1-fade.t, fade.t<.5, shared));
+        if(b) take(drawSp(b, fade.t, fade.t>=.5, shared));
+        box=shared;
       } else if(primary){ box=drawSp(primary, 1, true); take(box); }
       if(hitW) sl.spr={w:hitW,h:hitH};
-      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,edge:sl.edgeR,a:box.a,feather:box.feather||0,art:stage>=5&&st?st.id:('stage'+stage)});
+      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,edge:sl.edgeR,a:box.a,nat:box.nat||box.a,feather:box.feather||0,art:stage>=5&&st?st.id:('stage'+stage)});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
@@ -2050,7 +2082,17 @@ window.R=(function(){
       if(pot) return chooseCell(pot);
       const leaves=hits.filter(h=>h.spr);
       const pool=leaves.length?leaves:hits;
-      if(pool.length){ pool.sort((a,b)=>a.d-b.d); return chooseCell(pool[0].c); }
+      if(pool.length){
+        // A wide canopy may cross the gap by a sliver. The tap stays on the
+        // plant whose own leaf reaches that point, not the neighbour underneath.
+        const inset=h=>{
+          const sl=h.c.sl, cx=sl?sl.x:(h.c.x+h.c.w/2);
+          const half=sl&&sl.spr?sl.spr.w/2:h.c.w/2;
+          return half-Math.abs(sx-cx);
+        };
+        pool.sort((a,b)=>{ const d=inset(a)-inset(b); return Math.abs(d)>0.5?d:(a.d-b.d); });
+        return chooseCell(pool[0].c);
+      }
       return null;
     }
     if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r) return {type:'gecko'};

@@ -30,6 +30,18 @@ window.UI = (function(){
     }
     showPill(text,kind,group);
   }
+  function canopyTop(){
+    try{
+      if(!window.R||!R.bedSprites) return 0;
+      const list=R.bedSprites();
+      let top=1e9;
+      for(let i=0;i<list.length;i++){
+        const s=list[i];
+        if(s&&typeof s.top==='number'&&s.top<top) top=s.top;
+      }
+      return top<1e8?top:0;
+    }catch(e){ return 0; }
+  }
   function toastTop(){
     const H=window.innerHeight||800;
     if(sheetOpen()){
@@ -40,21 +52,17 @@ window.UI = (function(){
       const anchor=(fr&&fr.height>8&&fr.top>120)?fr.top:(br&&br.top>120?br.top:H-80);
       return Math.max(64, Math.round(anchor-44));
     }
-    // Stay in the slot under the goal banner whether or not that banner is open,
-    // so a notice does not jump from y 109 to y 56 when the banner closes.
-    let y=107;
+    // A short pill just under the HUD. The same slot stays whether the goal
+    // card is open, because dropping under that card lands on the first row.
+    let y=64, hudB=0;
     const hud=document.getElementById('hud');
     if(hud&&hud.getBoundingClientRect){
       const r=hud.getBoundingClientRect();
-      if(r.height>8 && r.bottom<H*0.55) y=Math.max(107, Math.round(r.bottom+58));
+      if(r.height>8 && r.bottom<H*0.55){ hudB=r.bottom; y=Math.round(r.bottom+6); }
     }
-    const goal=document.getElementById('goal');
-    if(goal&&goal.classList&&goal.classList.contains('open')){
-      const tx=goal.querySelector?goal.querySelector('.gtx'):null;
-      const r=(tx&&tx.getClientRects&&tx.getClientRects().length?tx:goal).getBoundingClientRect();
-      if(r.height>8 && r.bottom<H*0.7) y=Math.max(y, Math.round(r.bottom+8));
-    }
-    return y;
+    const leaf=canopyTop(), slim=22;
+    if(leaf>72 && y+slim+4>leaf) y=Math.max(hudB+4, Math.round(leaf-slim-6));
+    return Math.max(56, Math.round(y));
   }
   function placeToasts(){
     const top=toastTop()+'px';
