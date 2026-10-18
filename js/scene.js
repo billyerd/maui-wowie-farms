@@ -1046,8 +1046,8 @@ window.R=(function(){
     return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor, stem:stage<=3&&L&&L.leaf?L.leaf:'', painted:1, grown:1, closeup:0};
   }
   // One height curve per strain, from the shared sprout to that strain's ripe height.
-  // Width is the same uniform scale. Wide plates are capped (garage about 1.3 cells,
-  // greenhouse about 1.15) and stay near 100px tall only when that cap still allows it.
+  // Width is the same uniform scale. Wide plates are capped (garage about 1.48 cells,
+  // greenhouse and facility about 1.15) and stay near 100px tall only when that cap still allows it.
   function curveT(prog){
     const p=Math.max(0, Math.min(1, +prog||0));
     if(p>=1) return 1;
@@ -1056,10 +1056,10 @@ window.R=(function(){
   function widthCapOf(sl){
     const cellW=sl.cellW||48;
     const room=sl.room||'';
-    if(room==='garage') return cellW*1.3;
+    if(room==='garage') return cellW*1.48;
     if(room==='gh'||room==='facility'||room==='benches') return cellW*1.15;
     if(sl.cls==='gh'||sl.cls==='out') return cellW*1.15;
-    return cellW*1.3;
+    return cellW*1.48;
   }
   function targetRipeH(sl, ripeAspect){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
@@ -1179,11 +1179,13 @@ window.R=(function(){
   let featherC=null;
   function paintSprite(painted, box, sl, flip){
     const tuck=Math.min(3, box.h*0.025);
-    const ox=box.shift||0;
+    // The shift is in screen space. scale(flip) mirrors a local x, so a flipped plant
+    // has to take the opposite local offset or it slides off the screen.
+    const ox=(box.shift||0)*(flip<0?-1:1);
     if(!(box.feather>0.4)){
       if(!ox) ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h);
       else ctx.drawImage(painted,-box.w/2+ox,-box.h+tuck,box.w,box.h);
-      return;
+      return ox;
     }
     // Soft fade only if a plate still has to hang past the cell. Screen edges are shifted, not faded.
     const fade=6;
@@ -1210,6 +1212,7 @@ window.R=(function(){
     x.fillStyle=g; x.fillRect(0,0,dw,dh);
     x.globalCompositeOperation='source-over';
     ctx.drawImage(featherC,-box.w/2+ox-pad,-box.h+tuck-pad,dw,dh);
+    return ox;
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -1247,7 +1250,10 @@ window.R=(function(){
         const prev=ctx.globalAlpha;
         if(shadow){ ctx.globalAlpha=prev; ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(Math.max(2,box.w*.06),2,Math.max(5,box.w*.42),Math.max(2,box.w*.09),0,0,TAU); ctx.fill(); }
         ctx.globalAlpha=prev*(alpha==null?1:alpha);
-        paintSprite(painted, box, sl, flip);
+        const ox=paintSprite(painted, box, sl, flip)||0;
+        const f=flip<0?-1:1, x0=-box.w/2+ox, x1=box.w/2+ox;
+        box.screenL=sl.x+Math.min(f*x0, f*x1);
+        box.screenR=sl.x+Math.max(f*x0, f*x1);
         ctx.globalAlpha=prev;
         return box;
       };
@@ -1264,7 +1270,7 @@ window.R=(function(){
         box=shared;
       } else if(primary){ box=drawSp(primary, 1, true); take(box); }
       if(hitW) sl.spr={w:hitW,h:hitH};
-      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,shift:box.shift||0,edge:sl.edgeR,a:box.a,nat:box.nat||box.a,feather:box.feather||0,art:stage>=5&&st?st.id:('stage'+stage)});
+      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,shift:box.shift||0,screenL:box.screenL,screenR:box.screenR,edge:sl.edgeR,a:box.a,nat:box.nat||box.a,feather:box.feather||0,art:stage>=5&&st?st.id:('stage'+stage)});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }

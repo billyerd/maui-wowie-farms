@@ -160,10 +160,12 @@ localStorage.removeItem('mwfarms_test_v1');` });
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         assert(!s.a || Math.abs(s.w / s.h - s.a) < 0.06, tag + ' pot ' + s.id + ' is cropped instead of scaled ' + JSON.stringify(s));
-        const capMul = /greenhouse|indoor|benches|facility/.test(tag) ? 1.17 : 1.32;
+        const capMul = /greenhouse|indoor|benches|facility/.test(tag) ? 1.17 : 1.50;
         if (s.cellW) assert(s.w <= s.cellW * capMul + 1, tag + ' pot ' + s.id + ' is wider than the room cap ' + JSON.stringify(s));
         assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
         if (s.edge != null && s.x != null) assert(s.x + (s.shift || 0) + s.w / 2 <= s.edge + 8.5, tag + ' pot ' + s.id + ' leaves the screen ' + JSON.stringify(s));
+        if (s.screenL != null) assert(s.screenL >= -0.5, tag + ' pot ' + s.id + ' paints off the left edge ' + JSON.stringify(s));
+        if (s.screenR != null && s.edge != null) assert(s.screenR <= s.edge + 8.5, tag + ' pot ' + s.id + ' paints off the right edge ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
       }
     }
@@ -550,7 +552,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const samples=[];
         row.forEach(s=>{
           const chopped=s.a && Math.abs(s.w/s.h - s.a)>0.06;
-          const hard=s.w>s.cellW*1.32+1;
+          const hard=s.w>s.cellW*1.50+1;
           if(chopped||hard) wideOver++;
           const tipY=Math.max(s.cellTop+2, Math.min(s.foot-2, s.top+Math.min(12, s.h*0.2)));
           const tip=R.pick(s.x, tipY);
@@ -577,9 +579,9 @@ localStorage.removeItem('mwfarms_test_v1');` });
       }
       for (const id of ['northern-lights','maile-grape']){
         const e=grow.ends[id];
-        const capH=e&&e.cellW?e.cellW*1.3/Math.max(0.25, e.nat||1):0;
+        const capH=e&&e.cellW?e.cellW*1.48/Math.max(0.25, e.nat||1):0;
         const floor=e?Math.min(e.span, capH):0;
-        assert(e && e.w <= e.cellW*1.32+1, id + ' wide ripe plant exceeds the garage cap ' + JSON.stringify(e));
+        assert(e && e.w <= e.cellW*1.50+1, id + ' wide ripe plant exceeds the garage cap ' + JSON.stringify(e));
         assert(e && e.h+0.6 >= floor-1.5, id + ' wide ripe plant lost the height the cap allows ' + JSON.stringify(e));
         assert(e && Math.abs(e.w/e.h - e.nat) < 0.06, id + ' wide ripe plant is masked instead of scaled ' + JSON.stringify(e));
       }

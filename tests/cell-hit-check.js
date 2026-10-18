@@ -146,7 +146,7 @@ localStorage.removeItem('mwfarms_test_fresh_v1');` });
     const rooms = await evalJs(`(() => {
       const ids=G.S.map(s=>s.id);
       const specs=[
-        {room:'garage', zone:'garage', cap:1.32, prep:()=>{ G.st.level=10; G.st.garage=5; G.st.garageKeep=0; }},
+        {room:'garage', zone:'garage', cap:1.50, prep:()=>{ G.st.level=10; G.st.garage=5; G.st.garageKeep=0; }},
         {room:'gh', zone:'gh', cap:1.17, prep:()=>{ G.st.ghBuilt=true; G.st.gh=3; delete G.st.ghMatch; }},
         {room:'facility', zone:'field', cap:1.17, prep:()=>{ G.st.land=true; G.st.field=3; }}
       ];
@@ -165,7 +165,11 @@ localStorage.removeItem('mwfarms_test_fresh_v1');` });
           const audit=R.auditCellHits();
           const sprites=R.bedSprites();
           const wide=sprites.filter(s=>s.w>s.cellW*spec.cap+1).slice(0,3).map(s=>({art:s.art,w:+s.w.toFixed(1),cell:+s.cellW.toFixed(1)}));
-          const off=sprites.filter(s=>s.edge!=null && s.x+(s.shift||0)+s.w/2>s.edge+8.5).slice(0,3).map(s=>({art:s.art,right:+(s.x+(s.shift||0)+s.w/2).toFixed(1)}));
+          const off=sprites.filter(s=>{
+            const L=s.screenL!=null?s.screenL:s.x+(s.shift||0)-s.w/2;
+            const R=s.screenR!=null?s.screenR:s.x+(s.shift||0)+s.w/2;
+            return L<-0.5 || R>innerWidth+0.5 || s.top<-0.5;
+          }).slice(0,3).map(s=>({art:s.art,L:+(s.screenL||0).toFixed(1),R:+(s.screenR||0).toFixed(1),T:+s.top.toFixed(1)}));
           const squashed=sprites.filter(s=>s.a && Math.abs(s.w/s.h-s.a)>0.06).length;
           fills.push({n:owned.length, audit, wide, off, squashed, drawn:sprites.length});
           if(!audit.ok) break;
@@ -188,6 +192,72 @@ localStorage.removeItem('mwfarms_test_fresh_v1');` });
         assert(!fill.wide.length, room.room + ' plant exceeds the width cap ' + JSON.stringify(fill.wide));
         assert(!fill.off.length, room.room + ' plant leaves the screen ' + JSON.stringify(fill.off));
         assert(!fill.squashed, room.room + ' plant was squashed');
+      }
+    }
+
+    for (const size of [390, 360, 320]){
+      await cdp('Emulation.setDeviceMetricsOverride', { width: size, height: size === 320 ? 568 : size === 360 ? 740 : 844, deviceScaleFactor: 2, mobile: true });
+      await sleep(120);
+      const sweep = await evalJs(`(() => {
+        const ids=G.S.map(s=>s.id);
+        const specs=[
+          {room:'garage', zone:'garage', prep:()=>{ G.st.level=10; G.st.garage=5; G.st.garageKeep=0; }},
+          {room:'gh', zone:'gh', prep:()=>{ G.st.ghBuilt=true; G.st.gh=3; delete G.st.ghMatch; }},
+          {room:'facility', zone:'field', prep:()=>{ G.st.land=true; G.st.field=3; }}
+        ];
+        function med(a){ const b=a.slice().sort((x,y)=>x-y); return b.length?b[Math.floor((b.length-1)/2)]:0; }
+        const out=[];
+        for(const spec of specs){
+          spec.prep(); G.syncPlots();
+          const owned=G.st.plots.filter(p=>p.zone===spec.zone&&p.owned);
+          const bad=[];
+          let garage=null;
+          for(let i=0;i<ids.length;i+=owned.length){
+            const batch=ids.slice(i, i+owned.length);
+            owned.forEach((p,k)=>{ p.strain=batch[k%batch.length]; p.prog=1; p.water=1; p.food=1; p.pest=null; });
+            G.setRoom(spec.room); if(R.resize) R.resize(); R.frame(0.05);
+            const sprites=R.bedSprites();
+            sprites.forEach(s=>{
+              const L=s.screenL, R=s.screenR;
+              if(L<-0.5||R>innerWidth+0.5||s.top<-0.5) bad.push({art:s.art,L:+L.toFixed(1),R:+R.toFixed(1),T:+s.top.toFixed(1)});
+            });
+            if(spec.room==='garage' && innerWidth===390){
+              const boxes=sprites.map(s=>({L:s.screenL,R:s.screenR,T:s.top,B:s.foot,h:s.h,span:s.foot-s.cellTop}));
+              const maxes=boxes.map((a,i)=>{
+                let maxOne=0;
+                for(let j=0;j<boxes.length;j++){
+                  if(i===j) continue;
+                  const b=boxes[j];
+                  const w=Math.min(a.R,b.R)-Math.max(a.L,b.L);
+                  const h=Math.min(a.B,b.B)-Math.max(a.T,b.T);
+                  if(w>0&&h>0) maxOne=Math.max(maxOne, w*h);
+                }
+                return maxOne/Math.max(1,(a.R-a.L)*(a.B-a.T));
+              });
+              const ratios=boxes.map(b=>b.h/Math.max(1,b.span));
+              const hs=boxes.map(b=>b.h);
+              const row={medMax:+med(maxes).toFixed(3), medRatio:+med(ratios).toFixed(3), minH:+Math.min.apply(null,hs).toFixed(1), n:boxes.length};
+              if(!garage) garage=row;
+              else {
+                garage.medMax=Math.max(garage.medMax, row.medMax);
+                garage.medRatio=Math.min(garage.medRatio, row.medRatio);
+                garage.minH=Math.min(garage.minH, row.minH);
+              }
+            }
+          }
+          out.push({room:spec.room, bad:bad.slice(0,4), badN:bad.length, garage});
+        }
+        return {w:innerWidth, out, errs:(window.__errs||[]).slice(0,3)};
+      })()`);
+      console.log('BBOX', size, JSON.stringify(sweep));
+      assert(sweep && sweep.w === size, size + ' viewport did not apply ' + JSON.stringify(sweep && sweep.w));
+      assert(!(sweep.errs && sweep.errs.length), size + ' console errors ' + JSON.stringify(sweep.errs));
+      for (const room of sweep.out || []){
+        assert(!room.badN, size + ' ' + room.room + ' ripe plant paints outside the canvas ' + JSON.stringify(room.bad));
+        if (room.garage){
+          assert(room.garage.medMax <= 0.40, 'garage overlap median is over 0.40 ' + JSON.stringify(room.garage));
+          assert(room.garage.medRatio >= 0.64, 'garage ripe height median is under 0.64 of the span ' + JSON.stringify(room.garage));
+        }
       }
     }
 
