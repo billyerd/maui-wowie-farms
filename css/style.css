@@ -1071,20 +1071,28 @@ body:not(.sheet-open) #toasts{
 #toolbar #locSlot,
 #toolbar #upgBtn.sidebtn,
 #toolbar #seedBag,
-#toolbar #menu button,
-#toolbar #locBtn{
+#toolbar #menu button{
   flex:1 1 0 !important;
-  width:auto !important;
+  width:0 !important;
   min-width:0 !important;
   max-width:none !important;
   min-height:48px !important;
   margin:0 !important;
+  /* Horizontal padding sits outside a 0 flex basis and steals width from the
+     circle and the location tab. Keep the hit box flush with its share. */
+  padding:3px 0 !important;
   border:0 !important;
   box-sizing:border-box !important;
   overflow:hidden;
 }
 #toolbar #qaFab{overflow:visible !important}
 #toolbar #locSlot{display:flex;align-items:stretch;justify-content:center;overflow:visible}
+#toolbar #locBtn{
+  flex:1 1 auto !important;
+  width:100% !important;
+  min-width:0 !important;
+  max-width:none !important;
+}
 #toolbar #locSlot #locBtn{flex:1 1 auto !important;width:100% !important;max-width:none !important}
 #toolbar .qa-main{width:min(28px, 80%) !important;min-width:0 !important;max-width:28px}
 #toolbar #menu button .ico,
@@ -1140,4 +1148,13 @@ body:not(.sheet-open) #toasts{
   #toolbar #upgBtn b,
   #toolbar #seedBag b,
   #toolbar #seedBag small{font-size:11px !important}
+}
+/* Ten tabs cannot be 36px on a 320px screen without leaving the row. From 360px each hit is at least 36px. */
+@media (min-width:360px){
+  #toolbar #qaFab,
+  #toolbar #locSlot,
+  #toolbar #upgBtn.sidebtn,
+  #toolbar #seedBag,
+  #toolbar #menu button,
+  #toolbar #locBtn{min-width:36px !important}
 }

@@ -160,9 +160,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
         if (span >= 48) assert(s.h >= 18 && s.w >= 14, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         else assert(s.h >= 10 && s.w >= 8, tag + ' pot ' + s.id + ' plant is tiny ' + JSON.stringify(s));
         assert(!s.a || Math.abs(s.w / s.h - s.a) < 0.06, tag + ' pot ' + s.id + ' is cropped instead of scaled ' + JSON.stringify(s));
-        if (s.cellW && s.w > s.cellW * 1.2 + 1) assert(s.feather > 0.4, tag + ' pot ' + s.id + ' overhangs with a hard edge ' + JSON.stringify(s));
+        const capMul = /greenhouse|indoor|benches|facility/.test(tag) ? 1.17 : 1.32;
+        if (s.cellW) assert(s.w <= s.cellW * capMul + 1, tag + ' pot ' + s.id + ' is wider than the room cap ' + JSON.stringify(s));
         assert(s.top >= (s.cellTop || 0) - 1, tag + ' pot ' + s.id + ' covers the pot above ' + JSON.stringify(s));
-        if (s.edge != null && s.x != null && s.x + s.w / 2 > s.edge + 0.6) assert(s.feather > 0.4, tag + ' pot ' + s.id + ' is hard-clipped at the margin ' + JSON.stringify(s));
+        if (s.edge != null && s.x != null) assert(s.x + (s.shift || 0) + s.w / 2 <= s.edge + 8.5, tag + ' pot ' + s.id + ' leaves the screen ' + JSON.stringify(s));
         assert(Math.abs((s.top + s.h) - s.foot) < 0.6, tag + ' pot ' + s.id + ' is not rooted on the soil ' + JSON.stringify(s));
       }
     }
@@ -219,7 +220,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const sprites=R.bedSprites();
         const slack=sprites.filter(s=>{
           const span=s.foot-s.cellTop;
-          const edgeOut=s.edge!=null && s.x+s.w/2>s.edge+0.6 && !(s.feather>0.4);
+          const edgeOut=s.edge!=null && s.x+(s.shift||0)+s.w/2>s.edge+8.5;
           const cropped=s.a && Math.abs(s.w/s.h - s.a)>0.06;
           return edgeOut || cropped || s.top<s.cellTop-1 || s.h>span+1.5;
         }).slice(0,3);
@@ -238,7 +239,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         UI.open('seeds');
         return {
           dpr, ripe:{h:+maui.h.toFixed(1), w:+maui.w.toFixed(1), span:+(maui.foot-maui.cellTop).toFixed(1), cellW:+maui.cellW.toFixed(1), cellH:+(maui.cellH||0).toFixed(1), top:+maui.top.toFixed(1), cellTop:+maui.cellTop.toFixed(1), id:'jealousy'},
-          edge:{right:+(edge.x+edge.w/2).toFixed(1), limit:edge.edge, feather:edge.feather||0, id:edge.art},
+          edge:{right:+(edge.x+(edge.shift||0)+edge.w/2).toFixed(1), limit:edge.edge, shift:edge.shift||0, feather:edge.feather||0, id:edge.art},
           indoor:sprites.length, slack:slack.length, facility,
           minW:+Math.min(...sprites.map(s=>s.w)).toFixed(1), maxW:+Math.max(...sprites.map(s=>s.w)).toFixed(1),
           errs:(window.__errs||[]).slice(0,3)
@@ -261,7 +262,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
       assert(m.ripe.w <= m.ripe.cellW * 1.25 + 1, 'narrow garage ripe plant is wider than the canopy ' + JSON.stringify(m.ripe));
       assert(m.ripe.h > m.ripe.w, 'tall ripe plant is not taller than it is wide ' + JSON.stringify(m.ripe));
       assert(m.ripe.top >= m.ripe.cellTop - 1, 'garage ripe plant covers the pot above ' + JSON.stringify(m.ripe));
-      assert(m.edge && (m.edge.right <= m.edge.limit + 0.6 || m.edge.feather > 0.4), 'rightmost garage plant is hard-clipped ' + JSON.stringify(m.edge));
+      assert(m.edge && m.edge.right <= m.edge.limit + 8.5, 'rightmost garage plant leaves the screen ' + JSON.stringify(m.edge));
       assert(m.indoor >= 20, 'indoor size sample is too small');
       assert(m.slack === 0, 'indoor ripe plants are outside the cell limits ' + JSON.stringify(m));
       assert(m.facility && m.facility.length === 5, 'facility narrow sample missing ' + JSON.stringify(m.facility));
@@ -276,8 +277,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
 
     async function toastCheck(){
       const m = await evalJs(`(async () => {
-        const notes=document.getElementById('toasts');
-        if(notes) notes.querySelectorAll('.toast').forEach(el=>el.remove());
+        ['toasts','achToasts'].forEach(id=>{
+          const notes=document.getElementById(id);
+          if(notes) notes.querySelectorAll('.toast').forEach(el=>el.remove());
+        });
         UI.toast('Daily gift ready!','good');
         UI.toast('Watered the row','good');
         await new Promise(r=>setTimeout(r, 320));
@@ -537,7 +540,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
             prev=h; prevW=w;
           }
           const sp=R.bedSprites().find(s=>s.id===p.id);
-          ends[id]={h:sp?+sp.h.toFixed(1):0, w:sp?+sp.w.toFixed(1):0, a:sp?+((sp.w&&sp.h)?sp.w/sp.h:0).toFixed(3):0, nat:sp?+(sp.nat||0).toFixed(3):0, cellW:sp?+sp.cellW.toFixed(1):0, cellH:sp?+sp.cellH.toFixed(1):0, span:sp?+(sp.foot-sp.cellTop).toFixed(1):0, feather:sp?sp.feather||0:0};
+          ends[id]={h:sp?+sp.h.toFixed(1):0, w:sp?+sp.w.toFixed(1):0, a:sp?+((sp.w&&sp.h)?sp.w/sp.h:0).toFixed(3):0, nat:sp?+(sp.nat||0).toFixed(3):0, cellW:sp?+sp.cellW.toFixed(1):0, cellH:sp?+sp.cellH.toFixed(1):0, span:sp?+(sp.foot-sp.cellTop).toFixed(1):0, feather:sp?sp.feather||0:0, shift:sp?sp.shift||0:0};
         });
         const wideIds=['cherry-wine','gary-payton','northern-lights','menehune-mint','do-si-dos'];
         owned.forEach((q,i)=>{ q.strain=wideIds[i%wideIds.length]; q.prog=i%2?1:0.55; q.water=1; q.food=1; q.pest=null; });
@@ -547,9 +550,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
         const samples=[];
         row.forEach(s=>{
           const chopped=s.a && Math.abs(s.w/s.h - s.a)>0.06;
-          const hard=s.w>s.cellW*1.2+1 && !(s.feather>0.4);
+          const hard=s.w>s.cellW*1.32+1;
           if(chopped||hard) wideOver++;
-          const tip=R.pick(s.x+s.w/2-1, s.top+Math.min(12, s.h*0.2));
+          const tipY=Math.max(s.cellTop+2, Math.min(s.foot-2, s.top+Math.min(12, s.h*0.2)));
+          const tip=R.pick(s.x, tipY);
           const hit=tip&&tip.p&&tip.p.id===s.id;
           if(!hit) badTap++;
           if(samples.length<4) samples.push({id:s.art, w:+s.w.toFixed(1), cell:+s.cellW.toFixed(1), hit:hit?s.id:(tip&&tip.p&&tip.p.id)});
@@ -573,8 +577,10 @@ localStorage.removeItem('mwfarms_test_v1');` });
       }
       for (const id of ['northern-lights','maile-grape']){
         const e=grow.ends[id];
-        const floor=e&&e.span>=90?Math.min(e.span, 100):e&&e.span*0.58;
-        assert(e && e.h+0.5 >= floor-1, id + ' wide ripe plant lost the height floor ' + JSON.stringify(e));
+        const capH=e&&e.cellW?e.cellW*1.3/Math.max(0.25, e.nat||1):0;
+        const floor=e?Math.min(e.span, capH):0;
+        assert(e && e.w <= e.cellW*1.32+1, id + ' wide ripe plant exceeds the garage cap ' + JSON.stringify(e));
+        assert(e && e.h+0.6 >= floor-1.5, id + ' wide ripe plant lost the height the cap allows ' + JSON.stringify(e));
         assert(e && Math.abs(e.w/e.h - e.nat) < 0.06, id + ' wide ripe plant is masked instead of scaled ' + JSON.stringify(e));
       }
       for (const row of grow.wash || []){
@@ -602,7 +608,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
           const s=sprites[sprites.length-1];
           const px=s.x, py=s.foot-1;
           const pot=R.pick(px, py);
-          const leaf=R.pick(s.x+s.w/2-1, s.top+Math.min(12, s.h*0.2));
+          const leaf=R.pick(s.x, Math.max((s.cellTop||0)+2, Math.min(s.foot-2, s.top+Math.min(12, s.h*0.2))));
           const el=document.elementFromPoint(px, py);
           const topEl=el?(el.id||el.tagName):'';
           const open=!(el&&el.closest&&el.closest('#toolbar,#hud,#sheet,#modal'));

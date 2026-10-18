@@ -1046,12 +1046,20 @@ window.R=(function(){
     return {im, stage, w:im.naturalWidth, h:im.naturalHeight, hint, hintColor, stem:stage<=3&&L&&L.leaf?L.leaf:'', painted:1, grown:1, closeup:0};
   }
   // One height curve per strain, from the shared sprout to that strain's ripe height.
-  // Width is the same uniform scale. A wide ripe plate stays at least about 100px
-  // tall in a row that can hold it, and may overhang the cell a little.
+  // Width is the same uniform scale. Wide plates are capped (garage about 1.3 cells,
+  // greenhouse about 1.15) and stay near 100px tall only when that cap still allows it.
   function curveT(prog){
     const p=Math.max(0, Math.min(1, +prog||0));
     if(p>=1) return 1;
     return (ageOf(p)-0.40)/0.60;
+  }
+  function widthCapOf(sl){
+    const cellW=sl.cellW||48;
+    const room=sl.room||'';
+    if(room==='garage') return cellW*1.3;
+    if(room==='gh'||room==='facility'||room==='benches') return cellW*1.15;
+    if(sl.cls==='gh'||sl.cls==='out') return cellW*1.15;
+    return cellW*1.3;
   }
   function targetRipeH(sl, ripeAspect){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
@@ -1059,16 +1067,14 @@ window.R=(function(){
     const cellH=sl.cellH||(span!=null?span:cellW);
     let want=span!=null?Math.min(span, cellH*0.78):Math.max(18, sl._hpx||cellW);
     const a=Math.max(.05, ripeAspect||1);
-    const cap=cellW*1.2;
+    const cap=widthCapOf(sl);
+    // About 100px in a tall row when the width cap still holds the plate.
+    if(span!=null&&span>=90){
+      const tall=Math.min(span, 100);
+      if(tall*a<=cap+0.2) want=Math.max(want, tall);
+    }
     if(want*a>cap+0.2){
-      const fitted=cap/a;
-      let floor=fitted;
-      if(span!=null){
-        floor=span*0.6;
-        // About 100px when the row can hold it. Shorter rows stay inside the span.
-        if(span>=90) floor=Math.max(floor, Math.min(span, 100));
-      }
-      want=Math.max(fitted, floor);
+      want=cap/a;
       if(span!=null) want=Math.min(span, want);
     }
     return want;
@@ -1079,15 +1085,69 @@ window.R=(function(){
     return w&&h?w/Math.max(1,h):0;
   }
   // Width eases across the last slice of a stage, so the plate change is not a pop.
+  // The last shared plate is much wider than a tall ripe sprite. Blend across a longer
+  // slice so the height can climb to the ripe size without a pop.
+  function easeWindow(stage, st){
+    if(stage!==4||!st) return 0.08;
+    const a0=stageAspectAt(4, st)||1, a1=stageAspectAt(5, st)||a0;
+    const lo=Math.max(.2, Math.min(a0,a1)), hi=Math.max(a0,a1);
+    return Math.max(0.08, Math.min(0.42, 0.10+(hi/lo-1)*0.28));
+  }
   function easedAspect(prog, stage, st, fallback){
     const a0=stageAspectAt(stage, st)||fallback||1;
     if(!(prog>=0)||prog>=1||stage>=5) return stage>=5?(stageAspectAt(5, st)||fallback||a0):a0;
-    const edges=[0,.08,.25,.45,.65,1], WINDOW=0.08, nxt=edges[stage+1];
+    const edges=[0,.08,.25,.45,.65,1], WINDOW=easeWindow(stage, st), nxt=edges[stage+1];
     if(nxt==null||prog<=nxt-WINDOW) return a0;
     const a1=stageAspectAt(Math.min(5, stage+1), st)||a0;
     const u=Math.max(0, Math.min(1, (prog-(nxt-WINDOW))/WINDOW));
     const e=u*u*(3-2*u);
     return a0+(a1-a0)*e;
+  }
+  function curveBox(prog, sl, ripeH){
+    const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
+    const cellW=sl.cellW||48;
+    const cellH=sl.cellH||(span!=null?span:cellW);
+    const base=span!=null?Math.min(span, cellH*0.78):ripeH;
+    const sprout=Math.min(ripeH, Math.max(span!=null&&span<48?10:18, base*0.40));
+    const t=(prog>=1)?1:curveT(prog);
+    let h=sprout+(ripeH-sprout)*t;
+    if(span!=null && h>span) h=span;
+    return {h, sprout};
+  }
+  // Height only climbs. A wide middle plate holds the plant at the width cap, and the
+  // ripe height comes back as that plate eases into the strain's own shape.
+  const monoCache=new Map();
+  function monoHeight(prog, sl, st, ripeAspect){
+    const span=sl.cellTop!=null?(sl.y-sl.cellTop):0;
+    const key=(st.id||'')+'|'+Math.round((sl.cellW||0)*10)+'|'+Math.round((sl.cellH||0)*10)+'|'+Math.round(span*10)+'|'+(sl.room||sl.cls||'');
+    let table=monoCache.get(key);
+    if(!table){
+      const ripeH=targetRipeH(sl, ripeAspect||strainAspect(st)||1);
+      const cap=widthCapOf(sl);
+      const n=100, capH=new Array(n+1);
+      for(let i=0;i<=n;i++){
+        const p=i/n, a=Math.max(.05, easedAspect(p, stageOf(p), st, ripeAspect||1));
+        capH[i]=cap/a;
+      }
+      const c=new Array(n+1);
+      c[n]=capH[n];
+      for(let i=n-1;i>=0;i--) c[i]=Math.min(capH[i], c[i+1]);
+      const sprout=curveBox(0, sl, ripeH).sprout;
+      table=new Array(n+1);
+      for(let i=0;i<=n;i++){
+        const p=i/n;
+        let h=Math.min(curveBox(p, sl, ripeH).h, c[i]);
+        if(p<0.35 && h>sprout+0.4){
+          const u=p/0.35, e=u*u*(3-2*u);
+          h=sprout+(h-sprout)*e;
+        }
+        table[i]=h;
+      }
+      monoCache.set(key, table);
+      if(monoCache.size>240) monoCache.clear();
+    }
+    const p=Math.max(0, Math.min(1, +prog||0));
+    return table[Math.max(0, Math.min(100, Math.round(p*100)))];
   }
   function fitBox(aspect, sl, stage, prog, ripeAspect, st){
     const span=sl.cellTop!=null?(sl.y-sl.cellTop):null;
@@ -1101,29 +1161,32 @@ window.R=(function(){
     const t=(prog>=1||stage>=5)?1:curveT(prog);
     let h=sprout+(ripeH-sprout)*t;
     if(span!=null && h>span) h=span;
-    // Uniform scale. Never slice the sprite down to the cell: a plate that is
-    // still wider than about 1.2 cells keeps its height and overhangs a little.
-    const w=h*use;
-    const cap=cellW*1.2;
-    let feather=0;
-    if(w>cap+0.2) feather=14;
-    if(sl.x!=null){
-      const half=w/2;
-      const overL=Math.max(0, 14-(sl.x-half));
-      const overR=sl.edgeR!=null?Math.max(0, (sl.x+half)-sl.edgeR):0;
-      if(overL>0.4||overR>0.4) feather=14;
+    if(st && (strainAspect(st)||ripeAspect)) h=monoHeight(prog>=1||stage>=5?1:prog, sl, st, ripeAspect||use);
+    // Uniform scale. A wide plate shrinks until it fits the room cap. It is never squashed.
+    let w=h*use;
+    const cap=widthCapOf(sl);
+    if(w>cap+0.2 && use>0){ h=cap/use; w=h*use; }
+    // Slide a screen-edge plant inward so the plate does not need a fade there.
+    let shift=0;
+    const margin=2;
+    if(sl.x!=null && w<W-margin*2){
+      const left=sl.x-w/2, right=sl.x+w/2;
+      if(left<margin) shift+=margin-left;
+      if(right+shift>W-margin) shift-=right+shift-(W-margin);
     }
-    return {h,w,fullW:w,a:use,nat:use,feather,crop:0};
+    return {h,w,fullW:w,a:use,nat:use,feather:0,shift,crop:0};
   }
   let featherC=null;
   function paintSprite(painted, box, sl, flip){
     const tuck=Math.min(3, box.h*0.025);
+    const ox=box.shift||0;
     if(!(box.feather>0.4)){
-      ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h);
+      if(!ox) ctx.drawImage(painted,-box.w/2,-box.h+tuck,box.w,box.h);
+      else ctx.drawImage(painted,-box.w/2+ox,-box.h+tuck,box.w,box.h);
       return;
     }
-    // Soft 14px fade on both sides, and again at either screen edge. Never a hard rect.
-    const fade=14;
+    // Soft fade only if a plate still has to hang past the cell. Screen edges are shifted, not faded.
+    const fade=6;
     const pad=2;
     const dw=Math.max(1, Math.ceil(box.w+pad*2)), dh=Math.max(1, Math.ceil(box.h+pad*2));
     if(!featherC) featherC=document.createElement('canvas');
@@ -1135,7 +1198,6 @@ window.R=(function(){
     x.drawImage(painted, pad, pad, box.w, box.h);
     x.globalCompositeOperation='destination-in';
     const g=x.createLinearGradient(0,0,dw,0);
-    const fdir=flip||1;
     const steps=16;
     for(let i=0;i<=steps;i++){
       const u=i/steps;
@@ -1143,16 +1205,11 @@ window.R=(function(){
       let al=1;
       const inset=box.w/2-Math.abs(local);
       if(inset<fade) al=Math.max(0, inset/fade);
-      if(sl&&sl.x!=null){
-        const sx=sl.x+fdir*local;
-        if(sx<fade) al=Math.min(al, Math.max(0, sx/fade));
-        else if(sx>W-fade) al=Math.min(al, Math.max(0, (W-sx)/fade));
-      }
       g.addColorStop(u,'rgba(0,0,0,'+al+')');
     }
     x.fillStyle=g; x.fillRect(0,0,dw,dh);
     x.globalCompositeOperation='source-over';
-    ctx.drawImage(featherC,-box.w/2-pad,-box.h+tuck-pad,dw,dh);
+    ctx.drawImage(featherC,-box.w/2+ox-pad,-box.h+tuck-pad,dw,dh);
   }
   function drawPlantAt(p,s,sl,now){
     const st=G.strain(p.strain), L=look(st); const prog=p.prog;
@@ -1207,7 +1264,7 @@ window.R=(function(){
         box=shared;
       } else if(primary){ box=drawSp(primary, 1, true); take(box); }
       if(hitW) sl.spr={w:hitW,h:hitH};
-      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,edge:sl.edgeR,a:box.a,nat:box.nat||box.a,feather:box.feather||0,art:stage>=5&&st?st.id:('stage'+stage)});
+      if(box) bedSprites.push({id:p.id,painted:1,closeup:0,grown:1,stage,h:box.h,w:box.w,top:sl.y-box.h,foot:sl.y,cellTop:sl.cellTop,cellW:sl.cellW,cellH:sl.cellH,x:sl.x,shift:box.shift||0,edge:sl.edgeR,a:box.a,nat:box.nat||box.a,feather:box.feather||0,art:stage>=5&&st?st.id:('stage'+stage)});
     } else if(pi&&pi.a){ const img=pi.a, w=fitW(img); foot=footFrac(img);
       ctx.drawImage(sick(img,hk,seed),-w/2,-hpx*(1-foot),w,hpx);
       if(pi.b&&pi.mix>0){ const w2=fitW(pi.b), f2=footFrac(pi.b); ctx.globalAlpha=pi.mix; ctx.drawImage(sick(pi.b,hk,seed),-w2/2,-hpx*(1-f2),w2,hpx); ctx.globalAlpha=1; } }
@@ -1634,20 +1691,25 @@ window.R=(function(){
       const care=[];
       for(const c of cells){ if(!c.owned||!c.p||!c.p.strain||c.p.prog>=1) continue; if(c.p.pest||G.isThirsty(c.p)||G.isHungry(c.p)) care.push(c); }
       const group=care.length>8;
-      // One clip for the whole row, not each pot, so a wide canopy is not sheared on the cell edge.
+      // Farther rows first, nearer rows last, so a front canopy overlaps the row behind it.
+      // One clip for the whole bed, not each row, so that overlap is not sheared off.
       const rowBuckets=new Map();
       for(const c of cells){
         const k=Math.round(c.y);
         if(!rowBuckets.has(k)) rowBuckets.set(k,[]);
         rowBuckets.get(k).push(c);
       }
-      for(const groupCells of rowBuckets.values()){
-        const y0=Math.min.apply(null, groupCells.map(c=>c.y));
-        const y1=Math.max.apply(null, groupCells.map(c=>c.floor||c.y+c.h));
+      const rowKeys=[...rowBuckets.keys()].sort((a,b)=>a-b);
+      if(rowKeys.length){
+        const y0=Math.min.apply(null, cells.map(c=>c.y));
+        const y1=Math.max.apply(null, cells.map(c=>c.floor||c.y+c.h));
         ctx.save();
         ctx.beginPath();
         ctx.rect(-8, y0, W+16, Math.max(1, y1-y0));
         ctx.clip();
+      }
+      for(const key of rowKeys){
+        const groupCells=rowBuckets.get(key);
         for(const c of groupCells){
           if(!c.p) continue;
           const cx=c.sl.x;
@@ -1665,8 +1727,8 @@ window.R=(function(){
           }
           if(sel&&c.p&&sel.id===c.p.id){ ctx.strokeStyle='rgba(255,217,106,.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(cx,c.rim+2,Math.min(c.w*0.42, Math.max(14,c.w*0.28)),8,0,0,TAU); ctx.stroke(); }
         }
-        ctx.restore();
       }
+      if(rowKeys.length) ctx.restore();
       for(const c of cells){
         if(!c.owned||!c.p||!c.p.strain) continue;
         let label=c.p.prog>=1?'Ripe':G.dur(G.timeLeft(c.p));
@@ -2048,9 +2110,24 @@ window.R=(function(){
   function custReact(){}
   // ---------------- picking ----------------
   function nearPlant(sx,sy){
+    const c=cellAt(sx,sy);
+    return c&&c.p&&c.p.strain?c.p:null;
+  }
+  // The cell under the finger. Column is the nearest pot center. Row is that cell's own band.
+  // Sprite overhang and the faded margin are not part of the hit.
+  function cellAt(sx,sy){
     if(!bedLay) return null;
-    let best=null, bd=120;
-    for(const c of bedLay.cells){ if(!c.owned||!c.p||!c.p.strain||!c.sl) continue; const d=Math.hypot(c.sl.x-sx,(c.sl.y||c.y)-sy); if(d<bd){ bd=d; best=c.p; } }
+    let best=null, score=1e9;
+    for(const c of bedLay.cells){
+      if(!c||(!c.owned&&!c.expand)) continue;
+      const top=c.y, bot=c.floor!=null?c.floor:(c.y+c.h);
+      if(sy<top||sy>bot) continue;
+      const cx=c.sl?c.sl.x:(c.x+c.w/2);
+      const inCol=sx>=c.x&&sx<=c.x+c.w;
+      const dx=Math.abs(sx-cx);
+      const s=inCol?dx:dx+100000;
+      if(s<score){ score=s; best=c; }
+    }
     return best;
   }
   function chooseCell(c){
@@ -2064,43 +2141,8 @@ window.R=(function(){
       let bq=null, bd=22; for(const b of qbub){ const d=Math.hypot(sx-b.x,sy-b.y); if(d<bd){ bd=d; bq=b; } } if(bq) return bq.act;
       if(bedLay.build&&sx>=bedLay.build.x&&sx<=bedLay.build.x+bedLay.build.w&&sy>=bedLay.build.y&&sy<=bedLay.build.y+bedLay.build.h) return bedLay.build.act;
       if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r) return {type:'gecko'};
-      // The pot and its label belong to that plant, even when a leaf from the row below crosses them.
-      let pot=null, potD=1e9;
-      const hits=[];
-      for(const c of bedLay.cells){
-        const sl=c.sl;
-        const inCell=sx>=c.x&&sx<=c.x+c.w&&sy>=c.y&&sy<=c.y+c.h;
-        if(sl&&c.owned){
-          const top=(c.rim!=null?c.rim:sl.y)-6, bot=(c.floor!=null?c.floor:c.y+c.h)+2;
-          if(sx>=c.x&&sx<=c.x+c.w&&sy>=top&&sy<=bot){
-            const d=Math.hypot(sl.x-sx, sl.y-sy);
-            if(d<potD){ potD=d; pot=c; }
-          }
-        }
-        let inSpr=false;
-        if(sl&&sl.spr&&c.p&&c.p.strain){
-          const b=sl.spr;
-          inSpr=sx>=sl.x-b.w/2&&sx<=sl.x+b.w/2&&sy>=sl.y-b.h&&sy<=sl.y+4;
-        }
-        if(inSpr||inCell){
-          const bx=sl?sl.x:c.x+c.w/2, by=sl?sl.y:c.y+c.h;
-          hits.push({c, d:Math.hypot(bx-sx, by-sy), spr:inSpr});
-        }
-      }
-      if(pot) return chooseCell(pot);
-      const leaves=hits.filter(h=>h.spr);
-      const pool=leaves.length?leaves:hits;
-      if(pool.length){
-        // A wide canopy may cross the gap by a sliver. The tap stays on the
-        // plant whose own leaf reaches that point, not the neighbour underneath.
-        const inset=h=>{
-          const sl=h.c.sl, cx=sl?sl.x:(h.c.x+h.c.w/2);
-          const half=sl&&sl.spr?sl.spr.w/2:h.c.w/2;
-          return half-Math.abs(sx-cx);
-        };
-        pool.sort((a,b)=>{ const d=inset(a)-inset(b); return Math.abs(d)>0.5?d:(a.d-b.d); });
-        return chooseCell(pool[0].c);
-      }
+      const cell=cellAt(sx,sy);
+      if(cell) return chooseCell(cell);
       return null;
     }
     if(geckoS&&Math.hypot(sx-geckoS.x,sy-geckoS.y)<geckoS.r) return {type:'gecko'};
@@ -2115,6 +2157,37 @@ window.R=(function(){
     if(loc==='farm') for(const k in BLD){ const b=BLD[k]; if(!b.panel||(b.need&&!b.need())) continue; const im=IM[b.img]; if(!ok(b.img)) continue; const w=im.naturalWidth*b.s, h=im.naturalHeight*b.s; if(wx>b.x-w/2&&wx<b.x+w/2&&wy>b.y-h&&wy<b.y) return {type:'bld',id:k,panel:b.panel}; }
     if(loc==='farm'&&st().land&&!st().ghBuilt&&wx>GH.x&&wx<GH.x+GHW*GH.s&&wy>GH.y&&wy<GH.y+GHH*GH.s) return {type:'ghbuild'};
     sel=null; return null;
+  }
+  // Tap the center, the mid-body, and the upper leaf of every ripe cell. Each must resolve to that cell.
+  function auditCellHits(){
+    if(!bedLay) return {ok:false, n:0, misses:0, bad:[{reason:'no beds'}]};
+    const byId={};
+    bedSprites.forEach(s=>{ if(s&&s.id) byId[s.id]=s; });
+    const bad=[];
+    let n=0;
+    for(const c of bedLay.cells){
+      if(!c.owned||!c.p||!c.p.strain) continue;
+      const s=byId[c.p.id];
+      const top=c.y+1, bot=(c.floor!=null?c.floor:c.y+c.h)-1;
+      const cx=c.x+c.w/2;
+      const clampY=y=>Math.min(bot, Math.max(top, y));
+      const leaf=s?clampY(s.top+Math.min(10, Math.max(4, s.h*0.15))):clampY(c.y+c.h*0.22);
+      const mid=s?clampY((s.top+s.foot)/2):clampY(c.y+c.h*0.55);
+      const pts=[
+        {k:'center', x:cx, y:clampY(c.y+c.h*0.5)},
+        {k:'mid', x:cx, y:mid},
+        {k:'leaf', x:cx, y:leaf},
+        {k:'left', x:c.x+3, y:mid},
+        {k:'right', x:c.x+c.w-3, y:mid}
+      ];
+      for(const pt of pts){
+        n++;
+        const hit=pick(pt.x, pt.y);
+        const id=hit&&hit.p&&hit.p.id;
+        if(id!==c.p.id) bad.push({room:bedLay.room, id:c.p.id, art:s&&s.art, k:pt.k, x:+pt.x.toFixed(1), y:+pt.y.toFixed(1), hit:id||null});
+      }
+    }
+    return {ok:!bad.length, n, misses:bad.length, bad:bad.slice(0,8), room:bedLay.room};
   }
   const st=()=>G.st;
   function screenOf(p){ const sl=slotOf.get(p.id); if(!sl||p.loc!==loc) return null; return toS(sl.x,sl.y); }
@@ -2208,5 +2281,5 @@ window.R=(function(){
 
   let mainCtx=null;
   function init(c){ cv=c; ctx=mainCtx=cv.getContext('2d'); resize(); loadImages(); loc=(G.st&&G.st.loc)||'garage'; rebuild(); fit(); }
-  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,gear:bedLay.gear||[],light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1,kind:bedLay.light.kind||''}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,strainSpriteUrl,spriteWarm,growthPaint,fadeMix,washProbe,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
+  return {unlockPan,skipPan,bedSprites:()=>bedSprites.slice(),bedLayout:()=>bedLay&&{room:bedLay.room,n:bedLay.cells.length,cell:bedLay.cells[0]?{x:bedLay.cells[0].x,y:bedLay.cells[0].y,w:bedLay.cells[0].w,h:bedLay.cells[0].h}:null,last:bedLay.cells.length?{x:bedLay.cells[bedLay.cells.length-1].x,y:bedLay.cells[bedLay.cells.length-1].y,w:bedLay.cells[bedLay.cells.length-1].w,h:bedLay.cells[bedLay.cells.length-1].h}:null,build:!!bedLay.build,gear:bedLay.gear||[],light:bedLay.light?{x:bedLay.light.x,y:bedLay.light.y,w:bedLay.light.w,h:bedLay.light.h,potTop:bedLay.light.y0,potRight:bedLay.light.x1,kind:bedLay.light.kind||''}:null},get panning(){return !!upan;},_toS:(x,y)=>toS(x,y),_qb:()=>qbub.map(b=>({x:b.x,y:b.y,a:b.act.a,id:b.act.p.id})),_ovl:()=>lastOvl.filter(o=>o.p&&o.p.strain).map(o=>({id:o.p.id,...toS(o.sl.x,o.sl.y-(o.h||20)*.5)})),select:p=>{ sel=p; },plantCard,cosPreview,cosPlace,setLens,lens,init,pluck,leafFall,shake:p=>{ p._shake=.45; },custReact,custSay:()=>actors.forEach(a=>{ if(a.say) a.say.t=.3; }),setDprCap,spawnPerson:(img,x,y,face)=>spawn({role:'test',img,x,y,face:face||1,f:face||1,fade:1}),resize,fit,pan,zoomAt,frame,pick,nearPlant,auditCellHits,setLoc,rebuild,burst,floater,coinsTo,sendWorker,closeup,closeupCanvas,strainSpriteUrl,spriteWarm,growthPaint,fadeMix,washProbe,screenOf,plotRect,get loc(){return loc;},get cam(){return cam;},SC,slotOf:()=>slotOf,tinted,imagesLoaded:()=>loaded,get mentorS(){return mentorS;},get geckoS(){return geckoS;}};
 })();

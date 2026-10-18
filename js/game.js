@@ -785,21 +785,24 @@ window.G = (function(){
   // Goal state is derived from real progress, so goals done "early" (before the chain reached them), migrated saves and
   // players who never tap the card all stay in sync. If the player is more than one goal behind, the already-satisfied
   // goals are claimed automatically (rewards paid, one summary toast) and the card lands on the latest real goal.
-  function questSat(q){ if(!q) return false; const t=st.stats||{};
-    const c={plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:capOf('garage')>5, feed:t.feed>0, hose:lv('water')>=1,
+  function questFlags(){ const t=st.stats||{};
+    return {plant:t.plant>0||st.plots.some(p=>p.strain), water:t.water>0, harvest:t.harvests>0, dry:t.dryLoads>0, sell:t.sold>0, gcap:capOf('garage')>5, feed:t.feed>0, hose:lv('water')>=1,
       order:t.orders>0, tent3:capOf('garage')>=9, land:st.land, field:st.plots.some(p=>(p.zone==='field'||p.zone==='gh')&&p.strain)||st.field>0, ghbuild:st.ghBuilt, mgr:st.plots.some(p=>p.zone==='gh'&&(p.strain||p.last)),
-      breed:t.bred>0||!!st.breed, craft:(t.crafted||0)>0, ghfull:capOf('gh')>=INDOOR.ghPlants, permit:st.permit, indoor:st.inBuilt, inharv:t.inHarv>0, pheno:t.phenos>0, earn:st.runEarn>=2e6, season:false};
-    if(c[q.id]) return true;
+      breed:t.bred>0||!!st.breed, craft:(t.crafted||0)>0, ghfull:capOf('gh')>=INDOOR.ghPlants, permit:st.permit, indoor:st.inBuilt, inharv:t.inHarv>0, pheno:t.phenos>0, earn:st.runEarn>=2e6, season:false}; }
+  // The task itself. A later purchase does not count: "Plant a seed" stays open until a seed is planted.
+  function questMet(q){ if(!q) return false; return !!questFlags()[q.id]; }
+  function questSat(q){ if(!q) return false; if(questMet(q)) return true;
     // a later one-time milestone already reached means the player has clearly passed this step (e.g. bought land but never watered by hand)
-    const MS=['gcap','hose','tent3','land','ghbuild','ghfull','permit','indoor']; const i=QUESTS.indexOf(q);
+    const c=questFlags(); const MS=['gcap','hose','tent3','land','ghbuild','ghfull','permit','indoor']; const i=QUESTS.indexOf(q);
     return QUESTS.some((x,j)=>j>i&&MS.includes(x.id)&&c[x.id]); }
   function payQuest(q){ if(q.r.cash) addCash(q.r.cash,'quest'); if(q.r.gems) addGems(q.r.gems,'Goal complete'); if(q.r.hints) st.hints+=q.r.hints; }
   function checkQuest(){ let q=curQuest(); if(!q) return;
     // The order board is gone. Pay this goal once and step past it so the card never points at a missing tab. The quest stays in QUESTS so later indexes do not shift, and st.orders is left alone.
     if(q.id==='order'){ payQuest(q); st.quest++; st.questDone=false; q=curQuest(); if(!q) return; }
-    if(!st.questDone&&questSat(q)) done(q.id);
+    if(st.questDone&&!questMet(q)) st.questDone=false;
+    if(!st.questDone&&questMet(q)) done(q.id);
     let n=0; const R={cash:0,gems:0,hints:0};
-    while(st.questDone&&(q=curQuest())&&questSat(QUESTS[st.quest+1])){ payQuest(q); for(const k in R) R[k]+=q.r[k]||0; st.quest++; st.questDone=true; n++; }
+    while(st.questDone&&(q=curQuest())&&questSat(QUESTS[st.quest+1])){ payQuest(q); for(const k in R) R[k]+=q.r[k]||0; st.quest++; q=curQuest(); st.questDone=!!(q&&questMet(q)); n++; }
     if(n){ emit('questcatchup',{n,R}); emit('toast',{t:'Caught up: '+n+' goals',k:'good'}); } }
   function claimQuest(){ const q=curQuest(); if(!q||!st.questDone) return false; payQuest(q);
     if(q.r.hints) emit('toast',{t:'+'+q.r.hints+' hint token'+(q.r.hints>1?'s':''),k:'gemt'});
@@ -1426,7 +1429,7 @@ window.G = (function(){
     on, emit, fmt, num, dur, cost, maxLv, lv, wk, earnMult, xpNeed, key, unkey, invCount, capOf, syncPlots, locOpen, nextStep, buyStep, buyLand, buildGH, buyPermit, indoorChecklist, buildIndoor,
     buySeeds, seedPrice, plant, water, feed, feedCost, harvest, quality, yieldMult, cycleCost, upkeepRates, growRate, timeLeft, isNight, dayPhase, stage, dryerSlots, batchMax, loadDryer,
     price, sell, sellAll, marketDay, dayNum, regTier, orderSlots, orderValue, orderHave, fillOrder, PREFS, prefOk, custMatch, serveCust,
-    recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, upgBlock, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat,
+    recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, upgBlock, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat, questMet,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
     FESTS, EVENT_ONLY, festNow, festState, festOn, claimFest, GECKO, boostOn, geckoTap, CRAFT, craftOk, craftSlots, craftMax, startCraft, goodPrice, sellGood, goodsCount, BUYERS, setFest:f=>{ festForce=f?Object.assign({week:-1,ends:Date.now()+864e5},FESTS.find(x=>x.id===f)):null; },
     tick, simulate, save, load, applyTestStart, applyFreshCash, exportBackup, parseBackup, installBackup, supportId, grantProduct, buyWithGems, resetAll, discover, addGems, setLoc, setRoom, currentRoom, roomZone, roomOpen, roomRipe, plotsHere, ROOM_ZONE, ROOM_NAME, drainCrew, ripeIn, OFFLINE_CAP,
