@@ -297,27 +297,21 @@ window.UI = (function(){
     }catch(e){}
     return '800 8px system-ui,sans-serif';
   }
-  function tabTokens(s){
+  function fitTab(s, count, budget){
     const words=String(s.name||'').split(/\s+/).filter(Boolean);
     const first=words[0]||s.name||'Seed';
-    const aka=String(s.aka||'').replace(/^aka\s+/i,'').split(',').map(t=>t.trim()).filter(Boolean);
+    const aka=String(s.aka||'').replace(/^aka\s+/i,'').split(',').map(t=>t.trim()).filter(Boolean).sort((a,b)=>b.length-a.length);
     const initials=words.map(w=>w[0]).join('');
-    const out=[];
-    const push=t=>{ t=String(t||'').trim(); if(t&&out.indexOf(t)<0) out.push(t); };
-    push(first);
-    aka.sort((a,b)=>b.length-a.length).forEach(push);
-    if(initials.length>1) push(initials);
-    for(let n=first.length-1;n>=1;n--) push(first.slice(0,n));
-    return out;
-  }
-  function fitTab(s, count, budget){
+    if(!bagCanMeasure()||!(budget>8)) return first;
     const font=labelFont($('#sbName'));
-    const tokens=tabTokens(s);
-    if(!bagCanMeasure()||!(budget>8)) return tokens[0]||'Seed';
     const room=budget-bagMeasure(count, font)-2;
-    let best=tokens[tokens.length-1]||'S', bestW=-1;
-    tokens.forEach(t=>{ const w=bagMeasure(t, font); if(w<=room+0.5&&w>=bestW){ best=t; bestW=w; } });
-    return best;
+    const fits=t=>!!t&&bagMeasure(t, font)<=room+0.5;
+    if(fits(first)) return first;
+    const akaHit=aka.find(fits);
+    if(akaHit) return akaHit;
+    if(initials.length>1&&fits(initials)) return initials;
+    for(let n=first.length-1;n>=1;n--){ const p=first.slice(0,n); if(fits(p)) return p; }
+    return (initials||first).slice(0,1);
   }
   function seedBag(){
     if(G.ensureSeed) G.ensureSeed();
@@ -664,14 +658,16 @@ window.UI = (function(){
   }
   function pktBudget(shop){
     const w=Math.max(280, Math.min(typeof innerWidth==='number'?innerWidth:390, 720));
-    let text=w-28-18-56-10;
+    let text=w-28-18-(shop?96:56)-10;
     if(shop) text-=88;
     return Math.max(64, Math.floor(text));
   }
   function pktCard(s, shop){
     const st=G.st, own=(st.seeds[s.id]||0)>0, sel=st.selSeed===s.id;
     const copy=packetText(s, pktBudget(!!shop));
-    const face=`<div class="pkt-face">${cu(s,112)}</div>`;
+    const face=shop
+      ?`<div class="pkt-face big"><img class="thumb shoppic" data-cu="${s.id}" data-sz="112" data-h="0" alt=""></div>`
+      :`<div class="pkt-face">${cu(s,112)}</div>`;
     const hold=shop?'':`<p class="pkt-hold">${st.seeds[s.id]} in the bag</p>`;
     const buy=shop?`<div class="pkt-buy"><button class="btn sm" data-a="buy" data-id="${s.id}" data-n="1" ${st.cash<G.seedPrice(s)?'disabled':''}>Buy 1</button><button class="btn sm sec" data-a="buy" data-id="${s.id}" data-n="5" ${st.cash<G.seedPrice(s)*5?'disabled':''}>×5</button>${sel?'<span class="chip selchip">✓ Selected</span>':''}</div>`:'';
     return `<div class="row pkt${sel?' sel':''}${own?' pickable':''}" data-pickseed="${s.id}">${face}<div class="pkt-copy"><h4 class="pkt-name">${esc(copy.name)}</h4><p class="pkt-desc">${esc(copy.desc)}</p>${hold}</div>${buy}</div>`;
