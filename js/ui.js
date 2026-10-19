@@ -132,13 +132,22 @@ window.UI = (function(){
     });
   }
   function sheetOpen(){ return !!(document.body&&document.body.classList&&document.body.classList.contains('sheet-open')); }
+  let pillSeq=0;
   function capToasts(){
     const live=[];
     ['toasts','achToasts'].forEach(id=>{
       const box=document.getElementById(id);
       if(box&&box.querySelectorAll) box.querySelectorAll('.toast').forEach(el=>live.push(el));
     });
-    while(live.length>1){ const old=live.shift(); if(old&&old.remove) old.remove(); }
+    // Newest wins, whichever box it lives in. Query order is not age:
+    // an older achievement pill must not erase the harvest notice just shown.
+    live.sort((a,b)=>(+a.dataset.seq||0)-(+b.dataset.seq||0));
+    while(live.length>1){
+      const old=live.shift();
+      if(!old) continue;
+      if(old._t) clearTimeout(old._t);
+      if(old.remove) old.remove();
+    }
   }
   function clipToast(text){
     return String(text||'').replace(/\s+/g,' ').trim();
@@ -160,12 +169,15 @@ window.UI = (function(){
       const n=(+same.dataset.n||1)+1; same.dataset.n=String(n);
       const first=same.dataset.first||same.dataset.raw||text;
       same.textContent=clipToast(group&&GROUP_TXT[group]?GROUP_TXT[group](n,first):(n>1?first+'  ×'+n:first));
+      same.dataset.seq=String(++pillSeq);
       armPill(same, long||same.classList.contains('long'));
+      capToasts();
       return;
     }
     const el=document.createElement('div');
     el.className='toast'+(k?' '+k:'')+(long?' long':'');
     el.dataset.raw=String(text||''); el.dataset.first=String(text||''); el.dataset.n='1';
+    el.dataset.seq=String(++pillSeq);
     if(group) el.dataset.group=group;
     el.textContent=clipToast(group&&GROUP_TXT[group]?GROUP_TXT[group](1,text):String(text||''));
     if(box.appendChild) box.appendChild(el);
@@ -185,7 +197,7 @@ window.UI = (function(){
     if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
     if(box.classList) box.classList.remove('dock');
     placeToasts();
-    const el=document.createElement('div'); el.className='toast';     el.dataset.ms='2500'; el.textContent=clipToast(text); box.appendChild(el);
+    const el=document.createElement('div'); el.className='toast';     el.dataset.ms='2500'; el.dataset.seq=String(++pillSeq); el.textContent=clipToast(text); box.appendChild(el);
     capToasts();
     setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); },240); },2500);
   }
