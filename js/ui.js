@@ -139,13 +139,18 @@ window.UI = (function(){
       const box=document.getElementById(id);
       if(box&&box.querySelectorAll) box.querySelectorAll('.toast').forEach(el=>live.push(el));
     });
-    // Newest wins, whichever box it lives in. Query order is not age.
-    // A long notice (the harvest summary) stays until it expires. An achievement
-    // pill that arrives a moment later must not erase it.
-    const longs=live.filter(el=>el.classList&&el.classList.contains('long'));
-    const keep=longs.length?longs:live;
-    let best=keep[0];
-    for(const el of keep){ if((+el.dataset.seq||0)>=(+best.dataset.seq||0)) best=el; }
+    // One pill. A burst in the same moment keeps the last line. After that, the
+    // line that is already up stays: a long harvest summary until it expires,
+    // and a short note for a beat so a late achievement does not erase it.
+    const now=Date.now();
+    const age=el=>now-(+el.dataset.at||now);
+    const seq=el=>+el.dataset.seq||0;
+    const newer=(a,b)=>seq(a)>=seq(b)?a:b;
+    const longs=live.filter(el=>el.classList&&el.classList.contains('long')&&age(el)<2600);
+    const held=live.filter(el=>age(el)>=40&&age(el)<500);
+    const pool=longs.length?longs:(held.length?held:live);
+    let best=pool[0];
+    for(const el of pool) best=newer(best, el);
     live.forEach(el=>{
       if(el===best) return;
       if(el._t) clearTimeout(el._t);
@@ -173,6 +178,7 @@ window.UI = (function(){
       const first=same.dataset.first||same.dataset.raw||text;
       same.textContent=clipToast(group&&GROUP_TXT[group]?GROUP_TXT[group](n,first):(n>1?first+'  ×'+n:first));
       same.dataset.seq=String(++pillSeq);
+      same.dataset.at=String(Date.now());
       armPill(same, long||same.classList.contains('long'));
       capToasts();
       return;
@@ -181,6 +187,7 @@ window.UI = (function(){
     el.className='toast'+(k?' '+k:'')+(long?' long':'');
     el.dataset.raw=String(text||''); el.dataset.first=String(text||''); el.dataset.n='1';
     el.dataset.seq=String(++pillSeq);
+    el.dataset.at=String(Date.now());
     if(group) el.dataset.group=group;
     el.textContent=clipToast(group&&GROUP_TXT[group]?GROUP_TXT[group](1,text):String(text||''));
     if(box.appendChild) box.appendChild(el);
@@ -200,7 +207,7 @@ window.UI = (function(){
     if(!box){ box=document.createElement('div'); box.id='toasts'; document.body.appendChild(box); }
     if(box.classList) box.classList.remove('dock');
     placeToasts();
-    const el=document.createElement('div'); el.className='toast';     el.dataset.ms='2500'; el.dataset.seq=String(++pillSeq); el.textContent=clipToast(text); box.appendChild(el);
+    const el=document.createElement('div'); el.className='toast';     el.dataset.ms='2500'; el.dataset.seq=String(++pillSeq); el.dataset.at=String(Date.now()); el.textContent=clipToast(text); box.appendChild(el);
     capToasts();
     setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>{ if(el.remove) el.remove(); else if(el.parentNode) el.parentNode.removeChild(el); },240); },2500);
   }
