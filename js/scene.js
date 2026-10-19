@@ -1467,13 +1467,25 @@ window.R=(function(){
   }
   // Screen-pixel pots for the stacked beds. The plant's foot is the soil line.
   // Back (body, soil, rear rim) draws before the plant. The front lip draws after it.
-  function bedPotSpec(room, cw){
+  function bedPotSpec(room, cw, cx, cellX){
     const gh=room==='gh', fab=room==='facility';
     const w=Math.min(Math.max(34, cw*(fab?0.88:0.74)), gh?58:fab?68:52);
     const rx=w*(gh?0.44:fab?0.46:0.42);
     const ry=Math.max(3.2, w*(gh?0.14:fab?0.1:0.12));
-    const body=gh?13:fab?9:16;
-    return {w, rx, ry, body, kind:gh?'bed':fab?'fabric':'bucket'};
+    const body=gh?13:fab?16:16;
+    // Facility bags stay inside their own cell, with a few pixels between neighbours.
+    let halfCap=Math.min(cw/2-3, rx*1.05);
+    if(fab&&cx!=null&&cellX!=null) halfCap=Math.min(halfCap, cx-(cellX+2), (cellX+cw-2)-cx);
+    if(!(halfCap>8)) halfCap=8;
+    const lipRx=fab?Math.min(rx*0.9, halfCap*0.82):rx;
+    return {w, rx, ry, body, kind:gh?'bed':fab?'fabric':'bucket', halfCap, lipRx};
+  }
+  function potBounds(cx, soil, spec){
+    const half=spec.kind==='fabric'?(spec.halfCap||spec.rx):(spec.kind==='bucket'?spec.w*0.52:spec.rx+3);
+    const cloth=soil+spec.body;
+    // The facility bag's bottom curve hangs a little past the cloth.
+    const b=spec.kind==='fabric'?cloth+2.6:cloth;
+    return {l:cx-half, r:cx+half, t:soil, b, cloth, ry:spec.ry||3};
   }
   function bedStemShift(p, sl){
     if(!p||!p.strain||!sl||!sl.bed) return 0;
@@ -1496,25 +1508,70 @@ window.R=(function(){
     }
     return plantOk;
   }
-  // A short translucent chip. It sits above the crown when the cell has room,
-  // and only the lower half may cross the leaf top when the plant fills the cell.
-  function bedTimer(c, spr, label){
+  // Opaque chip. Above the crown when that still leaves 4px under the pot of the
+  // row above and does not touch this plant. Otherwise on this pot's face, under
+  // the leaves, so it still belongs to this plant.
+  function bedTimer(c, spr, label, cells){
     ctx.save();
+    ctx.globalAlpha=1;
     ctx.font='700 8px system-ui,sans-serif';
-    const tw=Math.min(Math.max(16, c.w-4), ctx.measureText(label).width+6);
-    const th=10;
-    const leaf=spr&&spr.top!=null?spr.top:(c.y+18);
-    let ly=leaf-th/2-1;
-    if(ly<c.y-4) ly=c.y-4;
-    if(ly>c.rim-20) ly=c.rim-20;
-    if(ly<th/2+2) ly=th/2+2;
-    const lx=c.sl?c.sl.x:(c.x+c.w/2);
-    ctx.fillStyle='rgba(8,18,12,.40)';
-    rr(lx-tw/2, ly-th/2, tw, th, th/2); ctx.fill();
-    ctx.globalAlpha=0.9;
+    const text=label;
+    let tw=Math.min(Math.max(18, Math.min(c.w-8, 64)), ctx.measureText(text).width+8);
+    const leafTop=spr&&spr.top!=null?spr.top:(c.y+8);
+    const leafBot=spr&&spr.foot!=null?spr.foot+2.2:(c.rim+2.2);
+    const lx0=c.sl?c.sl.x:(c.x+c.w/2);
+    let ceiling=null;
+    if(cells){
+      for(const o of cells){
+        if(o===c||!o.potBox) continue;
+        const p=o.potBox;
+        if(p.r<lx0-tw/2||p.l>lx0+tw/2) continue;
+        if(p.b<=leafTop&&(ceiling==null||p.b+4>ceiling)) ceiling=p.b+4;
+      }
+    }
+    const box=c.potBox;
+    const free=ceiling==null?1e9:leafTop-ceiling;
+    let top, th, lx=lx0;
+    if(free>=10){
+      th=Math.min(11, Math.floor(free));
+      top=leafTop-th;
+      if(ceiling!=null&&top<ceiling) top=ceiling;
+      if(top+th>leafTop) th=leafTop-top;
+    }else if(box){
+      top=Math.max(box.t+Math.max(2.4, (box.ry||3)*0.45), leafBot);
+      const limit=(box.cloth||box.b)-1.5;
+      th=Math.min(11, limit-top);
+      tw=Math.min(tw, Math.max(16, (box.r-box.l)-8));
+    }else{
+      ctx.restore();
+      return;
+    }
+    if(!(th>=8)){ ctx.restore(); return; }
+    if(cells){
+      for(let guard=0;guard<5;guard++){
+        const l=lx-tw/2, r=lx+tw/2, b=top+th;
+        let hit=null;
+        for(const o of cells){
+          if(o===c||!o.potBox) continue;
+          const p=o.potBox;
+          if(r>p.l-4&&l<p.r+4&&b>p.t-4&&top<p.b+4){ hit=p; break; }
+        }
+        if(!hit) break;
+        lx+=(lx>=(hit.l+hit.r)/2)?4:-4;
+        const minX=c.x+tw/2+1, maxX=c.x+c.w-tw/2-1;
+        if(maxX>minX) lx=Math.max(minX, Math.min(maxX, lx));
+      }
+    }
+    const fontPx=th>=10?8:7;
+    ctx.font='700 '+fontPx+'px system-ui,sans-serif';
+    ctx.fillStyle='#0c1610';
+    rr(lx-tw/2, top, tw, th, Math.min(5, th/2)); ctx.fill();
+    ctx.strokeStyle='rgba(244,255,233,.5)'; ctx.lineWidth=1;
+    ctx.stroke();
+    ctx.globalAlpha=1;
     ctx.fillStyle='#f4ffe9';
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(label, lx, ly+0.5);
+    ctx.fillText(text, lx, top+th/2+0.3);
     ctx.restore();
   }
   function potSoil(cx, soil, rx, ry){
@@ -1552,36 +1609,48 @@ window.R=(function(){
         ctx.strokeStyle='rgba(255,236,214,.5)'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.ellipse(cx, soil, rx+1.1, ry*0.72, 0, Math.PI*1.12, Math.PI*1.72); ctx.stroke();
       } else if(kind==='fabric'){
-        const h=body, top=rx*0.98, mid=rx*1.2, bot=rx*1.08;
-        ctx.fillStyle='rgba(0,0,0,.34)';
-        ctx.beginPath(); ctx.ellipse(cx+1, soil+h+1.6, bot*0.98, 2.8, 0, 0, TAU); ctx.fill();
+        const h=body;
+        const cap=spec.halfCap||rx;
+        const top=Math.min(rx*0.9, cap*0.82), mid=Math.min(rx*1.02, cap), bot=Math.min(rx*0.94, cap*0.9);
+        ctx.fillStyle='rgba(0,0,0,.28)';
+        ctx.beginPath(); ctx.ellipse(cx, soil+h+1.1, bot*0.9, 2.1, 0, 0, TAU); ctx.fill();
         const g=ctx.createLinearGradient(cx-mid, 0, cx+mid, 0);
-        g.addColorStop(0,'#16171a'); g.addColorStop(.2,'#4e5056'); g.addColorStop(.55,'#2a2c30'); g.addColorStop(1,'#101114');
+        g.addColorStop(0,'#121316'); g.addColorStop(.16,'#45474e'); g.addColorStop(.42,'#2c2e33');
+        g.addColorStop(.58,'#26282d'); g.addColorStop(.84,'#404248'); g.addColorStop(1,'#101114');
         ctx.fillStyle=g;
         ctx.beginPath();
-        ctx.moveTo(cx-top, soil+1);
-        ctx.bezierCurveTo(cx-mid, soil+h*0.28, cx-mid, soil+h*0.72, cx-bot, soil+h);
-        ctx.lineTo(cx+bot, soil+h);
-        ctx.bezierCurveTo(cx+mid, soil+h*0.72, cx+mid, soil+h*0.28, cx+top, soil+1);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle='#1a1c20';
-        ctx.beginPath(); ctx.ellipse(cx, soil+h, bot, Math.max(2, ry*0.5), 0, 0, Math.PI); ctx.fill();
-        ctx.fillStyle='rgba(255,255,255,.07)';
+        ctx.moveTo(cx-top, soil+1.2);
+        ctx.bezierCurveTo(cx-mid, soil+h*0.2, cx-mid, soil+h*0.78, cx-bot, soil+h);
+        ctx.quadraticCurveTo(cx, soil+h+Math.max(2.4, ry*0.62), cx+bot, soil+h);
+        ctx.bezierCurveTo(cx+mid, soil+h*0.78, cx+mid, soil+h*0.2, cx+top, soil+1.2);
+        ctx.quadraticCurveTo(cx, soil-0.2, cx-top, soil+1.2);
+        ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,.08)';
         ctx.beginPath();
-        ctx.moveTo(cx-top+1, soil+1.4);
-        ctx.bezierCurveTo(cx-mid*0.72, soil+h*0.3, cx-mid*0.72, soil+h*0.7, cx-bot*0.72, soil+h-0.6);
-        ctx.lineTo(cx-bot*0.28, soil+h-0.6);
-        ctx.bezierCurveTo(cx-mid*0.28, soil+h*0.65, cx-mid*0.28, soil+h*0.3, cx-top*0.35, soil+1.4);
+        ctx.moveTo(cx-top+1.2, soil+2);
+        ctx.bezierCurveTo(cx-mid*0.62, soil+h*0.28, cx-mid*0.62, soil+h*0.7, cx-bot*0.62, soil+h-1.2);
+        ctx.lineTo(cx-bot*0.28, soil+h-1.2);
+        ctx.bezierCurveTo(cx-mid*0.28, soil+h*0.66, cx-mid*0.28, soil+h*0.3, cx-top*0.32, soil+2);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle='rgba(0,0,0,.18)';
+        ctx.beginPath();
+        ctx.moveTo(cx+top*0.35, soil+2);
+        ctx.bezierCurveTo(cx+mid*0.55, soil+h*0.3, cx+mid*0.55, soil+h*0.68, cx+bot*0.5, soil+h-1);
+        ctx.lineTo(cx+bot*0.86, soil+h-1);
+        ctx.bezierCurveTo(cx+mid*0.9, soil+h*0.7, cx+mid*0.9, soil+h*0.28, cx+top-1, soil+2);
         ctx.closePath(); ctx.fill();
         ctx.save();
-        ctx.strokeStyle='rgba(232,228,216,.42)'; ctx.lineWidth=1; ctx.setLineDash([1.1,1.3]);
-        ctx.beginPath(); ctx.moveTo(cx, soil+2.2); ctx.lineTo(cx, soil+h-0.8); ctx.stroke();
+        ctx.strokeStyle='rgba(236,230,214,.8)'; ctx.lineWidth=1.2; ctx.setLineDash([1.5,1.15]);
+        ctx.beginPath(); ctx.moveTo(cx, soil+2.6); ctx.lineTo(cx, soil+h-1.1); ctx.stroke();
         ctx.restore();
-        ctx.strokeStyle='rgba(0,0,0,.22)'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(cx-top+0.6, soil+1.6); ctx.bezierCurveTo(cx-mid+0.4, soil+h*0.4, cx-mid+0.4, soil+h*0.75, cx-bot+0.4, soil+h-0.4); ctx.stroke();
-        ctx.strokeStyle='#2a2c30'; ctx.lineWidth=1.3;
-        ctx.beginPath(); ctx.arc(cx-mid+0.4, soil+h*0.48, 2.4, Math.PI*0.15, Math.PI*1.15); ctx.stroke();
-        ctx.beginPath(); ctx.arc(cx+mid-0.4, soil+h*0.48, 2.4, -Math.PI*0.15, -Math.PI*1.15, true); ctx.stroke();
+        ctx.strokeStyle='rgba(0,0,0,.4)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(cx-top*0.7, soil+2.2); ctx.bezierCurveTo(cx-mid*0.7, soil+h*0.34, cx-mid*0.7, soil+h*0.72, cx-bot*0.68, soil+h-1); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx+top*0.7, soil+2.2); ctx.bezierCurveTo(cx+mid*0.7, soil+h*0.34, cx+mid*0.7, soil+h*0.72, cx+bot*0.68, soil+h-1); ctx.stroke();
+        // Loops sit inside the cloth, and inside this cell, so a tap cannot land on the neighbour.
+        const hx=mid*0.7, hr=1.4, hy=soil+h*0.44;
+        ctx.strokeStyle='#d5d0c4'; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.arc(cx-hx, hy, hr, Math.PI*0.28, Math.PI*0.92); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx+hx, hy, hr, Math.PI-Math.PI*0.28, Math.PI-Math.PI*0.92, true); ctx.stroke();
         potSoil(cx, soil, top*0.84, ry*0.72);
         const rg=ctx.createLinearGradient(cx-top, soil-ry, cx+top, soil+ry);
         rg.addColorStop(0,'#6c6e74'); rg.addColorStop(.5,'#34363c'); rg.addColorStop(1,'#141518');
@@ -1608,17 +1677,18 @@ window.R=(function(){
       }
       return;
     }
+    const lipRx=spec.lipRx||rx;
     const lip=kind==='bucket'?['#3a3c42','#1a1c20']:kind==='fabric'?['#4a4c52','#1c1e22']:['#d7b27a','#7a5430'];
-    const lg=ctx.createLinearGradient(cx-rx, soil, cx+rx, soil+ry);
+    const lg=ctx.createLinearGradient(cx-lipRx, soil, cx+lipRx, soil+ry);
     lg.addColorStop(0, lip[0]); lg.addColorStop(1, lip[1]);
     ctx.fillStyle=lg;
     ctx.beginPath();
-    ctx.ellipse(cx, soil, rx+1.6, ry+1.05, 0, 0.08, Math.PI-0.08);
-    ctx.ellipse(cx, soil+0.2, Math.max(3, rx-2.2), Math.max(1.2, ry*0.32), 0, Math.PI-0.08, 0.08, true);
+    ctx.ellipse(cx, soil, lipRx+1.2, ry+0.9, 0, 0.08, Math.PI-0.08);
+    ctx.ellipse(cx, soil+0.2, Math.max(3, lipRx-2.2), Math.max(1.2, ry*0.32), 0, Math.PI-0.08, 0.08, true);
     ctx.fill();
     ctx.strokeStyle=kind==='bed'?'rgba(255,248,230,.65)':'rgba(255,236,210,.42)';
     ctx.lineWidth=1;
-    ctx.beginPath(); ctx.ellipse(cx, soil+0.6, rx-0.2, Math.max(1.6, ry*0.55), 0, 0.25, Math.PI-0.25); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, soil+0.6, lipRx-0.2, Math.max(1.6, ry*0.55), 0, 0.25, Math.PI-0.25); ctx.stroke();
   }
   function bedCard(x,y,w,h,title,sub){
     ctx.fillStyle='rgba(10,22,16,.9)'; rr(x,y,w,h,16); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1.5; ctx.stroke();
@@ -1889,9 +1959,10 @@ window.R=(function(){
           if(!c.p) continue;
           const cx=c.sl.x;
           if(c.owned){
-            const spec=bedPotSpec(room, c.w);
             const shift=c.p.strain?bedStemShift(c.p, c.sl):0;
             const px=cx+shift;
+            const spec=bedPotSpec(room, c.w, px, c.x);
+            c.potBox=potBounds(px, c.rim, spec);
             drawBedPot(px, c.rim, spec, 'back');
             if(c.p.strain) drawPlantAt(c.p,null,c.sl,now);
             else if(bedCanPlant()){
@@ -1908,16 +1979,6 @@ window.R=(function(){
         }
       }
       if(rowKeys.length) ctx.restore();
-      for(const c of cells){
-        if(!c.owned||!c.p||!c.p.strain) continue;
-        let label=c.p.prog>=1?'Ripe':G.dur(G.timeLeft(c.p));
-        ctx.font='700 9px system-ui,sans-serif';
-        if(ctx.measureText(label).width+8>c.w-2) label=label.replace(/ /g,'');
-        if(ctx.measureText(label).width+8>c.w-2) label=label.split(' ')[0];
-        let spr=null;
-        for(let i=bedSprites.length-1;i>=0;i--){ if(bedSprites[i]&&bedSprites[i].id===c.p.id){ spr=bedSprites[i]; break; } }
-        bedTimer(c, spr, label);
-      }
       if(group){
         let pe=0,wa=0,fo=0; for(const c of care){ if(c.p.pest) pe++; else if(G.isThirsty(c.p)) wa++; else if(G.isHungry(c.p)) fo++; }
         const bits=[]; if(pe) bits.push(pe+' pests'); if(wa) bits.push(wa+' thirsty'); if(fo) bits.push(fo+' hungry');
@@ -1941,6 +2002,17 @@ window.R=(function(){
         ctx.fillStyle=sun; ctx.fillRect(L.x,L.y0,L.w,L.y1-L.y0); ctx.restore();
         if(L.kind==='led') Art.growLight(ctx,L.x,L.y,L.w,L.h);
         else Art.daylightRail(ctx,L.x,L.y,L.w,L.h);
+      }
+      // After the lamp wash, so the chip's dark backing stays opaque on the wall.
+      for(const c of cells){
+        if(!c.owned||!c.p||!c.p.strain) continue;
+        let label=c.p.prog>=1?'Ripe':G.dur(G.timeLeft(c.p));
+        ctx.font='700 9px system-ui,sans-serif';
+        if(ctx.measureText(label).width+8>c.w-2) label=label.replace(/ /g,'');
+        if(ctx.measureText(label).width+8>c.w-2) label=label.split(' ')[0];
+        let spr=null;
+        for(let i=bedSprites.length-1;i>=0;i--){ if(bedSprites[i]&&bedSprites[i].id===c.p.id){ spr=bedSprites[i]; break; } }
+        bedTimer(c, spr, label, cells);
       }
       if(facilityShelf) gearDrawn=drawIndoorGear(now, ghLight, 0, 'shelf');
       else if(gearRail>=24) gearDrawn=drawIndoorGear(now, ghLight, gearRail);

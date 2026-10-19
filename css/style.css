@@ -1088,7 +1088,8 @@ body:not(.sheet-open) #toasts{
   column-gap:0 !important;
   overflow:visible !important;
   scrollbar-width:none;
-  pointer-events:auto;
+  /* The bar itself is not a target. Taps on the name line pass through to the canvas. */
+  pointer-events:none !important;
   padding-left:var(--sal, 0px) !important;
   padding-right:var(--sar, 0px) !important;
 }
@@ -1164,9 +1165,40 @@ body:not(.sheet-open) #toasts{
 #toolbar #seedBag b,
 #toolbar #seedBag small{font-size:7px !important;letter-spacing:-.06em !important}
 #toolbar #seedBag.is-empty small{display:none !important}
-#toolbar #seedBag.is-empty b{letter-spacing:-.12em !important}
-@media (max-width:359px){
-  #toolbar #seedBag.is-empty b{letter-spacing:-.2em !important}
+#toolbar #seedBag.is-empty .sb-line{
+  flex-flow:column nowrap !important;
+  align-items:center !important;
+  gap:0 !important;
+}
+#toolbar #seedBag.is-empty .sb-line b{
+  white-space:normal !important;
+  letter-spacing:0 !important;
+  word-spacing:.16em !important;
+  text-align:center;
+  line-height:1.05 !important;
+}
+/* Full strain name, in the top of the tab bar. It is not a hit target. */
+#seedName{
+  position:absolute;
+  left:0;right:0;top:0;
+  height:15px;
+  z-index:1;
+  pointer-events:none !important;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 10px;
+  box-sizing:border-box;
+  color:#f4ffe9;
+  font:700 11px/15px system-ui,sans-serif;
+  letter-spacing:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#seedName.hidden{display:none !important}
+#toolbar:has(#seedName:not(.hidden)){
+  padding-top:17px !important;
 }
 @media (min-width:360px){
   #toolbar #seedBag b,

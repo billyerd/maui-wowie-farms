@@ -300,21 +300,32 @@ window.UI = (function(){
   function fitTab(s, count, budget){
     const full=String(s.name||'').replace(/\s+/g,' ').trim()||'Seed';
     const words=full.split(' ').filter(Boolean);
-    const first=words[0]||full;
-    const aka=String(s.aka||'').replace(/^aka\s+/i,'').split(',').map(t=>t.trim()).filter(Boolean).sort((a,b)=>b.length-a.length);
-    const initials=words.map(w=>w[0]).join('');
+    const initials=words.map(w=>(w[0]||'').toUpperCase()).join('');
+    // Measuring is unavailable in a couple of headless stubs. Keep the full name there.
     if(!bagCanMeasure()||!(budget>8)) return full;
     const font=labelFont($('#sbName'));
     const room=budget-bagMeasure(count, font)-2;
     const fits=t=>!!t&&bagMeasure(t, font)<=room+0.5;
     if(fits(full)) return full;
-    for(let n=words.length-1;n>=2;n--){ const p=words.slice(0,n).join(' '); if(fits(p)) return p; }
-    if(fits(first)) return first;
-    const akaHit=aka.find(fits);
+    // Multi-word names become initials (NL, BD). A chopped word is never a label.
+    if(words.length>1) return initials||full;
+    const word=words[0]||full;
+    const low=word.toLowerCase();
+    const aka=String(s.aka||'').replace(/^aka\s+/i,'').split(',').map(t=>t.trim()).filter(Boolean);
+    const akaHit=aka.find(t=>{
+      const a=t.toLowerCase();
+      if(!fits(t)||a===low) return false;
+      // A prefix of the name (Che, ACD) is the chopped form this tab must not show.
+      if(low.indexOf(a)===0||a.indexOf(low)===0) return false;
+      return true;
+    });
     if(akaHit) return akaHit;
-    if(initials.length>1&&fits(initials)) return initials;
-    for(let n=first.length-1;n>=1;n--){ const p=first.slice(0,n); if(fits(p)) return p; }
-    return (initials||first).slice(0,1);
+    const ell='\u2026';
+    for(let n=Math.min(word.length-1, 5);n>=1;n--){
+      const p=word.slice(0,n)+ell;
+      if(fits(p)) return p;
+    }
+    return word.slice(0,1)+ell;
   }
   function seedBag(){
     if(G.ensureSeed) G.ensureSeed();
@@ -338,6 +349,17 @@ window.UI = (function(){
     if(bag){
       bag.classList.toggle('is-empty', !have);
       if(bag.getAttribute('aria-label')!==al) bag.setAttribute('aria-label', al);
+    }
+    const line=$('#seedName');
+    if(line){
+      const show=!!(have&&s&&s.name);
+      if(show){
+        if(line.textContent!==s.name) line.textContent=s.name;
+        line.classList.remove('hidden');
+      }else{
+        if(line.textContent) line.textContent='';
+        line.classList.add('hidden');
+      }
     }
   }
   function seedPick(){ const st=G.st, el=$('#seedPick'); if(!el.classList.contains('hidden')){ el.classList.add('hidden'); return; }
