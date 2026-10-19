@@ -252,7 +252,7 @@ UI.open('upgrades', 'gh');
 assert(!/upkeep/i.test(els.sheetBody._html), 'greenhouse card still mentions upkeep');
 UI.open('seeds');
 const foot = els.sheetFoot._html;
-assert(/data-a="plantall"/.test(foot) && !/data-a="plantall"[^>]*disabled/.test(foot), 'Plant all is disabled while empty pots can still be tapped: ' + foot);
+assert(!/Plant \d+ here/.test(foot) && !/Selected:/.test(foot), 'empty bag still shows the plant footer: ' + foot);
 sandbox.Payments = { setConfirmUI(){}, formatUSD(){ return '$0'; }, mode: 'test', purchase: async () => ({ ok: false }), restore: async () => ({ restored: [] }) };
 sandbox.Ads = { consent(){ return 'contextual'; }, setConsent(){}, show: async () => ({ completed: false }) };
 UI.init();

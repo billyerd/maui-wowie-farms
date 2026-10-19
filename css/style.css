@@ -1163,7 +1163,11 @@ body:not(.sheet-open) #toasts{
 }
 #toolbar #seedBag b,
 #toolbar #seedBag small{font-size:7px !important;letter-spacing:-.06em !important}
-#toolbar #seedBag.is-empty b{letter-spacing:-.09em !important}
+#toolbar #seedBag.is-empty small{display:none !important}
+#toolbar #seedBag.is-empty b{letter-spacing:-.12em !important}
+@media (max-width:359px){
+  #toolbar #seedBag.is-empty b{letter-spacing:-.2em !important}
+}
 @media (min-width:360px){
   #toolbar #seedBag b,
   #toolbar #seedBag small{font-size:8px !important}
