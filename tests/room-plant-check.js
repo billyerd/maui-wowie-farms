@@ -409,7 +409,7 @@ localStorage.removeItem('mwfarms_test_v1');` });
         UI.toast('Harvested Northern Lights x12, Cherry Wine x8, Trop Cherry x6 and Gelato x4','good long');
         await new Promise(r=>setTimeout(r, 360));
         UI.update();
-        const el=document.querySelector('#toasts .toast, #achToasts .toast');
+        const el=[...document.querySelectorAll('#toasts .toast, #achToasts .toast')].find(n=>/Harvested/.test(n.textContent||''))||document.querySelector('#toasts .toast');
         const body=document.getElementById('sheetBody').getBoundingClientRect();
         const rows=[...document.querySelectorAll('[data-pickseed]')].filter(n=>(n.textContent||'').indexOf('in the bag')>=0).map(n=>{
           const r=n.getBoundingClientRect();
