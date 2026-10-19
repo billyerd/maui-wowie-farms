@@ -319,35 +319,90 @@ window.UI = (function(){
     }catch(e){}
     return '800 8px system-ui,sans-serif';
   }
+  // Handmade tab labels, longest first. Used only when the full name does not fit.
+  const TAB_SHORT={
+    acdc:['ACDC'],
+    'menehune-mint':['MM'],
+    'apple-fritter':['AF'],
+    biscotti:['BISC'],
+    'blue-dream':['BD'],
+    'honu-blue':['HB'],
+    'blueberry-pancakes':['BP'],
+    'cereal-milk':['CM'],
+    naupaka:['NAUP'],
+    chemdawg:['CHEM'],
+    'cherry-wine':['CW'],
+    'do-si-dos':['DOSI'],
+    'double-og-chem':['DOC'],
+    'dulce-de-uva':['DDU'],
+    'durban-poison':['DP'],
+    'gary-payton':['GP'],
+    'lilikoi-pop':['LP'],
+    gelato:['GELATO','GEL'],
+    'glitter-bomb':['GB'],
+    'gmo-cookies':['GMO'],
+    'granddaddy-purple':['GDP'],
+    'grape-cream-cake':['GCC'],
+    gsc:['GSC'],
+    'gush-mints':['GM'],
+    harlequin:['HARL'],
+    'hash-burger':['HBUR'],
+    'ice-cream-cake':['ICC'],
+    jealousy:['JEAL'],
+    'kush-mints':['KM'],
+    'lemon-cherry-gelato':['LCG'],
+    mac:['MAC'],
+    'mendo-breath':['MB'],
+    mimosa:['MIMO'],
+    'northern-lights':['NL'],
+    'og-kush':['OG'],
+    'peanut-butter-breath':['PBB'],
+    'permanent-marker':['PM'],
+    'purple-punch':['PP'],
+    'roswell-47':['R47'],
+    rs11:['RS11'],
+    runtz:['RUNTZ','RUNT'],
+    slurricane:['SLUR'],
+    'sour-diesel':['SD'],
+    'super-boof':['BOOF'],
+    'trop-cherry':['TC'],
+    'tropical-slushie':['TS'],
+    'wedding-cake':['WC'],
+    'white-truffle':['WT'],
+    zkittlez:['Z'],
+    zoap:['ZOAP'],
+    'maui-wowie':['MW'],
+    'kona-gold':['KG'],
+    'hawaiian-snow':['HS'],
+    'puna-budder':['PB'],
+    'hawaiian-haze':['HH'],
+    hawaiian:['HAWA'],
+    'kauai-electric':['KE']
+  };
   function fitTab(s, count, budget){
     const full=String(s.name||'').replace(/\s+/g,' ').trim()||'Seed';
     const words=full.split(' ').filter(Boolean);
-    const initials=words.map(w=>(w[0]||'').toUpperCase()).join('');
     // Measuring is unavailable in a couple of headless stubs. Keep the full name there.
     if(!bagCanMeasure()||!(budget>8)) return full;
     const font=labelFont($('#sbName'));
     const room=budget-bagMeasure(count, font)-2;
-    const fits=t=>!!t&&bagMeasure(t, font)<=room+0.5;
+    const px=(/(\d+(?:\.\d+)?)px/.exec(font)||[])[1];
+    const track=0.06*(px?+px:7);
+    const wide=t=>{
+      const raw=bagMeasure(t, font);
+      if(!(raw>=0)) return raw;
+      const n=String(t).length;
+      return n>1?raw-track*(n-1):raw;
+    };
+    const fits=t=>!!t&&wide(t)<=room+0.5;
     if(fits(full)) return full;
-    // Multi-word names become initials (NL, BD). A chopped word is never a label.
-    if(words.length>1) return initials||full;
-    const word=words[0]||full;
-    const low=word.toLowerCase();
-    const aka=String(s.aka||'').replace(/^aka\s+/i,'').split(',').map(t=>t.trim()).filter(Boolean);
-    const akaHit=aka.find(t=>{
-      const a=t.toLowerCase();
-      if(!fits(t)||a===low) return false;
-      // A prefix of the name (Che, ACD) is the chopped form this tab must not show.
-      if(low.indexOf(a)===0||a.indexOf(low)===0) return false;
-      return true;
-    });
-    if(akaHit) return akaHit;
-    const ell='\u2026';
-    for(let n=Math.min(word.length-1, 5);n>=1;n--){
-      const p=word.slice(0,n)+ell;
-      if(fits(p)) return p;
+    const shorts=TAB_SHORT[s&&s.id];
+    if(shorts&&shorts.length){
+      for(const t of shorts) if(fits(t)) return t;
+      return shorts[shorts.length-1];
     }
-    return word.slice(0,1)+ell;
+    if(words.length>1) return words.map(w=>(w[0]||'').toUpperCase()).join('')||full;
+    return (words[0]||full).slice(0,4).toUpperCase();
   }
   function seedBag(){
     if(G.ensureSeed) G.ensureSeed();

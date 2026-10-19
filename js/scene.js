@@ -1405,7 +1405,10 @@ window.R=(function(){
     let top=64;
     for(const id of ['hud','goal','eventChip']){ const r=shownEl(id); if(r&&r.bottom<H*0.55) top=Math.max(top, r.bottom+4); }
     let bot=H-4;
-    const tb=shownEl('toolbar'); if(tb&&tb.top>H*0.4) bot=Math.min(bot, tb.top-2);
+    const tb=shownEl('toolbar');
+  // Facility bags are clipped on the cell floor. A 2px inset left the bottom
+  // row under a pixel from the tab bar; 6px keeps at least 4px of wall.
+  if(tb&&tb.top>H*0.4) bot=Math.min(bot, tb.top-(room==='facility'?6:2));
     // A seed bag that still floats above the bar lifts the whole grid with it.
     // In the bottom row it is already inside the toolbar, so the plants can use that height.
     const bagEl=document.getElementById('seedBag'), barEl=document.getElementById('toolbar');
@@ -1472,7 +1475,8 @@ window.R=(function(){
     const w=Math.min(Math.max(34, cw*(fab?0.88:0.74)), gh?58:fab?68:52);
     const rx=w*(gh?0.44:fab?0.46:0.42);
     const ry=Math.max(3.2, w*(gh?0.14:fab?0.1:0.12));
-    const body=gh?13:fab?16:16;
+    // Greenhouse cloth has to clear a 7px badge under a deep lip.
+    const body=gh?18:fab?16:16;
     // Facility bags stay inside their own cell, with a few pixels between neighbours.
     let halfCap=Math.min(cw/2-3, rx*1.05);
     if(fab&&cx!=null&&cellX!=null) halfCap=Math.min(halfCap, cx-(cellX+2), (cellX+cw-2)-cx);
@@ -1508,69 +1512,44 @@ window.R=(function(){
     }
     return plantOk;
   }
-  // Opaque chip. Above the crown when that still leaves 4px under the pot of the
-  // row above and does not touch this plant. Otherwise on this pot's face, under
-  // the leaves, so it still belongs to this plant.
-  function bedTimer(c, spr, label, cells){
+  // One badge per cell, on this pot's face, strictly under the front lip.
+  // The lip ellipse bottoms at soil + ry + 0.9, so the badge starts below that
+  // and ends above the cloth hem. It never sits on the crown or the stem.
+  function bedTimer(c, spr, label){
+    const box=c.potBox;
+    if(!box) return;
     ctx.save();
     ctx.globalAlpha=1;
-    ctx.font='700 8px system-ui,sans-serif';
-    const text=label;
-    let tw=Math.min(Math.max(18, Math.min(c.w-8, 64)), ctx.measureText(text).width+8);
-    const leafTop=spr&&spr.top!=null?spr.top:(c.y+8);
-    const leafBot=spr&&spr.foot!=null?spr.foot+2.2:(c.rim+2.2);
-    const lx0=c.sl?c.sl.x:(c.x+c.w/2);
-    let ceiling=null;
-    if(cells){
-      for(const o of cells){
-        if(o===c||!o.potBox) continue;
-        const p=o.potBox;
-        if(p.r<lx0-tw/2||p.l>lx0+tw/2) continue;
-        if(p.b<=leafTop&&(ceiling==null||p.b+4>ceiling)) ceiling=p.b+4;
-      }
-    }
-    const box=c.potBox;
-    const free=ceiling==null?1e9:leafTop-ceiling;
-    let top, th, lx=lx0;
-    if(free>=10){
-      th=Math.min(11, Math.floor(free));
-      top=leafTop-th;
-      if(ceiling!=null&&top<ceiling) top=ceiling;
-      if(top+th>leafTop) th=leafTop-top;
-    }else if(box){
-      top=Math.max(box.t+Math.max(2.4, (box.ry||3)*0.45), leafBot);
-      const limit=(box.cloth||box.b)-1.5;
-      th=Math.min(11, limit-top);
-      tw=Math.min(tw, Math.max(16, (box.r-box.l)-8));
-    }else{
-      ctx.restore();
-      return;
-    }
-    if(!(th>=8)){ ctx.restore(); return; }
-    if(cells){
-      for(let guard=0;guard<5;guard++){
-        const l=lx-tw/2, r=lx+tw/2, b=top+th;
-        let hit=null;
-        for(const o of cells){
-          if(o===c||!o.potBox) continue;
-          const p=o.potBox;
-          if(r>p.l-4&&l<p.r+4&&b>p.t-4&&top<p.b+4){ hit=p; break; }
-        }
-        if(!hit) break;
-        lx+=(lx>=(hit.l+hit.r)/2)?4:-4;
-        const minX=c.x+tw/2+1, maxX=c.x+c.w-tw/2-1;
-        if(maxX>minX) lx=Math.max(minX, Math.min(maxX, lx));
-      }
-    }
-    const fontPx=th>=10?8:7;
+    const lipBottom=box.t+(box.ry||3)+0.9;
+    const top=lipBottom+0.6;
+    const limit=(box.cloth||box.b)-0.6;
+    const th=Math.min(9, limit-top);
+    if(!(th>=7)){ ctx.restore(); return; }
+    const fontPx=th>=8?7:6.5;
     ctx.font='700 '+fontPx+'px system-ui,sans-serif';
+    const face=Math.max(14, (box.r-box.l)-8);
+    const cap=Math.min(face, Math.max(14, c.w-8));
+    let text=String(label||'');
+    const need=t=>ctx.measureText(t).width+8;
+    if(need(text)>cap){
+      const tight=text.replace(/ /g,'');
+      if(tight!==text&&need(tight)<=cap) text=tight;
+    }
+    if(need(text)>cap){
+      const head=text.split(' ')[0];
+      if(head&&need(head)<=cap) text=head;
+    }
+    const tw=Math.min(cap, Math.max(14, need(text)));
+    let lx=(box.l+box.r)/2;
+    const minX=c.x+tw/2+1, maxX=c.x+c.w-tw/2-1;
+    if(maxX>=minX) lx=Math.max(minX, Math.min(maxX, lx));
     ctx.fillStyle='#0c1610';
-    rr(lx-tw/2, top, tw, th, Math.min(5, th/2)); ctx.fill();
-    ctx.strokeStyle='rgba(244,255,233,.5)'; ctx.lineWidth=1;
+    rr(lx-tw/2, top, tw, th, Math.min(4, th/2)); ctx.fill();
+    ctx.strokeStyle='rgba(244,255,233,.55)'; ctx.lineWidth=1;
     ctx.stroke();
-    ctx.globalAlpha=1;
     ctx.fillStyle='#f4ffe9';
     ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.beginPath(); rr(lx-tw/2, top, tw, th, Math.min(4, th/2)); ctx.clip();
     ctx.fillText(text, lx, top+th/2+0.3);
     ctx.restore();
   }
