@@ -139,15 +139,18 @@ window.UI = (function(){
       const box=document.getElementById(id);
       if(box&&box.querySelectorAll) box.querySelectorAll('.toast').forEach(el=>live.push(el));
     });
-    // Newest wins, whichever box it lives in. Query order is not age:
-    // an older achievement pill must not erase the harvest notice just shown.
-    live.sort((a,b)=>(+a.dataset.seq||0)-(+b.dataset.seq||0));
-    while(live.length>1){
-      const old=live.shift();
-      if(!old) continue;
-      if(old._t) clearTimeout(old._t);
-      if(old.remove) old.remove();
-    }
+    // Newest wins, whichever box it lives in. Query order is not age.
+    // A long notice (the harvest summary) stays until it expires. An achievement
+    // pill that arrives a moment later must not erase it.
+    const longs=live.filter(el=>el.classList&&el.classList.contains('long'));
+    const keep=longs.length?longs:live;
+    let best=keep[0];
+    for(const el of keep){ if((+el.dataset.seq||0)>=(+best.dataset.seq||0)) best=el; }
+    live.forEach(el=>{
+      if(el===best) return;
+      if(el._t) clearTimeout(el._t);
+      if(el.remove) el.remove();
+    });
   }
   function clipToast(text){
     return String(text||'').replace(/\s+/g,' ').trim();
