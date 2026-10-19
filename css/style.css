@@ -567,6 +567,29 @@ body.sheet-open #scoutBtn,body.sheet-open #upgBtn{display:none}
 .row.pickable{cursor:pointer}
 .row.pickable:active{transform:scale(.99)}
 .row.sel[data-pickseed]{box-shadow:0 0 0 2px #ffd96a,0 0 14px rgba(255,217,106,.35)}
+.row.pkt{
+  position:relative;align-items:stretch;gap:8px;padding:10px 8px 8px;
+  background:linear-gradient(180deg, rgba(255,248,230,.35), transparent 22%), linear-gradient(180deg, #e7d3a4 0%, #c9a56a 48%, #b0894f 100%);
+  color:#2a1c0c;border-color:#6d4e28;overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4);
+}
+.row.pkt:before{
+  content:'';position:absolute;left:6px;right:6px;top:0;height:7px;
+  background:repeating-linear-gradient(90deg, #6d4c28 0 5px, #c9a56a 5px 8px);
+}
+.row.pkt .pkt-face{
+  flex:none;width:48px;height:56px;margin-top:4px;background:#f4efe2;border-radius:3px;
+  overflow:hidden;box-shadow:inset 0 0 0 1px rgba(80,50,20,.28);
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.row.pkt .pkt-face .thumb,
+.row.pkt .pkt-face canvas{width:48px;height:56px;border-radius:0;background:transparent;object-fit:contain;display:block}
+.row.pkt .pkt-copy{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding-top:6px;color:#2a1c0c}
+.row.pkt h4.pkt-name{margin:0;display:block;font-size:13px;font-weight:800;line-height:1.15;white-space:nowrap;color:#2a1608;overflow:visible;text-overflow:clip}
+.row.pkt .pkt-desc{margin:2px 0 0;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap;color:#4a3218;overflow:visible;text-overflow:clip}
+.row.pkt .pkt-hold{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.row.pkt .pkt-buy{flex:none;display:flex;flex-direction:column;gap:4px;justify-content:center;padding-top:6px}
+.row.pkt.sel{box-shadow:inset 0 0 0 2px #e2b340, inset 0 1px 0 rgba(255,255,255,.4)}
 .selchip{background:#ffd96a!important;color:#2a1d00!important;font-weight:900;text-align:center}
 /* ---- juice / clarity pass (QUALITY_GUIDE.md) ---- */
 .jdown{transform:scale(.93)!important;transition:transform 60ms ease-out!important}
@@ -1097,9 +1120,10 @@ body:not(.sheet-open) #toasts{
 #toolbar .qa-main{width:min(28px, 80%) !important;min-width:0 !important;max-width:28px}
 #toolbar #menu button .ico,
 #toolbar #upgBtn .sb-up,
-#toolbar #upgBtn .sb-up .ico,
+#toolbar #upgBtn .sb-up .ico{width:14px !important;height:14px !important}
 #toolbar #seedBag .sb-bag,
-#toolbar #seedBag .sb-bag img{width:14px !important;height:14px !important}
+#toolbar #seedBag .sb-bag img,
+#toolbar #seedBag .sb-bag svg{width:16px !important;height:16px !important;display:block}
 #toolbar #menu button .badge{
   top:0;right:0;min-width:12px;height:12px;padding:0 2px;
   font-size:8px;line-height:12px;border-radius:6px;
@@ -1124,8 +1148,19 @@ body:not(.sheet-open) #toasts{
   display:block !important;
   max-width:100% !important;
 }
+#toolbar #seedBag .sb-line{
+  display:flex !important;flex-flow:row nowrap;align-items:baseline;justify-content:center;
+  gap:2px;max-width:100%;min-width:0;line-height:1;
+}
+#toolbar #seedBag .sb-line b,
+#toolbar #seedBag .sb-line small{
+  flex:0 0 auto !important;overflow:visible !important;text-overflow:clip !important;
+  max-width:none !important;width:auto !important;display:inline !important;
+  padding:0 !important;white-space:nowrap !important;
+}
 #toolbar #seedBag b,
 #toolbar #seedBag small{font-size:7px !important;letter-spacing:-.06em !important}
+#toolbar #seedBag.is-empty b{letter-spacing:-.09em !important}
 @media (min-width:360px){
   #toolbar #seedBag b,
   #toolbar #seedBag small{font-size:8px !important}
@@ -1140,7 +1175,8 @@ body:not(.sheet-open) #toasts{
   #toolbar #upgBtn .sb-up,
   #toolbar #upgBtn .sb-up .ico,
   #toolbar #seedBag .sb-bag,
-  #toolbar #seedBag .sb-bag img{width:16px !important;height:16px !important}
+  #toolbar #seedBag .sb-bag img,
+  #toolbar #seedBag .sb-bag svg{width:16px !important;height:16px !important}
 }
 @media (min-width:480px){
   #toolbar #locBtn small,

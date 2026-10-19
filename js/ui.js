@@ -269,7 +269,80 @@ window.UI = (function(){
   let goalT=0; function goalPeek(ms){ const g=$('#goal'); if(!g) return; g.classList.add('open'); clearTimeout(goalT); goalT=setTimeout(()=>g.classList.remove('open'),ms); }
   function orderBoard(){ const st=G.st, n=$('#obN'), t=$('#obTop'); if(!n) return; let nv, tv; if(st.level<G.GATE.orders){ nv='🔒'; tv='Unlocks at level '+G.GATE.orders; } else { nv=String(st.orders.length); const o=st.orders[0], s=o&&G.strain(o.s); tv=o&&s?`${o.who}: ${o.n}× ${s.name.split(' ')[0]} · ${G.orderHave(o)>=o.n?'ready ✓':G.orderHave(o)+'/'+o.n}`:'No orders right now'; }
     if(n.textContent!==nv) n.textContent=nv; if(t.textContent!==tv) t.textContent=tv; }
-  function seedBag(){ const st=G.st, s=G.strain(st.selSeed); const n=$('#sbName'), c=$('#sbCount'); if(!n) return; const nm=s?s.name.split(' ')[0]:'Seeds', ct=s?(st.seeds[s.id]||0)+'×':'0'; if(n.textContent!==nm) n.textContent=nm; if(c.textContent!==ct) c.textContent=ct; const bag=$('#seedBag'); if(bag){ const al='Seed bag'+(s?': '+s.name+', '+(st.seeds[s.id]||0):'')+'. Pick a seed or buy more.'; if(bag.getAttribute('aria-label')!==al) bag.setAttribute('aria-label',al); } }
+  let bagMeasureOk=null, bagFitKey='', bagFitName='';
+  function bagMeasure(text, font){
+    try{
+      if(!document.createElement) return -1;
+      const c=bagMeasure.c||(bagMeasure.c=document.createElement('canvas'));
+      const x=c.getContext&&c.getContext('2d');
+      if(!x||typeof x.measureText!=='function') return -1;
+      x.font=font||'800 8px system-ui,sans-serif';
+      const w=x.measureText(String(text||'')).width;
+      return (typeof w==='number'&&isFinite(w))?w:-1;
+    }catch(e){ return -1; }
+  }
+  function bagCanMeasure(){
+    if(bagMeasureOk!=null) return bagMeasureOk;
+    const a=bagMeasure('i','800 13px system-ui,sans-serif');
+    const b=bagMeasure('Peanut Butter Breath','800 13px system-ui,sans-serif');
+    bagMeasureOk=a>0&&b>a+8;
+    return bagMeasureOk;
+  }
+  function labelFont(el){
+    try{
+      if(typeof getComputedStyle==='function'&&el){
+        const cs=getComputedStyle(el);
+        if(cs&&cs.fontSize) return (cs.fontWeight||'800')+' '+cs.fontSize+' '+(cs.fontFamily||'system-ui,sans-serif');
+      }
+    }catch(e){}
+    return '800 8px system-ui,sans-serif';
+  }
+  function tabTokens(s){
+    const words=String(s.name||'').split(/\s+/).filter(Boolean);
+    const first=words[0]||s.name||'Seed';
+    const aka=String(s.aka||'').replace(/^aka\s+/i,'').split(',').map(t=>t.trim()).filter(Boolean);
+    const initials=words.map(w=>w[0]).join('');
+    const out=[];
+    const push=t=>{ t=String(t||'').trim(); if(t&&out.indexOf(t)<0) out.push(t); };
+    push(first);
+    aka.sort((a,b)=>b.length-a.length).forEach(push);
+    if(initials.length>1) push(initials);
+    for(let n=first.length-1;n>=1;n--) push(first.slice(0,n));
+    return out;
+  }
+  function fitTab(s, count, budget){
+    const font=labelFont($('#sbName'));
+    const tokens=tabTokens(s);
+    if(!bagCanMeasure()||!(budget>8)) return tokens[0]||'Seed';
+    const room=budget-bagMeasure(count, font)-2;
+    let best=tokens[tokens.length-1]||'S', bestW=-1;
+    tokens.forEach(t=>{ const w=bagMeasure(t, font); if(w<=room+0.5&&w>=bestW){ best=t; bestW=w; } });
+    return best;
+  }
+  function seedBag(){
+    if(G.ensureSeed) G.ensureSeed();
+    const st=G.st, n=$('#sbName'), c=$('#sbCount'); if(!n||!c) return;
+    const s=G.strain(st.selSeed), have=!!(s&&(st.seeds[s.id]||0)>0);
+    const bag=$('#seedBag');
+    let nm, ct, al;
+    if(!have){
+      nm='No seeds'; ct='';
+      al='No seeds. Open the shop to buy seeds.';
+    }else{
+      ct=(st.seeds[s.id]||0)+'×';
+      const w=bag&&bag.clientWidth>8?bag.clientWidth:32;
+      const key=s.id+'|'+ct+'|'+w+'|'+(bagCanMeasure()?'m':'x');
+      if(key!==bagFitKey){ bagFitKey=key; bagFitName=fitTab(s, ct, Math.max(8, w-1)); }
+      nm=bagFitName;
+      al='Seed bag: '+s.name+', '+(st.seeds[s.id]||0)+'. Pick a seed or buy more.';
+    }
+    if(n.textContent!==nm) n.textContent=nm;
+    if(c.textContent!==ct) c.textContent=ct;
+    if(bag){
+      bag.classList.toggle('is-empty', !have);
+      if(bag.getAttribute('aria-label')!==al) bag.setAttribute('aria-label', al);
+    }
+  }
   function seedPick(){ const st=G.st, el=$('#seedPick'); if(!el.classList.contains('hidden')){ el.classList.add('hidden'); return; }
     const own=G.S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>a.game.growSec-b.game.growSec);
     el.innerHTML=`<div class="sp-h">Seed bag</div>`+(own.length?own.map(s=>`<button class="sp-row${st.selSeed===s.id?' on':''}" data-pick="${s.id}"><img src="art/seed_48.webp" alt=""><span class="sp-n"><b>${esc(s.name)}</b><small>⏱ ${sec(s.game.growSec)}</small></span><em>${st.seeds[s.id]}×</em></button>`).join(''):`<p class="sp-e">Bag's empty. Grab seeds at the shop.</p>`)+`<button class="sp-shop" data-pick="__shop">Seed shop</button>`;
@@ -423,7 +496,7 @@ window.UI = (function(){
   // ---------- plot interaction ----------
   function tapPlot(p,sx,sy){
     const st=G.st, again=popPlot===p||lastSel===p; hidePop();
-    if(!p.strain){ lastSel=null; if(st.seeds[st.selSeed]>0) G.plant(p); else pip('No seeds'); return; }
+    if(!p.strain){ lastSel=null; if(G.ensureSeed) G.ensureSeed(); if((st.seeds[st.selSeed]||0)>0) G.plant(p); else pip('No seeds'); seedBag(); return; }
     if(p.prog>=1){ G.harvest(p); lastSel=null; return; }
     // one tap = highlighted with quick-action bubbles; tap the same plant again for the full plant card
     if(again){ lastSel=null; showPop(p,sx,sy); return; }
@@ -544,18 +617,75 @@ window.UI = (function(){
     return `<div class="ubanner soft"><div><b>Upgrades</b><span>Gear lives on these cards.</span></div></div>`;
   }
 
+  const pktCache=new Map();
+  function fitLine(cands, budget, font){
+    if(!cands.length) return '';
+    if(!bagCanMeasure()||!(budget>16)) return cands[0];
+    let best=cands[cands.length-1];
+    for(const t of cands){ if(bagMeasure(t, font)<=budget+0.5) return t; }
+    return best;
+  }
+  function nameCands(s){
+    const words=String(s.name||'').split(/\s+/).filter(Boolean);
+    const aka=String(s.aka||'').replace(/^aka\s+/i,'').split(',').map(t=>t.trim()).filter(Boolean);
+    const out=[];
+    const push=t=>{ t=String(t||'').replace(/\s+/g,' ').trim(); if(t&&out.indexOf(t)<0) out.push(t); };
+    push(words.join(' '));
+    aka.sort((a,b)=>b.length-a.length).forEach(push);
+    for(let n=words.length-1;n>=1;n--) push(words.slice(0,n).join(' '));
+    const initials=words.map(w=>w[0]).join('');
+    if(initials.length>1) push(initials);
+    if(words[0]) for(let n=words[0].length-1;n>=1;n--) push(words[0].slice(0,n));
+    return out.length?out:['Seed'];
+  }
+  function descCands(s){
+    const type=s.type||'Hybrid';
+    const flav=(s.flavors||[]).filter(Boolean);
+    const f1=flav[0]||(s.terpenes&&s.terpenes[0])||'';
+    const f2=flav[1]||'';
+    const nose=f2?(f1+', '+String(f2).toLowerCase()):f1;
+    const grow=G.dur(s.game.growSec);
+    const price=G.fmt(G.seedPrice(s));
+    const yld=s.yieldClass?(s.yieldClass+' yield'):(s.game&&s.game.buds?(Math.max(1,Math.round(s.game.buds))+' buds'):'');
+    const line=(...ps)=>ps.filter(Boolean).join(' · ');
+    const bits=[line(type, nose, grow, price, yld), line(type, nose, grow, price), line(type, nose, grow), line(type, f1, grow), line(type, grow), type];
+    return bits.filter((t,i)=>t&&bits.indexOf(t)===i);
+  }
+  function packetText(s, budget){
+    const price=Math.round(G.seedPrice(s)*100);
+    const key=s.id+'|'+budget+'|'+price+'|'+(bagCanMeasure()?'1':'0');
+    if(pktCache.has(key)) return pktCache.get(key);
+    const name=fitLine(nameCands(s), budget, '800 13px system-ui,sans-serif');
+    const desc=fitLine(descCands(s), budget, '700 11px system-ui,sans-serif');
+    const out={name, desc};
+    if(pktCache.size>200) pktCache.delete(pktCache.keys().next().value);
+    pktCache.set(key, out);
+    return out;
+  }
+  function pktBudget(shop){
+    const w=Math.max(280, Math.min(typeof innerWidth==='number'?innerWidth:390, 720));
+    let text=w-28-18-56-10;
+    if(shop) text-=88;
+    return Math.max(64, Math.floor(text));
+  }
+  function pktCard(s, shop){
+    const st=G.st, own=(st.seeds[s.id]||0)>0, sel=st.selSeed===s.id;
+    const copy=packetText(s, pktBudget(!!shop));
+    const face=`<div class="pkt-face">${cu(s,112)}</div>`;
+    const hold=shop?'':`<p class="pkt-hold">${st.seeds[s.id]} in the bag</p>`;
+    const buy=shop?`<div class="pkt-buy"><button class="btn sm" data-a="buy" data-id="${s.id}" data-n="1" ${st.cash<G.seedPrice(s)?'disabled':''}>Buy 1</button><button class="btn sm sec" data-a="buy" data-id="${s.id}" data-n="5" ${st.cash<G.seedPrice(s)*5?'disabled':''}>×5</button>${sel?'<span class="chip selchip">✓ Selected</span>':''}</div>`:'';
+    return `<div class="row pkt${sel?' sel':''}${own?' pickable':''}" data-pickseed="${s.id}">${face}<div class="pkt-copy"><h4 class="pkt-name">${esc(copy.name)}</h4><p class="pkt-desc">${esc(copy.desc)}</p>${hold}</div>${buy}</div>`;
+  }
   // Seeds
   PANELS.seeds=()=>{
     const st=G.st; tab=tab||'all';
     const list=G.S.filter(s=>st.discovered[s.id]).filter(s=>tab==='all'||(tab==='fast'?s.game.growSec<=1800:tab==='island'?s.island:s.tier>=3));
-    list.sort((a,b)=>a.game.growSec-b.game.growSec);
-    const body=list.map(s=>{ const pr=G.seedPrice(s), m=G.mastery(s.id); const ph=s.game.payout/(s.game.growSec/3600);
-      return row(s,`<div class="stats"><span>⏱ ${sec(s.game.growSec)}</span><span>${s.game.buds} buds</span><span>~${fmt(s.game.payout)}/plant</span><span>${fmt(ph)}/h</span><span>${thc(s)}</span></div><p>Seed ${fmt(pr)} · own <b>${st.seeds[s.id]||0}</b>${m.lvl?` · Mastery x${m.m}`:''}${m.next&&st.level>=3?` · ${m.n}/${m.next} harvests to x${m.nextM}`:''}</p>`,
-      `<div style="display:flex;flex-direction:column;gap:4px"><button class="btn sm" data-a="buy" data-id="${s.id}" data-n="1" ${st.cash<pr?'disabled':''}>Buy 1</button><button class="btn sm sec" data-a="buy" data-id="${s.id}" data-n="5" ${st.cash<pr*5?'disabled':''}>×5</button>${st.selSeed===s.id?'<span class="chip selchip">✓ Selected</span>':''}</div>`,st.selSeed===s.id,false,400).replace('<div class="row','<div data-pickseed="'+s.id+'" class="row '+((st.seeds[s.id]||0)>0?'pickable':'')); }).join('')
+    list.sort((a,b)=>a.game.growSec-b.game.growSec||(a.name<b.name?-1:a.name>b.name?1:0));
+    const body=list.map(s=>pktCard(s, true)).join('')
       +`<div class="note">Grow times run from 30 seconds (Common) to 3 days (Legendary). Plants keep growing while you're away. Long grows pay a little more per hour. More strains unlock by level, breeding and island festivals.</div>`;
     const sel=G.strain(st.selSeed), empty=st.plots.filter(p=>p.owned&&!p.strain&&p.loc===st.loc).length;
-    const owned=G.S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>a.game.growSec-b.game.growSec);
-    const bag=owned.length?owned.map(s=>`<div class="row${st.selSeed===s.id?' sel':''}" data-pickseed="${s.id}">${cu(s,112)}<div class="grow"><h4>${esc(s.name)}</h4><p>${st.seeds[s.id]} in the bag · ${sec(s.game.growSec)}</p></div>${st.selSeed===s.id?'<span class="chip selchip">Selected</span>':''}</div>`).join(''):`<div class="note">Bag's empty. Grab seeds at the shop.</div>`;
+    const owned=G.bagSeeds?G.bagSeeds():G.S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>a.game.growSec-b.game.growSec);
+    const bag=owned.length?owned.map(s=>pktCard(s, false)).join(''):`<div class="note">Bag's empty. Grab seeds at the shop.</div>`;
     return {title:'Seed bag',sub:'Pick a seed you own, or buy more below.',tabs:[['all','All'],['fast','Under 30m'],['island','Island'],['top','Epic+']],body:`<div class="section-t">In the bag</div>${bag}<div class="section-t">Buy seeds</div>`+body,
       foot:`<div style="flex:1;font-size:12px;color:var(--mut)">Selected: <b style="color:#fff">${esc(sel?.name||'-')}</b> (${st.seeds[st.selSeed]||0})</div><button class="btn" data-a="plantall" ${!empty?'disabled':''}>Plant ${empty} here</button>`};
   };
@@ -1024,7 +1154,7 @@ window.UI = (function(){
     switch(a){
       case 'buy': if(G.buySeeds(d.id,+d.n)){ Sound.play('buy'); toast('+'+d.n+' '+G.strain(d.id).name+' seeds','good'); } break;
       case 'sel': st.selSeed=d.id; setTool('seed'); toast('Tap empty buckets or beds to plant '+G.strain(d.id).name); break;
-      case 'plantall': { if(!(st.seeds[st.selSeed]>0)){ pip('No seeds'); break; } st.plots.forEach(p=>{ if(p.loc===st.loc&&p.owned&&!p.strain) G.plant(p); }); break; }
+      case 'plantall': { if(G.ensureSeed) G.ensureSeed(); let planted=0; st.plots.forEach(p=>{ if(p.loc===st.loc&&p.owned&&!p.strain&&G.plant(p)) planted++; }); if(!planted) pip('No seeds'); seedBag(); break; }
       case 'load': G.loadDryer(); break;
       case 'sell': { const have=(st.inv[d.stg]&&st.inv[d.stg][d.k])||0; const id=String(d.k||'').split('|')[0]; const v=G.sell(d.stg,d.k); if(v){ const s=G.strain(id); toast((s?s.name.split(' ')[0]:'Buds')+' x'+have+' +'+fmt(v),'good'); } break; }
       case 'sellgood': G.sellGood(d.k); break;
@@ -1105,6 +1235,7 @@ window.UI = (function(){
   // ---------- wiring ----------
   function init(){
     document.title=T(); $('#gTitle').textContent=T(); $('#gTag').textContent=window.GAME_CONFIG.tagline;
+    if(!init._seedBag){ init._seedBag=1; G.on('plant', seedBag); G.on('seeds', seedBag); G.on('room', seedBag); }
     $$('#menu button').forEach(b=>b.onclick=()=>{ if(b.dataset.panel==='pass') open('pass'); else open(b.dataset.panel); });
     $('#upgBtn').onclick=()=>{ Sound.play('tap'); open('upgrades'); };
     $('#sheetBody').addEventListener('click',e=>{ const r=e.target.closest('[data-pickseed]'); if(!r||e.target.closest('button,a,input')) return; const id=r.dataset.pickseed; if(!(G.st.seeds[id]>0)){ toast('Buy a seed first, then tap the card to pick it'); return; } if(G.st.selSeed!==id){ G.st.selSeed=id; Sound.play('tap'); seedBag(); render(); toast('Tap empty buckets or beds to plant '+G.strain(id).name); } });

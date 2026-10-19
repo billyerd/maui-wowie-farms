@@ -409,11 +409,37 @@ window.G = (function(){
   function buildIndoor(){ if(st.inBuilt) return false; const ck=indoorChecklist(); if(!ck.slice(0,5).every(c=>c.ok)){ emit('toast',{t:'Finish the checklist',k:'bad'}); return false; } if(!spend(INDOOR.build)) return false;
     st.inBuilt=true; syncPlots(); done('indoor'); emit('indoor'); return true; }
   function seedPrice(s){ return Math.max(1,Math.round(s.game.seedCost*(1-.15*mana('vault'))*(lv('clone')?.6:1)*100)/100); }
-  function buySeeds(id,n){ const s=strain(id); if(!st.discovered[id]) return false; if(!spend(seedPrice(s)*n)) return false; st.seeds[id]=(st.seeds[id]||0)+n; if(!(st.seeds[st.selSeed]>0)) st.selSeed=id; if(st.tut&&typeof st.tut==='object') st.tut.bought=(st.tut.bought|0)+n; emit('seeds',{id,n}); return true; }
+  function buySeeds(id,n){ const s=strain(id); if(!st.discovered[id]) return false; if(!spend(seedPrice(s)*n)) return false; st.seeds[id]=(st.seeds[id]||0)+n; ensureSeed(); if(st.tut&&typeof st.tut==='object') st.tut.bought=(st.tut.bought|0)+n; emit('seeds',{id,n}); return true; }
+  // Bag order is shortest grow first, then name. A manual pick stays until its count hits 0.
+  function bagSeeds(){
+    return S.filter(s=>(st.seeds[s.id]||0)>0).sort((a,b)=>(a.game.growSec-b.game.growSec)||(a.name<b.name?-1:a.name>b.name?1:0));
+  }
+  // No catalog strain sets rooms. A non-empty rooms list (on the strain or game) limits auto-pick.
+  function seedFitsRoom(id, room){
+    const s=typeof id==='string'?strain(id):id;
+    if(!s||!((st.seeds[s.id]||0)>0)) return false;
+    const r=room||currentRoom();
+    const rooms=s.rooms||(s.game&&s.game.rooms);
+    if(Array.isArray(rooms)&&rooms.length&&rooms.indexOf(r)<0) return false;
+    return true;
+  }
+  function ensureSeed(room){
+    const cur=st.selSeed;
+    if(cur&&(st.seeds[cur]||0)>0) return cur;
+    const r=room||currentRoom();
+    const next=bagSeeds().find(s=>seedFitsRoom(s.id, r));
+    const id=next?next.id:'';
+    if(st.selSeed!==id) st.selSeed=id;
+    return st.selSeed;
+  }
   function plant(p,id){
-    id=id||st.selSeed; if(!p.owned||p.strain||!id) return false;
+    const explicit=arguments.length>1&&!!id;
+    if(!explicit) ensureSeed();
+    id=explicit?id:st.selSeed;
+    if(!p.owned||p.strain||!id) return false;
     if(!(st.seeds[id]>0)) return false;
     const dn=ZONE[p.zone].dens||1; if(dn<1){ st.sf=st.sf||{}; st.sf[id]=(st.sf[id]||0)+dn; if(st.sf[id]>=.999){ st.sf[id]-=1; st.seeds[id]--; } } else st.seeds[id]--; p.strain=id; p.prog=p.zone==='in'?.15*lv('veg')+.1*lv('clone'):0; if(st.cutSeeds&&st.cutSeeds[id]>0){ st.cutSeeds[id]--; p.prog=Math.max(p.prog,.1); p.fromCut=true; } else p.fromCut=false; p.water=lv('water')>=4?1:.6; p.food=0; p.q=1; p.readyT=0; p.last=id; p.pest=null; p.t0=st.playT;
+    if(!explicit||id===st.selSeed) ensureSeed();
     bump('plant'); done('plant'); if(p.zone==='field'||p.zone==='gh') done('field'); emit('plant',p); return true;
   }
   function water(p){ if(!p.strain||p.prog>=1) return false; p.water=1; bump('water'); done('water'); emit('water',p); return true; }
@@ -944,7 +970,7 @@ window.G = (function(){
   function safetyNet(){
     if(st.cash>=1) return; const seedBag=st.seeds&&typeof st.seeds==='object'&&!Array.isArray(st.seeds)?st.seeds:{}; if(Object.values(seedBag).some(n=>typeof n==='number'&&n>0)) return; if(st.plots.some(p=>p.strain)) return;
     if(invCount('wet')+invCount('dry')+invCount('cured')>0||st.dryer.length) return;
-    st.seeds['northern-lights']=(st.seeds['northern-lights']||0)+3; st.selSeed='northern-lights'; emit('toast',{t:'3 Northern Lights seeds',k:'good'}); emit('seeds',{id:'northern-lights',n:3});
+    st.seeds['northern-lights']=(st.seeds['northern-lights']||0)+3; ensureSeed(); emit('toast',{t:'3 Northern Lights seeds',k:'good'}); emit('seeds',{id:'northern-lights',n:3});
   }
   let achT=0;
   // Fast-forward (offline catch-up and time skips). Step grows for long absences so 3 days stays fast.
@@ -1195,6 +1221,7 @@ window.G = (function(){
         off.days=d1-d0; off.markets=mk; off.seasons=seen; off.season=SEASONS[season()].name; off.pests=st.plots.filter(p=>p.owned&&p.pest).length; off.thirsty=st.plots.filter(p=>p.owned&&p.strain&&p.prog<1&&p.water<=0).length;
         off.huntDone=!!(st.hunt&&st.hunt.phenos); off.dryN=(st.dryer||[]).filter(b=>b&&b.t>=b.dur).length; } } }catch(e){ off=null; } }
     if(raw&&!playerIdOk(raw.pid)&&!st._holdSave) save();
+    ensureSeed();
     return {fresh:!raw,off,migrated:false,corrupt:false,kept:schemaKept};
   }
   // Fresh ?test=lv10 farm. Buildings stay locked behind their level and cost.
@@ -1310,7 +1337,7 @@ window.G = (function(){
     n=Math.max(1,Math.min(999,Math.floor(+n)||1));
     if(!st.discovered[id]) st.discovered[id]=true;
     st.seeds[id]=(st.seeds[id]||0)+n;
-    if(!(st.seeds[st.selSeed]>0)) st.selSeed=id;
+    ensureSeed();
     emit('seeds',{id,n});
     emit('toast',{t:'Tester: +'+n+' '+s.name+' seeds',k:'good'});
     save(); return true;
@@ -1404,6 +1431,7 @@ window.G = (function(){
     st.room=r;
     const l=r==='benches'?'indoor':r==='garage'?'garage':'farm';
     st.loc=l;
+    ensureSeed();
     emit('loc',l);
     emit('room',r);
   }
@@ -1427,7 +1455,7 @@ window.G = (function(){
     ADS, adState, adReward, PREMIUM, DROP, packOdds, BOOSTS, boostLeft, PIGGY,
     cosOwned, equipCos, rushCost, timers, rush,
     on, emit, fmt, num, dur, cost, maxLv, lv, wk, earnMult, xpNeed, key, unkey, invCount, capOf, syncPlots, locOpen, nextStep, buyStep, buyLand, buildGH, buyPermit, indoorChecklist, buildIndoor,
-    buySeeds, seedPrice, plant, water, feed, feedCost, harvest, quality, yieldMult, cycleCost, upkeepRates, growRate, timeLeft, isNight, dayPhase, stage, dryerSlots, batchMax, loadDryer,
+    buySeeds, seedPrice, bagSeeds, seedFitsRoom, ensureSeed, plant, water, feed, feedCost, harvest, quality, yieldMult, cycleCost, upkeepRates, growRate, timeLeft, isNight, dayPhase, stage, dryerSlots, batchMax, loadDryer,
     price, sell, sellAll, marketDay, dayNum, regTier, orderSlots, orderValue, orderHave, fillOrder, PREFS, prefOk, custMatch, serveCust,
     recipeFor, recipesFor, crossCost, crossTime, triedResult, pairKey, vagueHint, hintLevel, useHint, familyOf, cloneCost, buyClone, startBreed, openPack, buyUpg, upgNeedOk, upgBlock, hire, workerOk, rebirthNeed, rebirth, curQuest, claimQuest, questSat, questMet,
     isThirsty, isHungry, streakSaved, addCash, buyFoundation, pestRisk, season, SEASONS, seasonYield, canPrune, canTrellis, canTrain, train, huntSize, huntTime, CUT, cutState, takeCuttings, canHunt, startHunt, keepPheno, dropHunt, phenoScore, setTime, syncTime, buyLab, LAB, garageRole, locName, prune, trellis, trellisCost, scout, treatCost, treat, gradeOf, plotScore, QMULT, dailyReady, claimDaily, dailyCash, streakDay, LOGIN, ensureQuests, qProg, claimQ, questsReady, ACH, claimAch, achReady, stat, EVENTS, GATE, gate, MILES, gradeLabel, GRADE, mutChance,
