@@ -8,7 +8,7 @@ window.GAME_CONFIG = {
   // One address for Settings → Help & Support and for privacy.html.
   SUPPORT_EMAIL: '808games@mail.grokbot.com',
   // Genre mechanics (owner-approved checklist, see MECHANICS.md). Each unlocks gradually by level / story.
-  features: { orders:true, managers:true, mastery:true, prestigeTree:true, customers:true, sets:true, repTiers:true, storyGoals:true, events:true, gecko:true, crafting:true, leaderboards:true },
+  features: { orders:true, managers:true, mastery:true, prestigeTree:true, customers:false, sets:true, repTiers:true, storyGoals:true, events:true, gecko:true, crafting:true, leaderboards:true },
   // Tester panel kill switch. See docs/tester-panel.md.
   // true  — website and local test builds. ?dev=1 can open the panel.
   // false — App Store, Google Play, and production-store builds. Required before those ship.
@@ -21,6 +21,20 @@ window.GAME_CONFIG = {
   const q=new URLSearchParams(location.search); if(q.get('test')==='1') sessionStorage.setItem('mwf_test','1'); if(q.get('test')==='0') sessionStorage.removeItem('mwf_test');
   const slot=localStorage.getItem('mwf_test_slot'); window.TEST_MODE=sessionStorage.getItem('mwf_test')==='1'||!!slot;
   if(slot) window.GAME_CONFIG.saveKey='mwfarms_test_'+slot; window.TEST_SLOT=slot||null;
+  // ?test=lv10 is a separate farm. It does not set mwf_test_slot, so a normal
+  // visit (no parameter) keeps reading mwfarms_save_v1.
+  if(q.get('test')==='lv10'){
+    window.TEST_LV10=true;
+    window.GAME_CONFIG.saveKey='mwfarms_test_v1';
+    if(q.get('reset')==='1') localStorage.removeItem('mwfarms_test_v1');
+  }
+  // ?test=fresh100m is a different farm: level 1, normal unlocks, $100M cash.
+  // Its own key, so it never reads mwfarms_save_v1 or the level-10 test farm.
+  if(q.get('test')==='fresh100m'){
+    window.TEST_FRESH100M=true;
+    window.GAME_CONFIG.saveKey='mwfarms_test_fresh_v1';
+    if(q.get('reset')==='1') localStorage.removeItem('mwfarms_test_fresh_v1');
+  }
 }catch(e){} })();
 /* Hidden tester panel (?dev=1) and the ?test=1 jump menu. Off unless this tab opted in
    on a build that allows them. Store builds set GAME_CONFIG.allowDevTools to false

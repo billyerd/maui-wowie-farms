@@ -39,10 +39,10 @@ window.THEMES = {
 
 /* ---- Cosmetics: real money OR gems, no gameplay effect, every item is drawn in game (scene.js) ---- */
 window.COSMETICS = {
-  stand:  {label:'Farm stand decor', items:{
-    tiki:{name:'Tiki torches', desc:'Two flickering torches at the farm stand', usd:1.99, gems:220},
-    lei:{name:'Lei garland', desc:'A plumeria and orchid lei strung across the stand', usd:0.99, gems:120},
-    surf:{name:'Surfboard sign', desc:'A hand-painted longboard sign: ALOHA, FRESH FROM KAUAI', usd:1.99, gems:220} }},
+  stand:  {label:'Lei and torch decor', items:{
+    tiki:{name:'Tiki torches', desc:'Two flickering torches by the path', usd:1.99, gems:220},
+    lei:{name:'Lei garland', desc:'A plumeria and orchid lei', usd:0.99, gems:120},
+    surf:{name:'Surfboard sign', desc:'A hand-painted longboard: ALOHA, FRESH FROM KAUAI', usd:1.99, gems:220} }},
   truck:  {label:'Kahuna K4 paint', items:{
     sunset:{name:'Sunset orange', desc:'Glossy orange paint for the Kahuna K4 in the garage', usd:1.99, gems:240, c:[255,122,42]},
     teal:{name:'Ocean teal', desc:'Deep ocean teal paint', usd:1.99, gems:240, c:[20,170,176]},
@@ -69,8 +69,8 @@ for(const [sl,g] of Object.entries(window.COSMETICS)) for(const [id,c] of Object
   window.PRODUCTS['cos_'+sl+'_'+id+'_g']={id:'cos_'+sl+'_'+id+'_g', kind:'gems', priceGems:c.gems, once:true, name:c.name, desc:c.desc+' (cosmetic)', grants:{cos:k}, cos:k};
 }
 /* ---- Premium manager slot: real money once, or gems (earnable) ---- */
-window.PRODUCTS.mgr_slot  ={id:'mgr_slot',  kind:'usd',  priceUSD:4.99, once:true, name:'Extra manager: Lani', desc:'Lani is a roaming manager who works every location you own. Also earnable for 1,800 gems.', grants:{mgrSlot:true}, art:'mgr'};
-window.PRODUCTS.mgr_slot_g={id:'mgr_slot_g',kind:'gems', priceGems:1800, once:true, name:'Extra manager: Lani', desc:'Same roaming manager, earned with gems', grants:{mgrSlot:true}, art:'mgr'};
+window.PRODUCTS.mgr_slot  ={id:'mgr_slot',  kind:'usd',  priceUSD:4.99, once:true, name:'Extra manager: Lani', desc:'This extra-manager perk no longer hires anyone. VIP still auto-loads the dryer and auto-sells.', grants:{mgrSlot:true}, art:'mgr'};
+window.PRODUCTS.mgr_slot_g={id:'mgr_slot_g',kind:'gems', priceGems:1800, once:true, name:'Extra manager: Lani', desc:'This extra-manager perk no longer hires anyone. VIP still auto-loads the dryer and auto-sells.', grants:{mgrSlot:true}, art:'mgr'};
 
 /* ---- Exclusive premium strains (original names). Also drop rarely in play: legendary packs and finished pheno hunts (chances live in game.js DROP). ---- */
 window.PREMIUM_STRAINS={'menehune-mint':{usd:2.99,gems:450},'lilikoi-pop':{usd:2.99,gems:450},'honu-blue':{usd:2.99,gems:450}};

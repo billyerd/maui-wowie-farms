@@ -10,7 +10,6 @@ window.Tutorial=(function(){
     {id:'dry'},
     {id:'sell'},
     {id:'order'},
-    {id:'hire'},
     {id:'land'}
   ];
   function tut(){ const st=window.G&&G.st; const t=st&&st.tut; return t&&typeof t==='object'&&!Array.isArray(t)?t:null; }
@@ -31,6 +30,7 @@ window.Tutorial=(function(){
     return null;
   }
   function plot(){ if(!active()) return null; const step=STEPS[tut().step|0]; if(!step) return null;
+    if(step.id==='harvest') return null;
     if(sheetOpen()&&(step.id==='plant'||step.id==='water'||step.id==='feed'||step.id==='harvest')) return null;
     if(popOpen()&&(step.id==='water'||step.id==='feed')) return null;
     const p=plotFor(step.id); return p?p.id:null; }
@@ -42,16 +42,15 @@ window.Tutorial=(function(){
     const step=STEPS[tut().step|0]; if(!step) return null;
     const world=step.id==='plant'||step.id==='water'||step.id==='feed'||step.id==='harvest'||step.id==='order'||step.id==='land';
     if(sheetOpen()&&world) return closeBtn();
-    if(step.id==='seeds'){ if(sheetOpen()&&panel()==='seeds') return buyBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="seeds"]'); }
-    if(step.id==='plant'){ if(!(G.st.seeds[G.st.selSeed]>0)) return document.getElementById('seedBag'); const p=plotFor('plant'); if(p&&p.loc!==G.st.loc) return document.querySelector('#locTabs [data-loc="'+p.loc+'"]'); return null; }
-    if(step.id==='water'){ if(popOpen()) return document.querySelector('#pop [data-pa="water"]'); const p=plotFor('water'); if(p&&p.loc!==G.st.loc) return document.querySelector('#locTabs [data-loc="'+p.loc+'"]'); return null; }
-    if(step.id==='feed'){ if(popOpen()) return document.querySelector('#pop [data-pa="feed"]'); const p=plotFor('feed'); if(p&&p.loc!==G.st.loc) return document.querySelector('#locTabs [data-loc="'+p.loc+'"]'); return null; }
-    if(step.id==='harvest'){ const p=plotFor('harvest'); if(p&&p.loc!==G.st.loc) return document.querySelector('#locTabs [data-loc="'+p.loc+'"]'); return null; }
+    if(step.id==='seeds'){ if(sheetOpen()&&panel()==='seeds') return buyBtn(); if(sheetOpen()) return closeBtn(); return document.getElementById('seedBag'); }
+    if(step.id==='plant'){ if(!(G.st.seeds[G.st.selSeed]>0)) return document.getElementById('seedBag'); const p=plotFor('plant'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
+    if(step.id==='water'){ if(popOpen()) return document.querySelector('#pop [data-pa="water"]'); const p=plotFor('water'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
+    if(step.id==='feed'){ if(popOpen()) return document.querySelector('#pop [data-pa="feed"]'); const p=plotFor('feed'); if(p&&G.roomZone&&G.roomZone(G.currentRoom())!==p.zone) return document.getElementById('locBtn'); return null; }
+    if(step.id==='harvest'){ const menu=document.getElementById('qaMenu'); if(menu&&menu.classList.contains('hidden')) return document.querySelector('#qaFab .qa-main'); return document.getElementById('harvestAll'); }
     if(step.id==='dry'){ if(sheetOpen()&&panel()==='process') return document.querySelector('#sheet [data-a="load"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="process"]'); }
-    if(step.id==='sell'){ if(sheetOpen()&&(panel()==='market'||panel()==='stand')) return document.querySelector('#sheet [data-a="sell"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="market"]'); }
-    if(step.id==='order') return document.getElementById('orderBoard');
-    if(step.id==='hire'){ if(sheetOpen()&&panel()==='upgrades'){ const tab=document.querySelector('#sheetTabs [data-tab="hands"]'); if(tab&&!tab.classList.contains('on')) return tab; return hireBtn()||tab; } if(sheetOpen()) return closeBtn(); return document.getElementById('upgBtn'); }
-    if(step.id==='land') return document.querySelector('#locTabs [data-loc="farm"]');
+    if(step.id==='sell'){ if(sheetOpen()&&panel()==='market') return document.querySelector('#sheet [data-a="sell"]')||closeBtn(); if(sheetOpen()) return closeBtn(); return document.querySelector('#menu [data-panel="market"]'); }
+    if(step.id==='order') return null;
+    if(step.id==='land') return document.getElementById('locBtn');
     return null;
   }
   function snap(){
@@ -68,8 +67,7 @@ window.Tutorial=(function(){
     if(step.id==='harvest') return (st.stats.harvests|0)>(b.harvests|0);
     if(step.id==='dry') return (st.stats.dryLoads|0)>(b.dry|0);
     if(step.id==='sell') return (st.stats.sold|0)>(b.sold|0);
-    if(step.id==='order') return (st.stats.orders|0)>(b.orders|0);
-    if(step.id==='hire') return crew()>(b.crew|0);
+    if(step.id==='order') return true;
     if(step.id==='land') return !!st.land&&!b.land;
     return false;
   }
@@ -77,16 +75,15 @@ window.Tutorial=(function(){
   function say(step){
     const blocked=sheetOpen()&&targetEl()===closeBtn();
     if(blocked) return 'Close this panel. The next step is on the farm.';
-    if(step.id==='seeds') return "Open Seeds and buy one. You've already got four Northern Lights. This is how you restock the bag.";
+    if(step.id==='seeds'){ if(sheetOpen()&&panel()==='seeds') return "Buy one from this bag. You've already got four Northern Lights. This is how you restock."; return "Tap the seed bag and buy one. You've already got four Northern Lights. This is how you restock."; }
     if(step.id==='plant'){ if(!(G.st.seeds[G.st.selSeed]>0)) return 'Your bag is empty. Tap the seed bag and pick a seed you own.'; const p=plotFor('plant'); if(!p) return 'Every bucket you own is full. Harvest one, or tap Next.'; return locLine(p)+'Tap an empty bucket to plant. Northern Lights is already selected.'; }
     if(step.id==='water'){ const p=plotFor('water'); if(!p) return 'Nothing is growing yet. Plant a seed, or tap Next.'; return locLine(p)+'Tap the plant, then the water drop above it. A full tank keeps it growing.'; }
     if(step.id==='feed'){ const p=plotFor('feed'); if(!p) return 'The free feed happens once, at halfway. Plant something, or tap Next.'; return locLine(p)+'Each plant gets one free feed at the halfway mark. Tap the feed icon. It costs nothing.'; }
-    if(step.id==='harvest'){ const p=plotFor('harvest'); if(!p) return 'Nothing to harvest yet. Tap Next if you already picked it.'; return locLine(p)+(p.prog>=1?'It is ripe. Tap the plant, or Harvest all.':'When the plant glows, tap it to harvest. Fresh buds go into your inventory.'); }
+    if(step.id==='harvest'){ const p=plotFor('harvest'); if(!p) return 'Nothing to harvest yet. Tap Next if you already picked it.'; const menu=document.getElementById('qaMenu'); const closed=menu&&menu.classList.contains('hidden'); return (p.prog>=1?'It is ripe. ':'When it is ripe, ')+(closed?'tap the round button at the bottom right, then Harvest all.':'tap Harvest all. Feed all and Harvest all are free. Water all waits for the garden hose.'); }
     if(step.id==='dry') return 'Open Dry & Cure and load the racks. Curing jars raise the price later. You do not have to wait for them now.';
     if(step.id==='sell') return 'Open Market and sell what you grew. Fresh, dried, or cured buds all count.';
-    if(step.id==='order') return 'The order board is up here. Neighbors pay extra, and it opens at level '+G.GATE.orders+'. Fill one when you can, or tap Next.';
-    if(step.id==='hire'){ const h=kai(); const name=h?h.d.name.split(',')[0]:'Kai'; const lv=h?h.d.level:2; const price=h?G.fmt(G.cost(h.d,0)):G.fmt(300); return 'Open Upgrades, then Helpers. '+name+' is a one-time hire with no wages. That needs level '+lv+' and '+price+'. Tap Next to move on.'; }
-    if(step.id==='land') return 'The '+(G.LOC_NAME.farm||'Greenhouse')+' tab is the family land. It opens at level '+G.LAND_LEVEL+' for '+G.fmt(G.LAND_COST)+'. Buying it turns this garage into your Pheno Room. Tap Next to move on.';
+    if(step.id==='order') return 'Sell at the Market. That is how buds leave the farm.';
+    if(step.id==='land') return 'The Greenhouse opens at level '+G.GH_BUILD.level+' for '+G.fmt(G.GH_BUILD.cost)+'. The Indoor Facility is the last location: level '+G.LAND_LEVEL+' for '+G.fmt(G.LAND_COST)+', 40 plots. Buying it turns this garage into your Pheno Room. Tap Next to move on.';
     return "That's the loop. Plant, water, one free feed, harvest, dry, then sell. I'll stay on the goal card when you want the longer story.";
   }
   function ensure(){
@@ -110,7 +107,7 @@ window.Tutorial=(function(){
     if(window.R&&R._qb){ try{ const cv=document.getElementById('game'), cr=cv?cv.getBoundingClientRect():{left:0,top:0}; for(const b of R._qb()){ if(!b||!isFinite(b.x)||!isFinite(b.y)) continue; hard.push({left:b.x+cr.left-26,top:b.y+cr.top-26,right:b.x+cr.left+26,bottom:b.y+cr.top+26}); } }catch(e){} }
     const tr=domBox(targetEl(),12); if(tr) hard.push(tr);
     const gear=domBox(document.getElementById('settingsBtn'),6); if(gear) soft.push(gear);
-    ['seedBag','scoutBtn','upgBtn','orderBoard','goal','toolbar','locTabs','hud'].forEach(id=>{ const b=domBox(document.getElementById(id),4); if(b) soft.push(b); });
+    ['seedBag','upgBtn','orderBoard','goal','toolbar','locBtn','hud','qaFab'].forEach(id=>{ const b=domBox(document.getElementById(id),4); if(b) soft.push(b); });
     const pop=document.getElementById('pop'); if(pop&&!pop.classList.contains('hidden')){ const pr=domBox(pop,6); if(pr) hard.push(pr); }
     return {hard, soft};
   }
@@ -173,7 +170,7 @@ window.Tutorial=(function(){
   function sync(){ try{ const t=tut(); if(!t||!t.on||t.done) return; ensureBase(); const i=t.step|0; const step=STEPS[i]; if(step&&met(step)) advance(i); else paint(); }catch(e){} }
   function next(){ const t=tut(); if(!t) return; if((t.step|0)>=STEPS.length){ finish(); return; } advance(t.step|0); }
   function resumeStory(){ try{ if(window.UI&&UI.storyLine&&G.curQuest) UI.storyLine(G.curQuest()); }catch(e){} }
-  function skip(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=true; G.save(); hide(); if(window.UI&&UI.toast) UI.toast('Tutorial skipped. You can replay it in Settings.'); resumeStory(); }
+  function skip(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=true; G.save(); hide(); if(window.UI&&UI.brief) UI.brief('Tutorial skipped. You can replay it in Settings.'); else if(window.UI&&UI.toast) UI.toast('Tutorial skipped. You can replay it in Settings.'); resumeStory(); }
   function finish(){ const t=tut(); if(!t) return; t.on=false; t.done=true; t.skip=false; t.step=STEPS.length; G.save(); hide(); resumeStory(); }
   function start(){ const t=tut(); if(!t) return; t.on=true; t.done=false; t.skip=false; t.step=0; t.bought=t.bought|0; snap(); G.save(); paint(); }
   function offer(){
@@ -189,7 +186,7 @@ window.Tutorial=(function(){
     if(!st.tut||typeof st.tut!=='object'||Array.isArray(st.tut)) st.tut={v:1,step:0,on:false,done:false,skip:false,bought:0};
     start();
   }
-  if(window.G&&G.on) ['seeds','plant','water','feed','harvest','dryload','sold','order','hire','land'].forEach(n=>G.on(n,sync));
+  if(window.G&&G.on) ['seeds','plant','water','feed','harvest','dryload','sold','order','land'].forEach(n=>G.on(n,sync));
   function follow(){ try{ const el=document.getElementById('tutc'); if(!el||el.classList.contains('hidden')) return; if(active()) sync(); else place(); }catch(e){} }
   const watch=new MutationObserver(follow);
   ['sheet','pop'].forEach(id=>{ const n=document.getElementById(id); if(n) watch.observe(n,{attributes:true,attributeFilter:['class']}); });

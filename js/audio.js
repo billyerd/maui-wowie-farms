@@ -1,17 +1,24 @@
 /* Procedural island soundtrack + ambience + SFX, all synthesized with Web Audio (no audio files, 0 bytes of music).
-   Music styles (crossfaded by location / time of day):
+   Two music beds. The Garage and the Greenhouse share one, so moving between them
+   does not restart the bar. The Indoor Facility (and the sealed benches) have their own.
+   Switching beds crossfades. Night, when the clock is actually night, replaces only the shared bed.
      garage = chill ukulele strum (re-entrant GCEA voicings, C-Am-F-G7), soft bass, shaker
-     farm   = sunny slack-key (open-G alternating-thumb bass, fingerpicked melody, steel-guitar answer phrases), ipu-style thump
-     indoor = mellow island reggae (one-drop drums, offbeat skank, round dub bass, Am7-D7 vamp)
+     indoor = uppity indoor bounce (126 bpm, bright C-G-Am-F, hopped bass, offbeat chops)
      night  = gentle ukulele fingerpicking (C-Em-Am-F, slow, sparse)
+     farm   = sunny slack-key, kept in the instrument rack and not selected by a room
    Ambience: ocean waves, trade wind, birds by day, crickets/insects at night, fan hum indoors.
    Strings are Karplus-Strong plucks; steel guitar = gliding filtered saw/triangle with vibrato. */
 window.Sound = (function(){
   let ctx=null, master, comp, musicBus, sfxGain, ambBus, started=false, timer=null, noiseBuf=null;
   const vol={music:.7, sfx:.8, amb:.6}; let musicOn=true, sfxOn=true, ambOn=true, paused=false;
-  let scene='garage', night=false, style='garage', styles={}, nextBar=0, bar=0, amb=null, ambT=0;
+  let scene='garage', night=false, style='garage', roomId='garage', bedGen=0, bedStyle=null, styles={}, nextBar=0, bar=0, amb=null, ambT=0;
   const ksCache={}; const mtof=m=>440*Math.pow(2,(m-69)/12);
+  function dropCtx(){
+    try{ if(timer) clearInterval(timer); }catch(e){}
+    ctx=null; started=false; timer=null; styles={}; amb=null; master=null; comp=null; musicBus=null; sfxGain=null; ambBus=null; noiseBuf=null;
+  }
   function init(){
+    if(ctx&&ctx.state==='closed') dropCtx();
     if(ctx) return; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
     ctx=new AC(); master=ctx.createGain(); master.gain.value=.85; master.connect(ctx.destination);
     comp=ctx.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=3; comp.connect(master);
@@ -27,8 +34,12 @@ window.Sound = (function(){
     musicBus.gain.setTargetAtTime(musicOn&&!paused?.32*vol.music:0,t,.2); sfxGain.gain.setTargetAtTime(sfxOn?.6*vol.sfx:0,t,.05); ambBus.gain.setTargetAtTime(ambOn&&!paused?.5*vol.amb:0,t,.4); }
   function unlockIOS(){ try{ const b=ctx.createBuffer(1,1,22050), s=ctx.createBufferSource(); s.buffer=b; s.connect(ctx.destination); s.start(0); }catch(e){} }
   /* QC iOS: Safari can leave the context 'suspended'/'interrupted' (first load, call, app switch); re-resume inside every user gesture */
-  ['touchend','pointerdown','click','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ if(ctx&&ctx.state!=='running'&&!paused) ctx.resume(); },{capture:true,passive:true}));
-  function resume(){ init(); if(!ctx) return; unlockIOS(); if(ctx.state!=='running') ctx.resume(); if(!started){ started=true; nextBar=ctx.currentTime+.15; setStyle(pick(),true); startAmb(); timer=setInterval(sched,180); } }
+  function resume(){ try{ init(); if(!ctx) return; unlockIOS(); if(ctx.state==='closed'){ dropCtx(); init(); if(!ctx) return; } if(ctx.state!=='running'){ const p=ctx.resume(); if(p&&p.catch) p.catch(function(){}); } if(!started){ started=true; nextBar=ctx.currentTime+.15; setStyle(pick(),true); startAmb(); timer=setInterval(sched,180); } else if(!(nextBar>0)||nextBar<ctx.currentTime-.35) nextBar=ctx.currentTime+.08; }catch(e){} }
+  ['touchend','pointerdown','click','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ if(!paused) resume(); },{capture:true,passive:true}));
+  function wake(){ if(document.hidden||paused) return; resume(); }
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) wake(); });
+  window.addEventListener('pageshow',()=>wake());
+  window.addEventListener('focus',()=>wake());
   // ---------- instruments ----------
   function ksBuf(f,decay,bright){ const key=Math.round(f*10)+'|'+decay+'|'+bright; let buf=ksCache[key]; if(buf) return buf;
     const sr=ctx.sampleRate, n=Math.floor(sr*(decay>.995?2.4:1.4)), N=Math.max(2,Math.round(sr/f)); buf=ctx.createBuffer(1,n,sr); const d=buf.getChannelData(0);
@@ -68,25 +79,53 @@ window.Sound = (function(){
       const pat=[3,1,2,1,3,2,1,2]; for(let i=0;i<8;i++){ if(i===5&&b%2) continue; guitar(ch[pat[i]]+(i===6&&b%4===3?2:0),t+Math.floor(i/2)*B+(i%2?B*.58:0),.1,dest); }
       tone(90,t,.25,'sine',.12,dest,.005); tone(90,t+2*B,.25,'sine',.1,dest,.005); tone(140,t+3.5*B,.12,'sine',.05,dest,.005);
       if(b%8===3) steel([74,76,79,76,74],t+B*.5,.045,dest,B*.5); if(b%8===7) steel([71,74,79],t+B,.045,dest,B*.6); }},
-    indoor:{bpm:72, play(t,b,B,dest){ // mellow island reggae, one-drop
-      const sec=Math.floor(b/8)%2, C=sec?[[55,59,62,66],[48,52,55,59]]:[[57,60,64,67],[50,54,57,60]], ch=C[b%2], root=sec?[43,36][b%2]:[45,38][b%2];
-      tone(60,t+2*B,.3,'sine',.25,dest,.004,0,40); noise(t+2*B,.08,.06,dest,'bandpass',1800,1.5);                     // kick + rim on 3
-      for(let i=0;i<8;i++) noise(t+i*B/2+(i%2?B*.12:0),.04,i%2?.02:.012,dest,'highpass',8000);                       // swung hats
-      [1,3].forEach(k=>{ ch.forEach(m=>tone(mtof(m+12),t+k*B,.14,'triangle',.05,dest,.004,2200)); });                   // skank on 2 and 4
-      [[0,0,.9],[1.5,7,.4],[2,0,.6],[3,12,.4],[3.5,10,.35]].forEach(([k,iv,d])=>bass(root+iv-12+12,t+k*B,B*d,.2,dest));    // dub bass
-      if(b%4===2) [0,-3,-5].forEach((iv,i)=>tone(mtof(ch[3]+12+iv),t+B*(1.5+i*.5),.5,'sine',.035,dest,.03)); }},          // melodica-ish answer
+    indoor:{bpm:126, play(t,b,B,dest){ // uppity indoor bounce: bright, hopped, faster than the yard
+      const loop=[
+        {ch:[60,64,67,72], root:48, mel:[72,76,79,76]}, // C
+        {ch:[55,59,62,67], root:43, mel:[74,79,78,74]}, // G
+        {ch:[57,60,64,69], root:45, mel:[76,72,69,72]}, // Am
+        {ch:[53,57,60,65], root:41, mel:[72,69,67,65]}, // F
+      ], p=loop[b%4];
+      tone(64,t,.09,'sine',.2,dest,.002,0,46); tone(70,t+1.5*B,.05,'sine',.07,dest,.002,0,50); tone(62,t+2*B,.08,'sine',.14,dest,.002,0,44);
+      noise(t+B,.05,.055,dest,'bandpass',2200,.8); noise(t+3*B,.05,.05,dest,'bandpass',2400,.8);
+      for(let i=0;i<8;i++) noise(t+i*B/2,.025,i%2?.03:.012,dest,'highpass',9500);
+      [0.5,1.5,2.5,3.5].forEach((k,i)=>strum(p.ch,t+k*B,i===0?.1:.075,dest,false,.009));
+      bass(p.root,t,B*.35,.17,dest); bass(p.root+7,t+.75*B,B*.28,.11,dest); bass(p.root+12,t+2*B,B*.32,.13,dest); bass(p.root+7,t+2.75*B,B*.25,.1,dest);
+      if(b%2===1) p.mel.forEach((m,i)=>uke(m+12,t+B*(2+i*.5),.05,dest));
+      if(b%4===0) tone(1568,t,.18,'sine',.03,dest,.004); }},
     night:{bpm:66, play(t,b,B,dest){ // gentle ukulele
       const P=[[60,64,67,72],[59,64,67,71],[57,64,69,72],[57,60,65,69]], ch=P[b%4];
       [0,2,1,3,2,1,3,2].forEach((k,i)=>{ if(b%2&&i===7) return; uke(ch[k],t+i*B/2,.07,dest); });
       bass([48,52,45,41][b%4],t,B*3,.08,dest);
       if(b%4===1) uke(PENT[4+(b%3)]+12,t+B*3.5,.04,dest); }},
   };
-  function pick(){ return scene==='farm'&&night?'night':scene==='garage'&&night?'night':scene; }
-  function setStyle(s,now){ if(!ctx||!STY[s]) return; const t=ctx.currentTime; for(const k in styles) styles[k].gain.setTargetAtTime(k===s?1:0,t,now?.05:1.2); if(s!==style){ style=s; } }
+  // Garage and greenhouse share the yard bed. Indoor rooms share the indoor bed.
+  // Night replaces only the yard bed, so those two rooms still match after dark.
+  function musicBed(r, isNight){
+    if(r==='facility'||r==='benches'||r==='indoor') return 'indoor';
+    if(isNight) return 'night';
+    return 'garage';
+  }
+  function resolveRoom(r){
+    if(r==='garage'||r==='gh'||r==='facility'||r==='benches') return r;
+    try{ if(typeof G!=='undefined'&&G.currentRoom){ const cr=G.currentRoom(); if(cr==='garage'||cr==='gh'||cr==='facility'||cr==='benches') return cr; } }catch(e){}
+    if(r==='indoor') return 'facility';
+    return 'garage';
+  }
+  function ambKey(r){ return (r==='facility'||r==='benches'||r==='indoor')?'indoor':r==='gh'?'farm':'garage'; }
+  function pick(){ return musicBed(roomId, night); }
+  function setStyle(s,now){ if(!ctx||!STY[s]) return; const changed=s!==bedStyle; if(!changed&&!now) return; const t=ctx.currentTime;
+    for(const k in styles) styles[k].gain.setTargetAtTime(k===s?1:0,t,now?.05:.7); style=s; if(changed){ bedStyle=s; bedGen++; } }
   function sched(){
-    if(!ctx||paused) return; const s=STY[style]; const B=60/s.bpm;
-    while(nextBar<ctx.currentTime+1.0){ if(musicOn&&vol.music>0) s.play(nextBar,bar,B,styles[style]); nextBar+=B*4; bar++; }
-    ambTick();
+    try{
+      if(!ctx||paused) return;
+      if(ctx.state==='closed'){ resume(); return; }
+      if(ctx.state!=='running') return;
+      const s=STY[style]; if(!s) return; const B=60/s.bpm;
+      if(!(nextBar>0)||nextBar<ctx.currentTime-.4) nextBar=ctx.currentTime+.05;
+      while(nextBar<ctx.currentTime+1.0){ if(musicOn&&vol.music>0) s.play(nextBar,bar,B,styles[style]); nextBar+=B*4; bar++; }
+      ambTick();
+    }catch(e){}
   }
   // ---------- ambience ----------
   function loopNoise(type,f,q,v){ const s=ctx.createBufferSource(); s.buffer=noiseBuf; s.loop=true; const fl=ctx.createBiquadFilter(); fl.type=type; fl.frequency.value=f; if(q) fl.Q.value=q; const g=ctx.createGain(); g.gain.value=v; s.connect(fl); fl.connect(g); g.connect(ambBus); s.start(); return {g,fl}; }
@@ -122,13 +161,16 @@ window.Sound = (function(){
   const DUCK={harvest:.6,cash:.6,level:.35,discover:.35,gem:.55,buy:.75};   // music ducks under big rewards, then recovers
   return { get state(){ return ctx?ctx.state:"none"; },
     resume,
-    play(n,a){ if(!ctx||!sfxOn||vol.sfx<=0) return; try{ jit=n==='cash'||n==='level'||n==='discover'?0:Math.round((Math.random()-.5)*8)/10; // ±0.4 semitone (~±2.5%) so repeats never sound robotic
+    play(n,a){ try{ if(!ctx||ctx.state==='closed'||!sfxOn||vol.sfx<=0) return; jit=n==='cash'||n==='level'||n==='discover'?0:Math.round((Math.random()-.5)*8)/10; // ±0.4 semitone (~±2.5%) so repeats never sound robotic
       if(DUCK[n]&&musicOn&&!paused){ const t=ctx.currentTime, g=musicBus.gain, base=.32*vol.music; g.cancelScheduledValues(t); g.setTargetAtTime(base*DUCK[n],t,.03); g.setTargetAtTime(base,t+.55,.35); }
       S[n]&&S[n](a); jit=0; }catch(e){} },
-    setScene(l,isNight){ scene=l; night=!!isNight; if(ctx&&started){ const s=pick(); if(s!==style) setStyle(s); } },
-    setVol(k,v){ vol[k]=Math.max(0,Math.min(1,+v)); applyVol(); },
-    setPaused(p){ paused=!!p; applyVol(); if(ctx){ if(p) ctx.suspend&&ctx.suspend(); else { ctx.resume&&ctx.resume(); nextBar=Math.max(nextBar,ctx.currentTime+.1); } } },
+    setScene(l,isNight){ try{ roomId=resolveRoom(l); night=!!isNight; scene=ambKey(roomId); const s=pick(); if(ctx&&started&&ctx.state!=='closed'){ if(s!==style) setStyle(s,false); } else if(s!==style) style=s; }catch(e){} },
+    trackFor(r,isNight){ return musicBed(r, !!isNight); },
+    setVol(k,v){ try{ vol[k]=Math.max(0,Math.min(1,+v)); applyVol(); }catch(e){} },
+    setPaused(p){ try{ paused=!!p; if(!p&&ctx&&ctx.state==='closed') dropCtx(); applyVol(); if(ctx){ if(p) ctx.suspend&&ctx.suspend(); else { const r=ctx.resume&&ctx.resume(); if(r&&r.catch) r.catch(function(){}); nextBar=Math.max(nextBar,(ctx.currentTime||0)+.1); } } else if(!p) resume(); }catch(e){} },
     setMusic(on){ musicOn=!!on; applyVol(); }, setSfx(on){ sfxOn=!!on; applyVol(); }, setAmb(on){ ambOn=!!on; applyVol(); },
     get music(){ return musicOn; }, get sfx(){ return sfxOn; }, get style(){ return style; }, get vol(){ return {...vol}; },
+    get bed(){ return bedGen; }, get bar(){ return bar; }, get room(){ return roomId; },
+    get bpm(){ const s=STY[style]; return s?s.bpm:0; },
   };
 })();
