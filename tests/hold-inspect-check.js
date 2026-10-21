@@ -118,6 +118,8 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');
         const pop = document.getElementById('pop');
         return {
           on: !!(L && L.on), x: L ? L.x : null, y: L ? L.y : null,
+          viewX: L ? L.viewX : null, viewY: L ? L.viewY : null,
+          w: innerWidth, h: innerHeight,
           modal: !!(modal && !modal.classList.contains('hidden')),
           pop: !!(pop && !pop.classList.contains('hidden'))
         };
@@ -185,6 +187,7 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');
       window.__ringPx = () => {
         const L = R.lens;
         if (!L || !L.on) return { on:false };
+        const cx = L.viewX != null ? L.viewX : L.x, cy = L.viewY != null ? L.viewY : L.y;
         const cv = document.getElementById('game');
         const ctx = cv.getContext('2d');
         const dpr = cv.width / Math.max(1, cv.clientWidth);
@@ -193,8 +196,8 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');
         for (const r of [r0 - 4, r0, r0 + 4]){
           for (let i = 0; i < 16; i++){
             const a = (i / 16) * Math.PI * 2;
-            const px = Math.round((L.x + Math.cos(a) * r) * dpr);
-            const py = Math.round((L.y + Math.sin(a) * r) * dpr);
+            const px = Math.round((cx + Math.cos(a) * r) * dpr);
+            const py = Math.round((cy + Math.sin(a) * r) * dpr);
             if (px < 1 || py < 1 || px >= cv.width - 1 || py >= cv.height - 1) continue;
             const p = ctx.getImageData(px, py, 1, 1).data;
             n++;
@@ -206,13 +209,13 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');
         const cols = [];
         for (let i = 0; i < 8; i++){
           const a = (i / 8) * Math.PI * 2;
-          const px = Math.round((L.x + Math.cos(a) * r0) * dpr);
-          const py = Math.round((L.y + Math.sin(a) * r0) * dpr);
+          const px = Math.round((cx + Math.cos(a) * r0) * dpr);
+          const py = Math.round((cy + Math.sin(a) * r0) * dpr);
           if (px < 0 || py < 0 || px >= cv.width || py >= cv.height){ cols.push(null); continue; }
           const p = ctx.getImageData(px, py, 1, 1).data;
           cols.push([p[0], p[1], p[2], p[3]]);
         }
-        return { on:true, hit, n, r: r0, dpr, x: L.x, y: L.y, cols };
+        return { on:true, hit, n, r: r0, dpr, x: cx, y: cy, cols };
       };
       const stageCS = stage ? cs('stage') : null;
       const gameCS = game ? cs('game') : null;
@@ -265,6 +268,17 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');
     function near(lens, x, y){
       return lens && lens.on && Math.abs(lens.x - x) <= 8 && Math.abs(lens.y - y) <= 8;
     }
+    // The magnified sample stays on the finger. The drawn glass sits above it, or below only when the top edge has no room.
+    function glassClear(lens, ring, tx, ty){
+      if (!lens || !ring || lens.viewX == null || lens.viewY == null) return false;
+      const r = ring.r || 0, vx = lens.viewX, vy = lens.viewY, w = lens.w || 390, h = lens.h || 844;
+      const gap = 36, m = 8;
+      const on = vx - r >= -2 && vy - r >= -2 && vx + r <= w + 2 && vy + r <= h + 2;
+      const above = vy + r <= ty - 16;
+      const below = vy - r >= ty + 16;
+      const roomAbove = (ty - r - gap) >= (r + m);
+      return on && (roomAbove ? above : (above || below));
+    }
 
     const rooms = {};
     for (const room of ['garage', 'gh', 'facility']){
@@ -311,8 +325,10 @@ localStorage.setItem('mwfarms_ad_consent_v1','contextual');
       console.log(room, JSON.stringify(rooms[room].gesture));
 
       assert(early && early.on === false && early.modal === false, room + ' glass appeared before 0.45s: ' + JSON.stringify(early));
-      assert(near(held.lens, x, y) && held.lens.modal === false, room + ' hold did not put the glass under the finger: ' + JSON.stringify(held.lens));
+      assert(near(held.lens, x, y) && held.lens.modal === false, room + ' hold did not keep the sample on the finger: ' + JSON.stringify(held.lens));
+      assert(glassClear(held.lens, held.ring, x, y), room + ' glass is not above the finger: ' + JSON.stringify(held));
       assert(dragged.ring && dragged.ring.hit >= 8, room + ' glass ring did not draw: ' + JSON.stringify(dragged.ring));
+      assert(glassClear(dragged.lens, dragged.ring, dx, dy), room + ' dragged glass covers the finger or left the screen: ' + JSON.stringify(dragged));
       assert(held.caps > 0, room + ' setPointerCapture was not called');
       assert(near(dragged.lens, dx, dy), room + ' drag did not move the glass: ' + JSON.stringify(dragged.lens));
       assert(afterCancel && afterCancel.on === true, room + ' pointercancel dismissed the glass mid-drag: ' + JSON.stringify(afterCancel));

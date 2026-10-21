@@ -1,6 +1,6 @@
 /* When the selected seed runs out, the next tap plants the first bag seed
    that fits the current room. A pick with seeds left is kept, including
-   across a reload. An empty plantable bag shows "No seeds" and a pot tap
+   across a reload. An empty plantable bag keeps the tab labeled "Seed bag" and a pot tap
    does not open the shop. Tapping the tab still does.
    Run: node tests/seed-switch-check.js */
 const fs = require('fs');
@@ -178,7 +178,7 @@ try {
   assert(G.ensureSeed() === '', 'an ineligible leftover seed was selected: ' + G.st.selSeed);
   UI.init();
   UI.update(0);
-  assert(ensure('sbName').textContent === 'No seeds', 'empty tab label is "' + ensure('sbName').textContent + '"');
+  assert(ensure('sbName').textContent === 'Seed bag', 'empty tab label is "' + ensure('sbName').textContent + '"');
   UI.close();
   UI.tapPlot(pots[4], 40, 40);
   assert(!pots[4].strain, 'an empty bag planted a pot');

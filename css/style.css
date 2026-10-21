@@ -1153,30 +1153,31 @@ body:not(.sheet-open) #toasts{
   max-width:100% !important;
 }
 #toolbar #seedBag .sb-line{
-  display:flex !important;flex-flow:row nowrap;align-items:baseline;justify-content:center;
-  gap:2px;max-width:100%;min-width:0;line-height:1;
+  display:flex !important;flex-flow:column nowrap !important;align-items:center !important;justify-content:center;
+  gap:0;max-width:100%;min-width:0;width:100%;line-height:1;
 }
-#toolbar #seedBag .sb-line b,
+#toolbar #seedBag .sb-line b{
+  flex:0 1 auto !important;overflow:visible !important;text-overflow:clip !important;
+  max-width:100% !important;width:100% !important;display:block !important;
+  padding:0 !important;white-space:normal !important;letter-spacing:0 !important;
+  text-align:center;line-height:1.05 !important;word-spacing:normal;
+}
 #toolbar #seedBag .sb-line small{
   flex:0 0 auto !important;overflow:visible !important;text-overflow:clip !important;
-  max-width:none !important;width:auto !important;display:inline !important;
-  padding:0 !important;white-space:nowrap !important;
+  max-width:100% !important;width:auto !important;display:block !important;
+  padding:0 !important;white-space:nowrap !important;text-align:center;
 }
 #toolbar #seedBag b,
-#toolbar #seedBag small{font-size:7px !important;letter-spacing:-.06em !important}
+#toolbar #seedBag small{font-size:8px !important;letter-spacing:0 !important}
+@media (min-width:401px){
+  #toolbar #seedBag b,
+  #toolbar #seedBag small{font-size:10px !important}
+}
+@media (min-width:480px){
+  #toolbar #seedBag b,
+  #toolbar #seedBag small{font-size:11px !important}
+}
 #toolbar #seedBag.is-empty small{display:none !important}
-#toolbar #seedBag.is-empty .sb-line{
-  flex-flow:column nowrap !important;
-  align-items:center !important;
-  gap:0 !important;
-}
-#toolbar #seedBag.is-empty .sb-line b{
-  white-space:normal !important;
-  letter-spacing:0 !important;
-  word-spacing:.16em !important;
-  text-align:center;
-  line-height:1.05 !important;
-}
 /* Full strain name, in the top of the tab bar. It is not a hit target. */
 #seedName{
   position:absolute;

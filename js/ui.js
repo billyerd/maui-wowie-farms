@@ -409,16 +409,12 @@ window.UI = (function(){
     const st=G.st, n=$('#sbName'), c=$('#sbCount'); if(!n||!c) return;
     const s=G.strain(st.selSeed), have=!!(s&&(st.seeds[s.id]||0)>0);
     const bag=$('#seedBag');
-    let nm, ct, al;
+    const nm='Seed bag';
+    let ct='', al;
     if(!have){
-      nm='No seeds'; ct='';
       al='No seeds. Open the shop to buy seeds.';
     }else{
       ct=(st.seeds[s.id]||0)+'×';
-      const w=bag&&bag.clientWidth>8?bag.clientWidth:32;
-      const key=s.id+'|'+ct+'|'+w+'|'+(bagCanMeasure()?'m':'x');
-      if(key!==bagFitKey){ bagFitKey=key; bagFitName=fitTab(s, ct, Math.max(8, w-1)); }
-      nm=bagFitName;
       al='Seed bag: '+s.name+', '+(st.seeds[s.id]||0)+'. Pick a seed or buy more.';
     }
     if(n.textContent!==nm) n.textContent=nm;
@@ -638,14 +634,16 @@ window.UI = (function(){
     if(!id||(!im.isConnected&&!(im.parentNode))) return;
     const sz=Math.max(16,Math.min(512,+im.dataset.sz||96))||96, hid=im.dataset.h==='1';
     const s=G.strain(id); if(!s) return;
-    let src=null;
+    let src=null, live=false;
     try{ if(R.closeupCanvas) src=R.closeupCanvas(s,sz,hid); }catch(e){ console.error(e); src=null; }
-    if(!src&&window.Art&&Art.thumbCanvas){ try{ src=Art.thumbCanvas(s,sz,hid); }catch(e){ console.error(e); src=null; } }
+    if(src) live=true;
+    else if(window.Art&&Art.thumbCanvas){ try{ src=Art.thumbCanvas(s,sz,hid); }catch(e){ console.error(e); src=null; } }
     if(!src) src=strainStandIn(sz, hid);
     if(!src) return;
     const view=document.createElement('canvas'); view.width=src.width||sz; view.height=src.height||sz;
     view.className=im.className||''; const st=im.getAttribute&&im.getAttribute('style'); if(st) view.setAttribute('style',st);
     view.dataset.cu=id; view.dataset.sz=String(sz); view.dataset.h=hid?'1':'0';
+    if(!live) view.dataset.ph='1';
     try{ const x=view.getContext('2d'); if(x) x.drawImage(src,0,0); }catch(e){ console.error(e); const ph=strainStandIn(sz, hid); if(ph){ view.width=ph.width; view.height=ph.height; try{ const x=view.getContext('2d'); if(x) x.drawImage(ph,0,0); }catch(e2){ console.error(e2); } } }
     if(im.replaceWith) im.replaceWith(view); else if(im.parentNode) im.parentNode.replaceChild(view,im);
   }
@@ -658,14 +656,7 @@ window.UI = (function(){
       return c;
     }catch(e){ console.error(e); return null; }
   }
-  function packetUrl(im){
-    const s=G.strain(im.dataset.cu); if(!s||!R.closeup) return '';
-    const sz=Math.max(16,+im.dataset.sz||112)||112;
-    try{ return R.closeup(s,sz,im.dataset.h==='1')||''; }catch(e){ console.error(e); return ''; }
-  }
-  function paintStrainImgs(root){ if(!root||!root.querySelectorAll) return; root.querySelectorAll('img[data-cu]').forEach(im=>{ try{
-      if(im.dataset.ready==='1'&&im.getAttribute('src')) return;
-      if(im.dataset.pkt==='1'){ const url=packetUrl(im); if(url){ im.src=url; im.dataset.ready='1'; return; } }
+  function paintStrainImgs(root){ if(!root||!root.querySelectorAll) return; root.querySelectorAll('img[data-cu], canvas[data-cu][data-ph="1"]').forEach(im=>{ try{
       mountStrainArt(im);
     }catch(e){ console.error(e); try{ const sz=Math.max(16,+im.dataset.sz||44)||44, ph=strainStandIn(sz, im.dataset.h==='1'); if(ph&&im.replaceWith) im.replaceWith(ph); }catch(e2){ console.error(e2); } } }); }
   function render(reset){

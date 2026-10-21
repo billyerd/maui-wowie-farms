@@ -2256,29 +2256,42 @@ window.R=(function(){
   const flyers=[];
   function pluck(target,n,golden){ const w=worldOf(target); const el=document.querySelector('#menu [data-panel="process"]'); if(!w||!el) return; const r=el.getBoundingClientRect(), s=toS(w.x,w.y-(slotOf.get(target.id)||{ppm:40}).ppm*.4);
     if(flyers.length>30) return; const k=Math.min(6,Math.max(2,n|0)); for(let i=0;i<k;i++) flyers.push({x:s.x+(Math.random()-.5)*26,y:s.y+(Math.random()-.5)*20,tx:r.left+r.width/2,ty:r.top+r.height*.35,t:-.18-i*.09,rot:Math.random()*6,gold:golden&&i===0,el,last:i===k-1}); }
-  // pest-scouting magnifier: a 2.2x lens over the live frame; hidden eggs/spores show as specks with a ring
+  // pest-scouting magnifier: a 2.2x lens over the live frame; hidden eggs/spores show as specks with a ring.
+  // lens.x/y stay on the finger (that is what gets magnified). The glass is drawn above it.
   const lens={on:false,x:0,y:0}; let lensC=null, lastOvl=[];
   function setLens(on,x,y){ lens.on=on; if(x!=null){ lens.x=x; lens.y=y; } }
+  function lensView(r){
+    const gap=36, m=8, top=r+m, bot=Math.max(top, H-r-m);
+    let y=lens.y-r-gap;
+    if(y<top){
+      // Pin to the top edge when that still clears the finger. Otherwise flip below.
+      if(top+r<=lens.y-gap) y=top;
+      else y=Math.min(bot, lens.y+r+gap);
+    }else if(y>bot) y=bot;
+    return {x:Math.max(r+m, Math.min(W-r-m, lens.x)), y};
+  }
   function drawLens(){ if(!lens.on) return; const Z=2.2, r=Math.min(78,W*.2)*(G.lv('loupe')?1.3:1), D=dpr; if(!lensC){ lensC=document.createElement('canvas'); }
     const sw=Math.ceil(2*r/Z*D); if(lensC.width!==sw){ lensC.width=sw; lensC.height=sw; } const lc=lensC.getContext('2d');
     lc.clearRect(0,0,sw,sw); lc.drawImage(cv,(lens.x-r/Z)*D,(lens.y-r/Z)*D,sw,sw,0,0,sw,sw);
-    ctx.save(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.setTransform(D,0,0,D,0,0); ctx.beginPath(); ctx.arc(lens.x,lens.y,r,0,TAU); ctx.save(); ctx.clip(); ctx.imageSmoothingEnabled=true; ctx.drawImage(lensC,lens.x-r,lens.y-r,2*r,2*r);
-    if(lens.crisp!==false){ // Inspect: re-render plants under the lens at the lens zoom with full-res art (hiSprite picks the cache from cam.z*dpr), so they stay crisp instead of a stretched frame
+    const view=lensView(r); lens.viewX=view.x; lens.viewY=view.y; const ox=view.x-lens.x, oy=view.y-lens.y;
+    const place=()=>{ ctx.setTransform(D,0,0,D,0,0); ctx.translate(ox,oy); };
+    ctx.save(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; place(); ctx.beginPath(); ctx.arc(lens.x,lens.y,r,0,TAU); ctx.save(); ctx.clip(); ctx.imageSmoothingEnabled=true; ctx.drawImage(lensC,lens.x-r,lens.y-r,2*r,2*r);
+    if(lens.crisp!==false){ // Inspect: re-render plants under the finger at the lens zoom. place() shifts that picture up into the glass.
       const z0=cam.z, x0=cam.x, y0=cam.y, wx=lens.x/z0+x0, wy=lens.y/z0+y0, z1=z0*Z; const now=performance.now()/1000, hq0=G.st.settings.hq; G.st.settings.hq=true;
       cam.z=z1; cam.x=wx-lens.x/z1; cam.y=wy-lens.y/z1; ctx.imageSmoothingQuality='high';
-      ctx.setTransform(D*z1,0,0,D*z1,-cam.x*z1*D,-cam.y*z1*D);
+      ctx.setTransform(D*z1,0,0,D*z1,-cam.x*z1*D,-cam.y*z1*D); ctx.translate(ox/z1,oy/z1);
       const vis=lastOvl.filter(o=>o.p&&o.p.strain&&o.sl).sort((a,b)=>a.sl.y-b.sl.y);
       for(const o of vis){ const sl=o.sl, yoff=potLift(sl), q=toS(sl.x,sl.y-yoff); if(Math.abs(q.x-lens.x)>r*1.6||q.y<lens.y-r*.4||q.y>lens.y+r*2.6) continue;
         ctx.save(); ctx.translate(0,-yoff); try{ drawPlantAt(o.p,null,sl,now); }catch(e){} ctx.restore(); }
-      cam.z=z0; cam.x=x0; cam.y=y0; G.st.settings.hq=hq0; ctx.setTransform(D,0,0,D,0,0); }
+      cam.z=z0; cam.x=x0; cam.y=y0; G.st.settings.hq=hq0; place(); }
     for(const o of lastOvl){ const p=o.p, sl=o.sl; if(!p||!(p.eggs>0)||!p.strain) continue; const h=o.h||20;
       const q=toS(sl.x,sl.y-h*.45), mx=lens.x+(q.x-lens.x)*Z, my=lens.y+(q.y-lens.y)*Z; if(Math.hypot(mx-lens.x,my-lens.y)>r+20) continue; const sd=hash(p.id);
       ctx.fillStyle=p.eggK==='mold'?'rgba(235,235,235,.95)':'rgba(255,250,210,.95)'; for(let i=0;i<9;i++){ const a=(sd*13+i*2.4)%TAU, d=4+((sd>>i)&7)*1.6; ctx.beginPath(); ctx.arc(mx+Math.cos(a)*d,my+Math.sin(a)*d*.8,1.6,0,TAU); ctx.fill(); }
       ctx.strokeStyle='#ff9f2e'; ctx.lineWidth=2; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.arc(mx,my,18,0,TAU); ctx.stroke(); ctx.setLineDash([]);
       ctx.font='800 11px system-ui,sans-serif'; ctx.textAlign='center'; ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.7)'; const t=p.eggK==='mold'?'Mold spores':'Pest eggs'; ctx.strokeText(t,mx,my-22); ctx.fillStyle='#ffd27a'; ctx.fillText(t,mx,my-22); }
     ctx.restore(); ctx.beginPath(); ctx.arc(lens.x,lens.y,r,0,TAU); ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=10; ctx.strokeStyle='#2a1c0e'; ctx.lineWidth=9; ctx.stroke(); ctx.shadowBlur=0; ctx.strokeStyle='#f0c45a'; ctx.lineWidth=4; ctx.stroke(); ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(lens.x,lens.y,r-4,3.6,5.2); ctx.stroke();
-    if(G.lv('loupe')){ const t=performance.now()/1000; for(const o of lastOvl){ if(!(o.p&&o.p.eggs>0)) continue; const q=toS(o.sl.x,o.sl.y-(o.h||20)*.5); if(Math.hypot(q.x-lens.x,q.y-lens.y)<r) continue; ctx.globalAlpha=.6+.4*Math.sin(t*5); ctx.fillStyle='#ff9f2e'; ctx.beginPath(); ctx.arc(q.x,q.y,5,0,TAU); ctx.fill(); ctx.globalAlpha=1; } }
-    ctx.strokeStyle='#3a2a18'; ctx.lineWidth=9; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(lens.x+r*.72,lens.y+r*.72); ctx.lineTo(lens.x+r*1.05,lens.y+r*1.05); ctx.stroke(); ctx.lineCap='butt'; ctx.restore(); }
+    ctx.strokeStyle='#3a2a18'; ctx.lineWidth=9; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(lens.x+r*.72,lens.y+r*.72); ctx.lineTo(lens.x+r*1.05,lens.y+r*1.05); ctx.stroke(); ctx.lineCap='butt'; ctx.restore();
+    if(G.lv('loupe')){ ctx.save(); ctx.setTransform(D,0,0,D,0,0); const t=performance.now()/1000; for(const o of lastOvl){ if(!(o.p&&o.p.eggs>0)) continue; const q=toS(o.sl.x,o.sl.y-(o.h||20)*.5); if(Math.hypot(q.x-view.x,q.y-view.y)<r) continue; ctx.globalAlpha=.6+.4*Math.sin(t*5); ctx.fillStyle='#ff9f2e'; ctx.beginPath(); ctx.arc(q.x,q.y,5,0,TAU); ctx.fill(); ctx.globalAlpha=1; } ctx.restore(); } }
   // painted-wood sign on the garage wall. x is the center, y is the top.
   function signBoard(x,y,t,bg,fg){ ctx.save(); ctx.font='900 18px system-ui,sans-serif'; const w=ctx.measureText(t).width+28; ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(x-w/2+3,y+3,w,30); ctx.fillStyle=bg; ctx.fillRect(x-w/2,y,w,30); ctx.strokeStyle=fg; ctx.lineWidth=2; ctx.strokeRect(x-w/2+3,y+3,w-6,24); ctx.fillStyle=fg; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(t,x,y+16); ctx.restore(); }
   // Keep the whole board on screen and off the HUD. Prefer the wall anchor; slide to the nearest clear spot.
@@ -2456,6 +2469,25 @@ window.R=(function(){
       im.src=IM[n].src||('art/'+n+'.webp'); });
   }
   const plantC=new Map();
+  // A downsample cached before the sprite finished decoding is a blank canvas. Do not keep it.
+  function canvasInk(c){
+    if(!c||typeof c.getContext!=='function'||!(c.width>1)||!(c.height>1)) return true;
+    try{
+      const x=c.getContext('2d',{willReadFrequently:true}); if(!x) return true;
+      const w=c.width|0, h=c.height|0, data=x.getImageData(0,0,w,h).data;
+      const step=Math.max(3, Math.round(Math.min(w,h)/8));
+      for(let yy=0;yy<h;yy+=step){ let i=(yy*w)<<2, end=i+(w<<2); for(;i<end;i+=step<<2) if(data[i+3]>24) return true; }
+      return false;
+    }catch(e){ return true; }
+  }
+  function paintCloseup(y,src,size){
+    const aspect=src.w/Math.max(1,src.h);
+    let dh=size*0.96, dw=dh*aspect;
+    if(dw>size*0.96){ dw=size*0.96; dh=dw/aspect; }
+    y.clearRect(0,0,size,size);
+    y.imageSmoothingEnabled=true; y.imageSmoothingQuality='high';
+    y.drawImage(src.c,(size-dw)/2,size*0.98-dh,dw,dh);
+  }
   // The plant pixels inside a seed-shop card: signature pot portrait, or the closest mature picture tinted to the strain.
   function closeupPlant(s,size){
     try{
@@ -2463,15 +2495,19 @@ window.R=(function(){
       size=Math.max(16,Math.min(512,+size||220));
       const key=s.id+'|'+size; const hit=plantC.get(key); if(hit) return hit;
       const L=look(s);
-      const im=STRAIN_IM[s.id]; if(!im||!im.naturalWidth) return null;
-      const src=bitmapFor(im, size, 1)||{c:im,w:im.naturalWidth,h:im.naturalHeight};
+      const im=STRAIN_IM[s.id]; if(!im||!im.complete||!im.naturalWidth) return null;
+      let src=bitmapFor(im, size, 1)||{c:im,w:im.naturalWidth,h:im.naturalHeight};
       const t=document.createElement('canvas'); t.width=size; t.height=size; const y=t.getContext('2d'); if(!y) return null;
-      const aspect=src.w/Math.max(1,src.h);
-      // Contain the whole plant, cola included. Wide plants shrink; they are not cropped.
-      let dh=size*0.96, dw=dh*aspect;
-      if(dw>size*0.96){ dw=size*0.96; dh=dw/aspect; }
-      y.imageSmoothingEnabled=true; y.imageSmoothingQuality='high';
-      y.drawImage(src.c,(size-dw)/2,size*0.98-dh,dw,dh);
+      paintCloseup(y,src,size);
+      if(!canvasInk(t) && src.c!==im){
+        const bag=BMPS.get(im._k); if(bag&&src.h) bag.delete(src.h);
+        src={c:im,w:im.naturalWidth,h:im.naturalHeight};
+        paintCloseup(y,src,size);
+      }
+      if(!canvasInk(t)){
+        if(im.decode && !im._pktRetry){ im._pktRetry=1; im.decode().then(()=>{ try{ dropCloseups(); if(window.UI&&UI.artReady) UI.artReady(); }catch(e){} }).catch(()=>{}); }
+        return null;
+      }
       const out={c:t,w:size,h:size,sig:false,painted:1,L}; plantC.set(key,out); return out;
     }catch(e){ if(isTaint(e)) armCors(); return null; }
   }
